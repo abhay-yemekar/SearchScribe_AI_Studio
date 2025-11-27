@@ -1,0 +1,85 @@
+# ------------------------------
+# Global ignores (OS / Editor)
+# ------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# ------------------------------
+# Python (Backend)
+# ------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+venv/
+ENV/
+.env/
+backend/.env
+
+# SQLite database files
+*.db
+backend/*.db
+
+# Pytest / Cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ------------------------------
+# FastAPI Specific
+# ------------------------------
+backend/__pycache__/
+backend/app/__pycache__/
+
+# ------------------------------
+# Node / Next.js (Frontend)
+# ------------------------------
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.vercel/
+
+# Environment files
+frontend/.env
+frontend/.env.local
+frontend/.env.development
+frontend/.env.production
+
+# Lock files backup
+*.lockb
+
+# ------------------------------
+# Log files
+# ------------------------------
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# ------------------------------
+# Cache Files
+# ------------------------------
+*.cache
+.cache/
+.next/
+.eslintcache
+
+# ------------------------------
+# Misc
+# ------------------------------
+*.swp
+*.swo
+*.tmp
+*~
+
+# Exported HTML/Downloads (optional)
+frontend/generated.html
