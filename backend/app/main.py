@@ -16,7 +16,8 @@ app = FastAPI(
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://search-scribe-ai-studio.vercel.app/"
+    "https://search-scribe-ai-studio.vercel.app/",
+    "http://search-scribe-ai-studio.vercel.app"
 ]
 
 app.add_middleware(
