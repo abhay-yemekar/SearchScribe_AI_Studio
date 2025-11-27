@@ -1,9 +1,20 @@
 fastapi
 uvicorn[standard]
+
+# Core validation & typing
 pydantic
-sqlalchemy
-python-dotenv
-passlib[bcrypt]
-python-multipart
-google-generativeai
 email-validator
+
+# DB + ORM
+sqlalchemy
+
+# Auth / Security
+passlib[bcrypt]
+python-jose[cryptography]
+python-multipart
+
+# Env variables
+python-dotenv
+
+# LLM / Google Gemini
+google-generativeai
