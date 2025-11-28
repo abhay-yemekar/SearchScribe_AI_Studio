@@ -1,0 +1,6 @@
+Flow :
+
+Auth flow: signup → login → token → protected routes.
+Generate flow: query → /content/generate → llm_client → DB save → response to frontend → tabs.
+Regenerate flow: existing article + style instruction → /content/regenerate.
+Download flow: HTML string → Blob → browser download.

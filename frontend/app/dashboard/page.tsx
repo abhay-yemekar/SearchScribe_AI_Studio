@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Tabs from "@/components/Tabs";
 import HtmlPreview from "@/components/HtmlPreview";
+import ArticlePreview from "@/components/ArticlePreview";   // <-- added import
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
@@ -37,8 +38,6 @@ export default function DashboardPage() {
 
   const [userName, setUserName] = useState<string | null>(null);
 
-  // ───────── Helpers ─────────
-
   const getToken = () =>
     typeof window !== "undefined"
       ? localStorage.getItem("token")
@@ -70,12 +69,10 @@ export default function DashboardPage() {
     }
   };
 
-  // ───────── Effects ─────────
-
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      router.push("/"); // go back to auth page if not logged in
+      router.push("/");
       return;
     }
 
@@ -85,9 +82,7 @@ export default function DashboardPage() {
     }
 
     fetchHistory();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ───────── Actions ─────────
+  }, []); 
 
   const handleGenerate = async () => {
     try {
@@ -182,7 +177,7 @@ export default function DashboardPage() {
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-    router.push("/"); // back to login/signup
+    router.push("/");
   };
 
   const handleDownloadHtml = () => {
@@ -200,8 +195,6 @@ export default function DashboardPage() {
 
     URL.revokeObjectURL(url);
   };
-
-  // ───────── Render ─────────
 
   return (
     <div className="flex h-screen bg-slate-950 text-white">
@@ -225,9 +218,7 @@ export default function DashboardPage() {
             onClick={handleRegenerateGenZ}
             disabled={regenerating}
           >
-            {regenerating
-              ? "Regenerating…"
-              : "Regenerate for GenZ"}
+            {regenerating ? "Regenerating…" : "Regenerate for GenZ"}
           </button>
         </div>
 
@@ -316,20 +307,7 @@ export default function DashboardPage() {
         <div className="flex-1">
           <Tabs
             articleTab={
-              articleText ? (
-                <div className="w-full h-full bg-slate-800 border border-slate-700 rounded p-6 overflow-y-auto text-sm leading-relaxed space-y-3">
-                  <div
-                    className="space-y-3"
-                    dangerouslySetInnerHTML={{
-                      __html: articleText,
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-slate-800 border border-slate-700 rounded text-slate-400 text-sm">
-                  AI-generated article will appear here…
-                </div>
-              )
+              <ArticlePreview content={articleText} />   // <-- only change
             }
             seoTab={
               <div className="space-y-4">
