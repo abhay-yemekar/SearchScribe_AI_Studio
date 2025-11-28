@@ -384,6 +384,6 @@ LinkedIn: *https://www.linkedin.com/in/abhayyemekar*
 # ⭐ Support This Project
 
 If you find this project helpful, please ⭐ **star the repository**!  
-Your support increases visibility and improves your GitHub profile.
+Your support increases visibility and improves my GitHub profile.
 
 ---
