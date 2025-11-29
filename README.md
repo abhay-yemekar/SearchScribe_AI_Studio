@@ -18,7 +18,7 @@
 - 🕘 Automatic Content History Saving  
 - 🔐 JWT Authentication System (Signup/Login/Logout)  
 
-This project was developed as part of the **Engineering Task** from a company, demonstrating:
+This project was developed as part of an **Engineering Task** assigned by a company, demonstrating:
 
 - Full-stack engineering using **FastAPI** + **Next.js 14**
 - Integration with **Google Gemini LLM**  
