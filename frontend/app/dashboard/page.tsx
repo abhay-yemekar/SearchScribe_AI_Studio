@@ -4,10 +4,9 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Tabs from "@/components/Tabs";
 import HtmlPreview from "@/components/HtmlPreview";
-import ArticlePreview from "@/components/ArticlePreview";   // <-- added import
+import ArticlePreview from "@/components/ArticlePreview"; // <-- added import
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 type HistoryItem = {
   id: number;
@@ -39,9 +38,7 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState<string | null>(null);
 
   const getToken = () =>
-    typeof window !== "undefined"
-      ? localStorage.getItem("token")
-      : null;
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
   const fetchHistory = async () => {
     try {
@@ -49,14 +46,11 @@ export default function DashboardPage() {
       const token = getToken();
       if (!token) return;
 
-      const res = await fetch(
-        `${API_BASE}/content/history?limit=20`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const res = await fetch(`${API_BASE}/content/history?limit=20`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       if (!res.ok) return;
 
@@ -82,7 +76,7 @@ export default function DashboardPage() {
     }
 
     fetchHistory();
-  }, []); 
+  }, []);
 
   const handleGenerate = async () => {
     try {
@@ -201,9 +195,7 @@ export default function DashboardPage() {
       {/* Sidebar */}
       <aside className="w-72 border-r border-slate-800 p-4 bg-slate-900/60 flex flex-col">
         <div>
-          <h2 className="text-base font-semibold mb-4">
-            SearchScribe AI Studio
-          </h2>
+          <h2 className="text-base font-semibold mb-4">SearchScribe AI Studio</h2>
 
           <button
             className="w-full py-2 mb-2 bg-blue-600 hover:bg-blue-700 rounded"
@@ -224,18 +216,12 @@ export default function DashboardPage() {
 
         {/* History */}
         <div className="mt-6 flex-1 flex flex-col">
-          <h3 className="text-sm font-semibold text-slate-300 mb-2">
-            History
-          </h3>
+          <h3 className="text-sm font-semibold text-slate-300 mb-2">History</h3>
 
           {loadingHistory ? (
-            <p className="text-xs text-slate-500">
-              Loading history…
-            </p>
+            <p className="text-xs text-slate-500">Loading history…</p>
           ) : history.length === 0 ? (
-            <p className="text-xs text-slate-500">
-              No history found.
-            </p>
+            <p className="text-xs text-slate-500">No history found.</p>
           ) : (
             <div className="space-y-1 overflow-y-auto text-sm max-h-80 pr-1">
               {history.map((item) => (
@@ -245,18 +231,12 @@ export default function DashboardPage() {
                   className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-400">
-                      ARTICLE + SEO
-                    </span>
+                    <span className="text-xs text-slate-400">ARTICLE + SEO</span>
                     <span className="text-[10px] text-slate-500">
-                      {new Date(
-                        item.created_at
-                      ).toLocaleTimeString()}
+                      {new Date(item.created_at).toLocaleTimeString()}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-200 truncate">
-                    {item.query}
-                  </div>
+                  <div className="text-xs text-slate-200 truncate">{item.query}</div>
                 </button>
               ))}
             </div>
@@ -268,16 +248,10 @@ export default function DashboardPage() {
       <main className="flex-1 p-6 flex flex-col gap-4">
         {/* Top bar */}
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-2xl font-bold tracking-tight">
-            SearchScribe AI Studio
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight">SearchScribe AI Studio</h1>
 
           <div className="flex items-center gap-3">
-            {userName && (
-              <span className="text-sm text-slate-300">
-                Hi, {userName}
-              </span>
-            )}
+            {userName && <span className="text-sm text-slate-300">Hi, {userName}</span>}
             <button
               onClick={handleLogout}
               className="px-3 py-1.5 text-sm rounded border border-slate-600 hover:bg-slate-800"
@@ -298,51 +272,36 @@ export default function DashboardPage() {
             placeholder="e.g., Things to do in Pune"
             className="w-full p-2 bg-slate-900 border border-slate-700 rounded text-sm"
           />
-          {error && (
-            <p className="text-xs text-red-400 mt-1">{error}</p>
-          )}
+          {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
         </div>
 
         {/* Tabs */}
         <div className="flex-1">
           <Tabs
             articleTab={
-              <ArticlePreview content={articleText} />   // <-- only change
+              <ArticlePreview content={articleText} /> // <-- only change
             }
             seoTab={
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm mb-1">
-                    SEO Title
-                  </label>
+                  <label className="block text-sm mb-1">SEO Title</label>
                   <input
                     value={seoTitle}
-                    onChange={(e) =>
-                      setSeoTitle(e.target.value)
-                    }
+                    onChange={(e) => setSeoTitle(e.target.value)}
                     className="w-full p-2 bg-slate-800 border border-slate-700 rounded text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm mb-1">
-                    SEO Description
-                  </label>
+                  <label className="block text-sm mb-1">SEO Description</label>
                   <textarea
                     value={seoDescription}
-                    onChange={(e) =>
-                      setSeoDescription(e.target.value)
-                    }
+                    onChange={(e) => setSeoDescription(e.target.value)}
                     className="w-full p-2 bg-slate-800 border border-slate-700 rounded h-32 text-sm resize-none"
                   />
                 </div>
               </div>
             }
-            htmlTab={
-              <HtmlPreview
-                html={htmlPreview}
-                onDownload={handleDownloadHtml}
-              />
-            }
+            htmlTab={<HtmlPreview html={htmlPreview} onDownload={handleDownloadHtml} />}
           />
         </div>
       </main>

@@ -53,7 +53,7 @@ export async function generateContent(query: string, token: string) {
 export async function regenerateArticle(
   article: string,
   style_instruction: string,
-  token: string
+  token: string,
 ) {
   const res = await fetch(`${BASE_URL}/content/regenerate`, {
     method: "POST",

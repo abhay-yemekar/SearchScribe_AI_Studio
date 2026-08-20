@@ -13,7 +13,7 @@ export default function ArticlePreview({ content }: ArticlePreviewProps) {
   // Convert markdown → HTML only when content changes
   const html = useMemo(
     () => (content ? (marked.parse(content) as string) : ""),
-    [content]
+    [content],
   );
 
   // If there is no content yet, show a soft placeholder

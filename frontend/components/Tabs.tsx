@@ -13,8 +13,7 @@ interface TabsProps {
 export default function Tabs({ articleTab, seoTab, htmlTab }: TabsProps) {
   const [active, setActive] = useState<TabKey>("article");
 
-  const baseButton =
-    "px-4 py-2 text-sm font-medium border-b-2 transition-colors";
+  const baseButton = "px-4 py-2 text-sm font-medium border-b-2 transition-colors";
   const inactive =
     "border-transparent text-gray-400 hover:text-white hover:border-gray-500";
   const activeCls = "border-blue-500 text-white";

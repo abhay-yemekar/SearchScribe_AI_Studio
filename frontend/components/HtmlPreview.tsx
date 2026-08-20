@@ -5,10 +5,7 @@ interface HtmlPreviewProps {
   onDownload?: () => void;
 }
 
-export default function HtmlPreview({
-  html,
-  onDownload,
-}: HtmlPreviewProps) {
+export default function HtmlPreview({ html, onDownload }: HtmlPreviewProps) {
   if (!html) {
     return (
       <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">
@@ -21,9 +18,7 @@ export default function HtmlPreview({
     <div className="flex flex-col h-full">
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-2 text-sm">
-        <span className="text-slate-300">
-          Live HTML Preview
-        </span>
+        <span className="text-slate-300">Live HTML Preview</span>
         <button
           onClick={onDownload}
           disabled={!onDownload}

@@ -3,8 +3,7 @@
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 type Mode = "login" | "signup";
 
@@ -89,9 +88,7 @@ export default function AuthForm() {
       await handleLogin();
     } catch (err: any) {
       console.error(err);
-      setError(
-        err?.message || "Signup failed. Please check your details."
-      );
+      setError(err?.message || "Signup failed. Please check your details.");
       setLoading(false);
     }
   };
@@ -111,17 +108,12 @@ export default function AuthForm() {
         {/* Left: Hero + illustration */}
         <div className="flex-1 fade-in-up">
           <h1 className="text-3xl md:text-4xl font-bold leading-tight">
-            Welcome to{" "}
-            <span className="text-blue-400">
-              SearchScribe AI Studio
-            </span>
+            Welcome to <span className="text-blue-400">SearchScribe AI Studio</span>
           </h1>
 
           <p className="text-xl text-slate-300 font-light mt-3 leading-relaxed">
             Create SEO-optimized articles and ready-to-publish HTML —{" "}
-            <span className="text-blue-400 font-medium">
-              all from one search.
-            </span>
+            <span className="text-blue-400 font-medium">all from one search.</span>
           </p>
 
           <p className="text-slate-400 text-sm mt-3">
@@ -136,8 +128,8 @@ export default function AuthForm() {
                   AI Content Studio
                 </p>
                 <p className="text-sm text-slate-200">
-                  Turn a single topic into a full article, SEO metadata,
-                  and HTML landing page.
+                  Turn a single topic into a full article, SEO metadata, and HTML landing
+                  page.
                 </p>
               </div>
               <div className="mt-4 flex items-center gap-3 text-xs text-slate-300">
@@ -183,9 +175,7 @@ export default function AuthForm() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {mode === "signup" && (
                 <div>
-                  <label className="block text-xs mb-1 text-slate-300">
-                    Name
-                  </label>
+                  <label className="block text-xs mb-1 text-slate-300">Name</label>
                   <input
                     type="text"
                     value={name}
@@ -197,9 +187,7 @@ export default function AuthForm() {
               )}
 
               <div>
-                <label className="block text-xs mb-1 text-slate-300">
-                  Email
-                </label>
+                <label className="block text-xs mb-1 text-slate-300">Email</label>
                 <input
                   type="email"
                   value={email}
@@ -211,9 +199,7 @@ export default function AuthForm() {
               </div>
 
               <div>
-                <label className="block text-xs mb-1 text-slate-300">
-                  Password
-                </label>
+                <label className="block text-xs mb-1 text-slate-300">Password</label>
                 <input
                   type="password"
                   value={password}
@@ -224,20 +210,14 @@ export default function AuthForm() {
                 />
               </div>
 
-              {error && (
-                <p className="text-xs text-red-400">{error}</p>
-              )}
+              {error && <p className="text-xs text-red-400">{error}</p>}
 
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full mt-2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
-                {loading
-                  ? "Please wait…"
-                  : mode === "login"
-                  ? "Login"
-                  : "Sign Up"}
+                {loading ? "Please wait…" : mode === "login" ? "Login" : "Sign Up"}
               </button>
             </form>
 

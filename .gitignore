@@ -21,18 +21,24 @@ build/
 
 # Virtual environment
 venv/
+.venv/
 ENV/
-.env/
+backend/.venv/
 backend/.env
 
 # SQLite database files
 *.db
 backend/*.db
 
-# Pytest / Cache
+# Pytest / Cache / tooling
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 .coverage
 htmlcov/
+
+# ZCode agent workspace
+.zcode/
 
 # ------------------------------
 # FastAPI Specific
