@@ -88,3 +88,33 @@ def register_user(
     )
     assert response.status_code == 201, response.text
     return response.json()
+
+
+@pytest.fixture(autouse=True)
+def _reset_mock_provider() -> Generator[None, None, None]:
+    """Keep the singleton MockProvider's failure hooks from leaking across tests."""
+    from app.ai.factory import get_provider
+
+    provider = get_provider()
+    provider.permanent_failure = False
+    provider.transient_failures_remaining = 0
+    yield
+    provider.permanent_failure = False
+    provider.transient_failures_remaining = 0
+
+
+def auth_headers(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def generate_article(
+    client: TestClient, token: str, query: str = "Urban gardening in small spaces"
+) -> dict[str, Any]:
+    """Helper: generate an article and return the detail payload."""
+    response = client.post(
+        "/api/v1/articles",
+        json={"query": query},
+        headers=auth_headers(token),
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
