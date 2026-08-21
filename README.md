@@ -1,389 +1,196 @@
-# 🌐 SearchScribe AI Studio
+# SearchScribe AI Studio
 
-### **AI-powered Article Generator · SEO Metadata Engine · HTML Page Builder**
+**One search query → a structured AI article, validated SEO metadata, and a sanitized, ready-to-publish HTML page.**
 
-> **Tagline**  
-> _Create SEO-optimized articles and ready-to-publish HTML — all from one search._
-
----
-
-## 📌 Overview
-
-**SearchScribe AI Studio** is a full-stack AI content engine that transforms a **single search query** into:
-
-- ✨ AI-generated long-form articles  
-- 🏷️ SEO metadata (Title + Meta Description)  
-- 🌐 Ready-to-publish HTML pages  
-- 🔁 1-click Gen-Z Tone Rewrite  
-- 🕘 Automatic Content History Saving  
-- 🔐 JWT Authentication System (Signup/Login/Logout)  
-
-This project was developed as part of an **Engineering Task** assigned by a company, demonstrating:
-
-- Full-stack engineering using **FastAPI** + **Next.js 14**
-- Integration with **Google Gemini LLM**  
-- Product-grade UX with animations and a hero-style auth page  
-- Well-structured backend routes and data flow  
-- Deployment-ready architecture (Render + Vercel)  
-- Clean, modular, scalable codebase  
-
----
-## 📸 Screenshots
-
-> Place all screenshots inside a folder named `screenshots/` at the root of your repo.
-
-### 🔐 1. Landing Page – Auth + Hero
-
-**File:** `screenshots/01_auth_landing_page.png`
-
-![Auth Landing Page](screenshots/01_auth_landing_page.png)
+SearchScribe is a full-stack AI content platform: a FastAPI backend with a provider-independent LLM layer, a Next.js 14 frontend, PostgreSQL via SQLAlchemy 2.x + Alembic, rotating refresh-cookie sessions, article versioning, and a multi-style rewrite engine.
 
 ---
 
-### 📝 2. Signup Screen (with Name field)
+## Features
 
-**File:** `screenshots/02_signup_screen.png`
+- **Account & sessions** — signup/login/logout with Argon2id password hashing, short-lived access JWTs held in memory, rotating HttpOnly refresh cookies (theft detection included).
+- **Article generation** — a query becomes a structured article (title / intro / sections / conclusion), deterministic Markdown + standalone HTML, all schema-validated.
+- **SEO engine** — separate LLM pass for title, meta description, keywords, and Open Graph fields, clamped by deterministic rules (title ≤ 60, description ≤ 160 chars).
+- **Rewrite styles** — Professional, Casual, Gen Z, Technical, Marketing, Minimal. Every rewrite is a new immutable version.
+- **Version history** — list, inspect, and restore any version without losing history.
+- **Hardened HTML** — the LLM never emits HTML: Jinja2 autoescaping renders it, nh3 sanitizes it again, the preview iframe is fully sandboxed.
+- **Production posture** — request IDs, structured JSON logs, error envelopes, rate limiting, health/readiness probes, Docker + CI.
 
-![Signup Screen](screenshots/02_signup_screen.png)
+## Architecture
 
----
+```mermaid
+flowchart TD
+    Browser[Browser · Next.js 14] -->|"/api proxy rewrites"| FE[Next.js server]
+    FE --> API[FastAPI /api/v1]
+    API --> Auth[Auth service]
+    API --> Gen[Generation service]
+    API --> Art[Article service]
+    Gen --> AI[LLM provider protocol]
+    AI --> Gemini[GeminiProvider · google-genai]
+    AI --> Mock[MockProvider · offline/tests]
+    Gen --> R[Jinja2 renderer → nh3 sanitizer]
+    Auth & Gen & Art --> DB[(PostgreSQL / SQLite)]
+```
 
-### 🔑 3. Login Screen
+The application is a **modular monolith**: routers stay thin, business logic lives in services, data access in repositories, and every LLM call goes through one provider protocol. See [docs/architecture.md](docs/architecture.md).
 
-**File:** `screenshots/03_login_screen.png`
+## Tech stack
 
-![Login Screen](screenshots/03_login_screen.png)
+| Layer     | Choices                                                                  |
+| --------- | ------------------------------------------------------------------------ |
+| Backend   | Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic, PyJWT, argon2-cffi, nh3, Jinja2 |
+| AI        | google-genai (Gemini 2.5 Flash default) behind an `LLMProvider` protocol + offline MockProvider |
+| Frontend  | Next.js 14 (App Router), TypeScript strict, TanStack Query, Zod, React Hook Form, Tailwind CSS, DOMPurify |
+| Data      | PostgreSQL (docker-compose), SQLite (zero-setup local dev)               |
+| Testing   | pytest (55 backend tests), Vitest + Testing Library, Playwright E2E      |
+| Infra     | Docker multi-stage non-root images, docker-compose, GitHub Actions CI    |
 
----
-
-### 💻 4. Dashboard – Empty State
-
-**File:** `screenshots/04_dashboard_empty_state.png`
-
-![Dashboard Empty State](screenshots/04_dashboard_empty_state.png)
-
----
-
-### 🧾 5. Article Generated – Article Tab
-
-**File:** `screenshots/05_dashboard_article_generated.png`
-
-![Article Generated](screenshots/05_dashboard_article_generated.png)
-
----
-
-### 🏷️ 6. SEO Metadata Tab
-
-**File:** `screenshots/06_seo_metadata_tab.png`
-
-![SEO Metadata Tab](screenshots/06_seo_metadata_tab.png)
-
----
-
-### 🌐 7. HTML Preview Tab + Download
-
-**File:** `screenshots/07_html_preview_tab.png`
-
-![HTML Preview Tab](screenshots/07_html_preview_tab.png)
-
----
-
-### 🕘 8. History Sidebar
-
-**File:** `screenshots/08_history_sidebar.png`
-
-![History Sidebar](screenshots/08_history_sidebar.png)
-
----
-
-### 😎 9. Gen-Z Rewrite Output (Optional)
-
-**File:** `screenshots/09_genz_rewrite_output.png`
-
-![Gen-Z Rewrite Output](screenshots/09_genz_rewrite_output.png)
-
----
-
-# 🧠 Features Overview
-
-## 🔹 1. Search → AI Generated Content  
-Enter any topic → Gemini generates:
-
-- Rich article with headings
-- SEO title & description
-- Fully formatted HTML page
-
-> Endpoint: `POST /content/generate`
-
----
-
-## 🔹 2. HTML Preview + Download  
-- Instant HTML rendering  
-- Iframe-based preview  
-- Download generated HTML in **one click**
-
-> Component: `frontend/components/HtmlPreview.tsx`
-
----
-
-## 🔹 3. Gen-Z Rewrite Mode  
-Regenerates the same article with:
-
-- Conversational tone  
-- Short, punchy Gen-Z style  
-- SEO preserved  
-
-> Endpoint: `POST /content/regenerate`
-
----
-
-## 🔹 4. Auto-Saved History (Stage 2 Implemented)  
-Side panel tracks:
-
-- All past queries  
-- Timestamp  
-- SEO + article + HTML  
-- Click to reload content instantly  
-
-> Logic in:  
-`backend/history_store.py`  
-`backend/app/models.py`  
-`frontend/app/dashboard/page.tsx`
-
----
-
-## 🔹 5. Full Authentication  
-Includes:
-
-- Signup → Name + Email + Password  
-- Login → Email + Password  
-- JWT token stored securely in localStorage  
-- Logout → Clears session  
-- Protected routes (Dashboard inaccessible without token)  
-
-> Components:  
-`frontend/components/AuthForm.tsx`  
-`frontend/app/page.tsx`
-
----
-
-## 🔹 6. Modern UI / UX  
-- Hero section on login/signup page  
-- Animations (fade-in / slide-in)  
-- TailwindCSS  
-- Dashboard with sidebar + tabs  
-- Dark mode  
-- Responsive layout  
-
-> Tabs:  
-`Article · SEO Metadata · HTML Preview`
-
----
-
-# 🏗️ Architecture
+## Repository structure
 
 ```
-SearchScribe-AI-Studio/
-│
+SearchScribe_AI_Studio/
 ├── backend/
-│   ├── .env.example
-│   ├── history_store.py
-│   ├── models.json
-│   ├── requirements.txt
-│   └── app/
-│       ├── main.py
-│       ├── auth.py
-│       ├── config.py
-│       ├── database.py
-│       ├── deps.py
-│       ├── llm_client.py
-│       ├── models.py
-│       ├── schemas.py
-│       └── routers/
-│           ├── auth_routes.py
-│           └── content_routes.py
-│
-└── frontend/
-    ├── app/
-    │   ├── dashboard/page.tsx
-    │   ├── layout.tsx
-    │   ├── page.tsx
-    │   ├── globals.css
-    │
-    ├── components/
-    │   ├── AuthForm.tsx
-    │   ├── Tabs.tsx
-    │   ├── HtmlPreview.tsx
-    │   ├── ContentForm.tsx
-    │   ├── SeoMetadataCard.tsx
-    │
-    ├── lib/api.ts
-    ├── package.json
-    ├── tailwind.config.js
-    ├── next.config.mjs
-    ├── tsconfig.json
-    └── postcss.config.js
+│   ├── app/
+│   │   ├── api/v1/          # thin HTTP routers (auth, articles, health)
+│   │   ├── core/            # config, security, logging, errors, rate limiting
+│   │   ├── db/              # session, declarative base, models
+│   │   ├── schemas/         # Pydantic request/response models
+│   │   ├── services/        # business logic (auth, generation, articles)
+│   │   ├── repositories/    # user-scoped data access
+│   │   └── ai/              # provider protocol, Gemini, Mock, prompts,
+│   │                        # structured-output schemas, renderer, sanitizer
+│   ├── alembic/             # migrations
+│   └── tests/               # unit + API tests (mock provider, no network)
+├── frontend/
+│   ├── app/                 # Next.js App Router pages
+│   ├── features/            # auth, articles (feature-based modules)
+│   ├── components/shared/   # accessible Tabs, loading/empty/error states
+│   ├── lib/api/             # typed API client + Zod schemas
+│   ├── e2e/                 # Playwright specs + backend startup script
+│   └── Dockerfile
+├── docs/                    # architecture, API, security, ADRs, ...
+├── docker-compose.yml       # postgres + redis + backend + frontend
+└── .github/workflows/ci.yml
 ```
 
----
+## Local development
 
-# ⚙️ Local Development Setup
+### Backend
 
-## 🔧 Backend (FastAPI)
-
-### 1. Install dependencies
 ```bash
 cd backend
-pip install -r requirements.txt
+python -m venv ../.venv && ../.venv/Scripts/pip install -r requirements.txt -r requirements-dev.txt  # Windows
+cp .env.example .env                 # fill in GEMINI_API_KEY (or set AI_PROVIDER=mock)
+../.venv/Scripts/python -m alembic upgrade head
+../.venv/Scripts/python -m uvicorn app.main:app --reload
 ```
 
-### 2. Create `.env`
-```
-GEMINI_API_KEY=your_key_here
-JWT_SECRET=your_secret_here
-JWT_ALGORITHM=HS256
-DATABASE_URL=sqlite:///./searchscribe.db
-```
+- API: http://127.0.0.1:8000 · Docs: http://127.0.0.1:8000/docs
+- No Gemini key? Run with `AI_PROVIDER=mock` — the whole product works offline.
 
-### 3. Start FastAPI
-```bash
-uvicorn app.main:app --reload
-```
+### Frontend
 
-Backend runs at:
-
-- API: http://127.0.0.1:8000  
-- Docs: http://127.0.0.1:8000/docs  
-
----
-
-## 🎨 Frontend (Next.js 14 + Tailwind)
-
-### 1. Install dependencies
 ```bash
 cd frontend
 npm install
-```
-
-### 2. Add environment variables (`.env.local`)
-```
-NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
-```
-
-### 3. Run frontend
-```bash
 npm run dev
 ```
 
-Frontend runs at:
+http://localhost:3000 — the Next.js server proxies `/api/*` to the backend (see `next.config.mjs`), which keeps the refresh cookie first-party.
 
-- http://localhost:3000
+### Tests
 
----
-
-# ☁️ Deployment (Free)
-
-## 🚀 Backend → Render
-
-### Settings:
-- Root Directory → `backend`
-- Runtime → Python
-- **Start Command:**
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Backend (unit + API, fully offline)
+cd backend && ../.venv/Scripts/python -m pytest
+
+# Frontend unit tests
+cd frontend && npm test
+
+# E2E: boots backend (:8001, mock AI) + frontend (:3100) automatically
+cd frontend && npx playwright test
 ```
 
-### Environment Variables:
-```
-GEMINI_API_KEY
-JWT_SECRET
-JWT_ALGORITHM
-DATABASE_URL
-```
+### Docker (production-like)
 
-Your backend becomes:
-
-`https://your-backend.onrender.com`
-
----
-
-## 🚀 Frontend → Vercel
-
-### Settings:
-- Root Directory → `frontend`
-- Framework → Next.js
-
-### Env Variable:
-```
-NEXT_PUBLIC_API_URL=https://your-backend.onrender.com
+```bash
+docker compose up --build
+# frontend http://localhost:3000 · backend http://localhost:8000/docs
+# AI_PROVIDER=mock docker compose up   # keyless demo mode
 ```
 
-Your frontend becomes:
+Migrations run automatically at container start (`alembic upgrade head` in the CMD).
 
-`https://your-frontend.vercel.app`
+## Environment variables
 
----
+All settings are typed and validated in `backend/app/core/config.py`. See [`backend/.env.example`](backend/.env.example) for the full annotated list. Highlights:
 
-# 📌 API Endpoints
+| Variable                       | Default                        | Purpose                                  |
+| ------------------------------ | ------------------------------ | ---------------------------------------- |
+| `APP_ENV`                      | `local`                        | `production` disables docs, secures cookies |
+| `DATABASE_URL`                 | `sqlite:///./searchscribe.db`  | SQLite dev default; Postgres in compose  |
+| `SECRET_KEY`                   | —                              | JWT signing key; required in production  |
+| `AI_PROVIDER` / `AI_MODEL`     | `gemini` / `gemini-2.5-flash`  | `mock` for offline mode                  |
+| `GEMINI_API_KEY`               | —                              | Google AI Studio key (free tier works)   |
+| `CORS_ORIGINS`                 | localhost:3000                 | Comma-separated allowed origins          |
+| `RATE_LIMIT_*_PER_MINUTE`      | 10 auth / 5 generation         | Sliding-window limits                    |
 
-## Authentication
+Never commit `.env`. Generate a strong key with
+`python -c "import secrets; print(secrets.token_urlsafe(48))"`.
+
+## API overview
+
+All endpoints are versioned under `/api/v1` and return a consistent error envelope (`{"error": {"code", "message", "request_id"}}`):
+
 ```
-POST /auth/signup
-POST /auth/login
+POST   /api/v1/auth/signup|login|refresh|logout     Sessions & tokens
+GET    /api/v1/auth/me                              Current user
+POST   /api/v1/articles                             Generate (rate-limited)
+GET    /api/v1/articles?limit=&cursor=              Cursor pagination
+GET    /api/v1/articles/{id}                        Detail: markdown + SEO + HTML
+PATCH  /api/v1/articles/{id}                        Rename
+DELETE /api/v1/articles/{id}                        Delete (cascades versions)
+POST   /api/v1/articles/{id}/duplicate              Copy
+POST   /api/v1/articles/{id}/rewrite                {style} → new version
+GET    /api/v1/articles/{id}/versions[/{version}]   History & inspection
+POST   /api/v1/articles/{id}/versions/{v}/restore   Restore as newest
+GET    /api/v1/articles/rewrite-styles              Available styles
+GET    /api/v1/health | /ready                      Probes
 ```
 
-## Content Generation
-```
-POST /content/generate
-POST /content/regenerate
-GET  /content/history
-```
+Full request/response schemas: [docs/api.md](docs/api.md) and the interactive `/docs`.
 
----
+## Documentation
 
-# 📑 Task PDF Mapping ✔️
+- [Architecture](docs/architecture.md) — layers, data flow, request lifecycle
+- [AI architecture](docs/ai-architecture.md) — provider protocol, prompts, pipeline, failure policy
+- [Database](docs/database.md) — schema, migrations, pagination strategy
+- [Security](docs/security.md) — auth design, sanitization, rate limiting
+- [Testing](docs/testing.md) — what's covered and how to run it
+- [Deployment](docs/deployment.md) — Docker, CI, production checklist
+- [Decision records](docs/decisions/) — ADRs for the load-bearing choices
 
-| Requirement from PDF | Status |
-|----------------------|--------|
-| Login / Signup | ✅ Implemented |
-| JWT Auth | ✅ |
-| AI Article Generation | ✅ |
-| SEO Metadata | ✅ |
-| HTML Page Generation | ✅ |
-| HTML Download | ✅ |
-| Regenerate Option | ✅ (Gen-Z) |
-| Tabs Interface | ✅ |
-| Search Input | ✅ |
-| History | ✅ |
-| Clean UI | ✅ Modern + Animated |
-| Deployment Ready | ✅ Render + Vercel |
+## Design decisions (short version)
 
----
+| Decision | Why |
+| --- | --- |
+| Modular monolith | Right-sized; extractable later, no distributed overhead now |
+| Provider protocol + factory | Swap/add LLMs with one file + env vars; tests never call real APIs |
+| LLM returns structured JSON, never HTML | Deterministic rendering eliminates a whole class of XSS and layout failures |
+| Access token in memory + rotating refresh cookie | XSS cannot exfiltrate what isn't in storage; rotation detects theft |
+| SQLite dev / Postgres prod via one SQLAlchemy code path | Zero-setup local dev, production-grade storage |
+| Fail loudly on provider errors | Never fabricate fake "successful" content |
 
-# 🌟 Future Enhancements
+Details and trade-offs in [docs/decisions/](docs/decisions/).
 
-- Multi-language article generation  
-- Support for image generation (Gemini Vision)  
-- Full blog automation queue  
-- HTML-to-PDF export  
-- Category-based content library  
+## Roadmap ideas
 
----
+Background generation queue (Arq/Celery), SSE streaming, admin analytics over the `generations` table, exports (Markdown/PDF/DOCX), multi-language and brand-voice modes, research + citations. The architecture isolates each of these behind existing seams.
 
-# 👤 Author
+## Author
 
-**Abhay Yemekar**  
-AI Developer · Python · Full Stack  
-📍 Pune, India  
+**Abhay Yemekar** · [GitHub](https://github.com/abhay-yemekar) · [LinkedIn](https://www.linkedin.com/in/abhayyemekar)
 
-GitHub: *https://github.com/abhay-yemekar*  
-LinkedIn: *https://www.linkedin.com/in/abhayyemekar*  
+## License
 
----
-
-# ⭐ Support This Project
-
-If you find this project helpful, please ⭐ **star the repository**!  
-Your support increases visibility and improves my GitHub profile.
-
----
+[MIT](LICENSE)
