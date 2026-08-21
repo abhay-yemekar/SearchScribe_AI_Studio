@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from ...ai.styles import REWRITE_STYLES
 from ...core.config import settings
 from ...core.rate_limit import rate_limit
-from ...db.models import User
+from ...db.models import Article, User
 from ...db.session import get_db
 from ...schemas.article import (
     ArticleDetailOut,
@@ -39,7 +39,7 @@ def generate_article(
     payload: GenerateArticleRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ArticleDetailOut:
     outcome = GenerationService(db).generate_article(current_user, payload.query)
     return ArticleService(db).get_article(current_user, outcome.article.id)
 
@@ -54,7 +54,7 @@ def list_articles(
     cursor: str | None = Query(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ArticleListOut:
     return ArticleService(db).list_articles(current_user, limit=limit, cursor=cursor)
 
 
@@ -63,7 +63,7 @@ def list_articles(
     response_model=RewriteStylesOut,
     summary="Available rewrite styles",
 )
-def rewrite_styles():
+def rewrite_styles() -> RewriteStylesOut:
     return RewriteStylesOut(
         styles=[
             RewriteStyleOut(key=key, label=meta["label"])
@@ -81,7 +81,7 @@ def get_article(
     article_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ArticleDetailOut:
     return ArticleService(db).get_article(current_user, article_id)
 
 
@@ -95,7 +95,7 @@ def rename_article(
     payload: UpdateArticleRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ArticleDetailOut:
     return ArticleService(db).rename_article(current_user, article_id, payload.title)
 
 
@@ -108,7 +108,7 @@ def delete_article(
     article_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> None:
     ArticleService(db).delete_article(current_user, article_id)
 
 
@@ -122,7 +122,7 @@ def duplicate_article(
     article_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ArticleDetailOut:
     return ArticleService(db).duplicate_article(current_user, article_id)
 
 
@@ -137,7 +137,7 @@ def rewrite_article(
     payload: RewriteRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ArticleDetailOut:
     article = _owned_article(db, current_user, article_id)
     GenerationService(db).rewrite_article(current_user, article, payload.style)
     return ArticleService(db).get_article(current_user, article_id)
@@ -152,7 +152,7 @@ def list_versions(
     article_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> VersionListOut:
     return ArticleService(db).list_versions(current_user, article_id)
 
 
@@ -166,7 +166,7 @@ def get_version(
     version: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> VersionDetailOut:
     return ArticleService(db).get_version(current_user, article_id, version)
 
 
@@ -180,12 +180,14 @@ def restore_version(
     version: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> ArticleDetailOut:
     ArticleService(db).restore_version(current_user, article_id, version)
     return ArticleService(db).get_article(current_user, article_id)
 
 
-def _owned_article(db: Session, user: User, article_id: int):
+def _owned_article(
+    db: Session, user: User, article_id: int
+) -> Article:
     from ...core.exceptions import NotFoundError
     from ...repositories.article_repo import ArticleRepository
 

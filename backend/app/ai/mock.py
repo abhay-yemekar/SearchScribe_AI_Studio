@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import time
+from typing import TypeVar, cast
+
+from pydantic import BaseModel
 
 from .base import PermanentLLMError, ProviderResponse, TransientLLMError
 from .schemas import ArticleSection, GeneratedArticle, SeoResult
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class MockProvider:
@@ -22,8 +27,8 @@ class MockProvider:
         prompt_name: str,
         prompt_version: str,
         variables: dict[str, str],
-        schema: type,
-    ) -> ProviderResponse:
+        schema: type[T],
+    ) -> ProviderResponse[T]:
         if self.permanent_failure:
             raise PermanentLLMError("mock: configured permanent failure")
         if self.transient_failures_remaining > 0:
@@ -42,7 +47,7 @@ class MockProvider:
             raise PermanentLLMError(f"mock: unsupported schema {schema.__name__}")
 
         return ProviderResponse(
-            data=data,  # type: ignore[arg-type]
+            data=cast("T", data),
             provider=self.name,
             model=self.model,
             input_tokens=120,

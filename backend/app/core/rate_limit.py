@@ -10,6 +10,7 @@ from __future__ import annotations
 import threading
 import time
 from collections import defaultdict, deque
+from typing import Any
 
 from fastapi import Depends, Request
 
@@ -50,7 +51,7 @@ def _client_key(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def rate_limit(scope: str, limit: int):
+def rate_limit(scope: str, limit: int) -> Any:
     """FastAPI dependency factory limiting requests per client per minute."""
 
     def dependency(request: Request) -> None:

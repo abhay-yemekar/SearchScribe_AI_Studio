@@ -4,19 +4,28 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import TypeVar
 
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
+from pydantic import BaseModel
 
 from ..core.config import settings
-from .base import PermanentLLMError, ProviderResponse, SchemaValidationError, TransientLLMError
+from .base import (
+    PermanentLLMError,
+    ProviderResponse,
+    SchemaValidationError,
+    TransientLLMError,
+)
 from .prompts import render_prompt
 
 logger = logging.getLogger(__name__)
 
 # Codes worth retrying: rate limit + server-side failures.
 _TRANSIENT_CODES = {429, 500, 502, 503, 504}
+
+T = TypeVar("T", bound=BaseModel)
 
 _client: genai.Client | None = None
 
@@ -42,8 +51,8 @@ class GeminiProvider:
         prompt_name: str,
         prompt_version: str,
         variables: dict[str, str],
-        schema: type,
-    ) -> ProviderResponse:
+        schema: type[T],
+    ) -> ProviderResponse[T]:
         prompt = render_prompt(prompt_name, prompt_version, variables)
         started = time.perf_counter()
 

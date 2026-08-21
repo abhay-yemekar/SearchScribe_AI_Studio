@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   async rewrites() {
     // Same-origin proxy to the backend: the browser only ever talks to
     // localhost:3000, which keeps the refresh cookie first-party (SameSite=Lax)

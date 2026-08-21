@@ -40,6 +40,10 @@ htmlcov/
 # ZCode agent workspace
 .zcode/
 
+# Playwright artifacts
+frontend/test-results/
+frontend/playwright-report/
+
 # ------------------------------
 # FastAPI Specific
 # ------------------------------

@@ -102,16 +102,14 @@ class ExternalServiceError(AppError):
 def error_response(
     status_code: int, code: str, message: str, details: dict[str, object] | None = None
 ) -> JSONResponse:
-    body: dict[str, object] = {
-        "error": {
-            "code": code,
-            "message": message,
-            "request_id": request_id_var.get(),
-        }
+    error_body: dict[str, object] = {
+        "code": code,
+        "message": message,
+        "request_id": request_id_var.get(),
     }
     if details:
-        body["error"]["details"] = details  # type: ignore[union-attr]
-    return JSONResponse(status_code=status_code, content=body)
+        error_body["details"] = details
+    return JSONResponse(status_code=status_code, content={"error": error_body})
 
 
 def register_exception_handlers(app: FastAPI) -> None:

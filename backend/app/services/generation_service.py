@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from ..ai.base import LLMError, call_with_retry
+from ..ai.base import LLMError, LLMProvider, call_with_retry
 from ..ai.factory import get_provider
 from ..ai.renderer import _fallback_seo, render_article_html
 from ..ai.sanitizer import sanitize_document
@@ -57,7 +57,15 @@ class GenerationService:
                 code="QUERY_TOO_LONG",
             )
 
-        provider = get_provider()
+        try:
+            provider = get_provider()
+        except ValueError as exc:
+            # Misconfigured provider (e.g. gemini without an API key).
+            logger.error("generation.provider_unavailable", extra={"user_id": user.id})
+            raise ExternalServiceError(
+                "Content generation is not configured on this server.",
+                code="AI_PROVIDER_UNAVAILABLE",
+            ) from exc
 
         # --- article ---
         try:
@@ -149,7 +157,7 @@ class GenerationService:
         )
 
     def _generate_seo(
-        self, user: User, provider, article: GeneratedArticle
+        self, user: User, provider: LLMProvider, article: GeneratedArticle
     ) -> tuple[SeoResult, bool]:
         try:
             seo_response = call_with_retry(
@@ -211,7 +219,18 @@ class GenerationService:
                 "Article too long to rewrite.", code="REWRITE_INPUT_TOO_LONG"
             )
 
-        provider = get_provider()
+        try:
+            provider = get_provider()
+        except ValueError as exc:
+            logger.error(
+                "generation.provider_unavailable",
+                extra={"user_id": user.id, "article_id": article.id},
+            )
+            raise ExternalServiceError(
+                "Content generation is not configured on this server.",
+                code="AI_PROVIDER_UNAVAILABLE",
+            ) from exc
+
         try:
             response = call_with_retry(
                 lambda: provider.generate(

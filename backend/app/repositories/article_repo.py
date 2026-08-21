@@ -127,4 +127,4 @@ class ArticleRepository:
             delete(Article).where(Article.id == article_id, Article.user_id == user_id)
         )
         self.db.commit()
-        return result.rowcount > 0
+        return bool(getattr(result, "rowcount", 0))

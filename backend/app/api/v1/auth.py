@@ -51,7 +51,7 @@ def _token_payload(user: User, tokens: SessionTokens) -> TokenOut:
     summary="Create an account and start a session",
     dependencies=[rate_limit("auth", settings.rate_limit_auth_per_minute)],
 )
-def signup(payload: SignupRequest, response: Response, db: Session = Depends(get_db)):
+def signup(payload: SignupRequest, response: Response, db: Session = Depends(get_db)) -> TokenOut:
     service = AuthService(db)
     user = service.signup(
         email=payload.email, name=payload.name, password=payload.password
@@ -67,7 +67,7 @@ def signup(payload: SignupRequest, response: Response, db: Session = Depends(get
     summary="Exchange credentials for an access token + refresh cookie",
     dependencies=[rate_limit("auth", settings.rate_limit_auth_per_minute)],
 )
-def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)) -> TokenOut:
     service = AuthService(db)
     user = service.login(email=payload.email, password=payload.password)
     tokens = service.issue_session(user)
@@ -81,7 +81,7 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
     summary="Rotate the refresh cookie and issue a new access token",
     dependencies=[rate_limit("auth", settings.rate_limit_auth_per_minute)],
 )
-def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
+def refresh(request: Request, response: Response, db: Session = Depends(get_db)) -> TokenOut:
     raw_token = request.cookies.get(REFRESH_COOKIE_NAME)
     if not raw_token:
         raise AuthenticationError("Missing session cookie.")
@@ -95,7 +95,7 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
     "/logout",
     summary="Revoke the current session",
 )
-def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+def logout(request: Request, response: Response, db: Session = Depends(get_db)) -> dict[str, bool]:
     service = AuthService(db)
     service.logout(request.cookies.get(REFRESH_COOKIE_NAME))
     _clear_refresh_cookie(response)
@@ -107,5 +107,5 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     response_model=UserOut,
     summary="Current authenticated user",
 )
-def me(current_user: User = Depends(get_current_user)):
+def me(current_user: User = Depends(get_current_user)) -> UserOut:
     return UserOut.model_validate(current_user)

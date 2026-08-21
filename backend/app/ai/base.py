@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import random
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol, TypeVar
 
@@ -61,9 +62,9 @@ class LLMProvider(Protocol):
     ) -> ProviderResponse[T]: ...
 
 
-def call_with_retry(
-    fn, *, max_retries: int, base_delay_seconds: float = 0.4
-) -> object:
+def call_with_retry[R](
+    fn: Callable[[], R], *, max_retries: int, base_delay_seconds: float = 0.4
+) -> R:
     """Run fn() with exponential backoff + jitter on transient failures only.
 
     Permanent errors and schema failures surface immediately: retrying them
