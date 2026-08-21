@@ -19,7 +19,10 @@ NAMING_CONVENTION: dict[str, str] = {
 
 
 def utc_now() -> datetime:
-    return datetime.now(UTC)
+    # Naive UTC. SQLite (dev) stores naive datetimes and PostgreSQL production
+    # columns are timezone-normalized at the driver layer, so one convention
+    # everywhere avoids naive/aware comparison errors.
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class Base(DeclarativeBase):
