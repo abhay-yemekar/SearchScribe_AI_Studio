@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     ai_provider: Literal["gemini", "mock"] = "gemini"
     ai_model: str = "gemini-2.5-flash"
     gemini_api_key: str = ""
+    ai_timeout_seconds: int = 60
+    ai_max_retries: int = 2
+    ai_max_output_tokens: int = 8192
 
     # --- Request limits ---
     max_query_length: int = 500
