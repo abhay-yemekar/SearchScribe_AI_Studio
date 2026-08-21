@@ -1,309 +1,372 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Tabs from "@/components/Tabs";
-import HtmlPreview from "@/components/HtmlPreview";
-import ArticlePreview from "@/components/ArticlePreview"; // <-- added import
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CopyPlus, Download, Sparkles } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-
-type HistoryItem = {
-  id: number;
-  query: string;
-  article: string;
-  seo_metadata: {
-    title?: string;
-    description?: string;
-  } | null;
-  html: string;
-  created_at: string;
-};
+import Tabs from "@/components/shared/Tabs";
+import { ArticleSkeleton, ErrorBanner, Spinner } from "@/components/shared/States";
+import ArticleSidebar from "@/features/articles/ArticleSidebar";
+import ArticleView from "@/features/articles/ArticleView";
+import SeoPanel from "@/features/articles/SeoPanel";
+import HtmlPreview from "@/features/articles/HtmlPreview";
+import VersionsPanel from "@/features/articles/VersionsPanel";
+import { useSession } from "@/features/auth/useSession";
+import {
+  deleteArticle,
+  duplicateArticle,
+  fetchRewriteStyles,
+  generateArticle,
+  getArticle,
+  listArticles,
+  listVersions,
+  renameArticle,
+  restoreVersion,
+  rewriteArticle,
+} from "@/lib/api/articles";
 
 export default function DashboardPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { token, user, bootstrapping, logout } = useSession();
 
   const [query, setQuery] = useState("");
-  const [articleText, setArticleText] = useState("");
-  const [seoTitle, setSeoTitle] = useState("");
-  const [seoDescription, setSeoDescription] = useState("");
-  const [htmlPreview, setHtmlPreview] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState("article");
+  const [style, setStyle] = useState("genz");
+  const [actionError, setActionError] = useState<string | null>(null);
+  const queryInputRef = useRef<HTMLInputElement>(null);
 
-  const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [userName, setUserName] = useState<string | null>(null);
-
-  const getToken = () =>
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
-  const fetchHistory = async () => {
-    try {
-      setLoadingHistory(true);
-      const token = getToken();
-      if (!token) return;
-
-      const res = await fetch(`${API_BASE}/content/history?limit=20`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) return;
-
-      const data: HistoryItem[] = await res.json();
-      setHistory(data);
-    } catch (err) {
-      console.error("Failed to load history", err);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
+  // Redirect if the session bootstrap comes back empty-handed.
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push("/");
+    if (!bootstrapping && !token) router.replace("/");
+  }, [bootstrapping, token, router]);
+
+  const articlesQuery = useQuery({
+    queryKey: ["articles"],
+    queryFn: () => listArticles(20),
+    enabled: !!token,
+  });
+
+  const articles = articlesQuery.data?.items ?? [];
+
+  const selectedQuery = useQuery({
+    queryKey: ["article", selectedId],
+    queryFn: () => getArticle(selectedId as number),
+    enabled: !!token && selectedId !== null,
+  });
+
+  const versionsQuery = useQuery({
+    queryKey: ["versions", selectedId],
+    queryFn: () => listVersions(selectedId as number),
+    enabled: !!token && selectedId !== null,
+  });
+
+  const stylesQuery = useQuery({
+    queryKey: ["rewrite-styles"],
+    queryFn: fetchRewriteStyles,
+    enabled: !!token,
+    staleTime: Infinity,
+  });
+
+  const invalidateSelected = useCallback(() => {
+    if (selectedId !== null) {
+      void queryClient.invalidateQueries({ queryKey: ["article", selectedId] });
+      void queryClient.invalidateQueries({ queryKey: ["versions", selectedId] });
+    }
+    void queryClient.invalidateQueries({ queryKey: ["articles"] });
+  }, [queryClient, selectedId]);
+
+  const generate = useMutation({
+    mutationFn: (topic: string) => generateArticle(topic),
+    onSuccess: (detail) => {
+      setActionError(null);
+      setSelectedId(detail.id);
+      setActiveTab("article");
+      setQuery("");
+      void queryClient.invalidateQueries({ queryKey: ["articles"] });
+    },
+    onError: (error) => setActionError((error as Error).message),
+  });
+
+  const rewrite = useMutation({
+    mutationFn: () => rewriteArticle(selectedId as number, style),
+    onSuccess: invalidateSelected,
+    onError: (error) => setActionError((error as Error).message),
+  });
+
+  const rename = useMutation({
+    mutationFn: (title: string) => renameArticle(selectedId as number, title),
+    onSuccess: invalidateSelected,
+    onError: (error) => setActionError((error as Error).message),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: number) => deleteArticle(id),
+    onSuccess: (_data, id) => {
+      if (id === selectedId) setSelectedId(null);
+      void queryClient.invalidateQueries({ queryKey: ["articles"] });
+    },
+    onError: (error) => setActionError((error as Error).message),
+  });
+
+  const duplicate = useMutation({
+    mutationFn: (id: number) => duplicateArticle(id),
+    onSuccess: (detail) => {
+      setSelectedId(detail.id);
+      void queryClient.invalidateQueries({ queryKey: ["articles"] });
+    },
+    onError: (error) => setActionError((error as Error).message),
+  });
+
+  const restore = useMutation({
+    mutationFn: (version: number) => restoreVersion(selectedId as number, version),
+    onSuccess: invalidateSelected,
+    onError: (error) => setActionError((error as Error).message),
+  });
+
+  const detail = selectedQuery.data;
+
+  const downloadHtml = useCallback(() => {
+    if (!detail) return;
+    const blob = new Blob([detail.html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${detail.title.replace(/[^\w\- ]+/g, "").slice(0, 60) || "article"}.html`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, [detail]);
+
+  const copyMarkdown = useCallback(() => {
+    if (detail) void navigator.clipboard.writeText(detail.markdown);
+  }, [detail]);
+
+  const handleGenerate = () => {
+    const topic = query.trim();
+    if (topic.length < 3) {
+      setActionError("Enter a topic (at least 3 characters).");
       return;
     }
-
-    if (typeof window !== "undefined") {
-      const storedName = localStorage.getItem("user_name");
-      if (storedName) setUserName(storedName);
-    }
-
-    fetchHistory();
-  }, []);
-
-  const handleGenerate = async () => {
-    try {
-      setError(null);
-
-      if (!query.trim()) {
-        setError("Please enter a topic.");
-        return;
-      }
-
-      const token = getToken();
-      if (!token) return router.push("/");
-
-      setGenerating(true);
-
-      const res = await fetch(`${API_BASE}/content/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ query }),
-      });
-
-      if (!res.ok) throw new Error("Generation failed");
-
-      const data = await res.json();
-      const seo = data.seo_metadata || {};
-
-      setArticleText(data.article || "");
-      setSeoTitle(seo.title || "");
-      setSeoDescription(seo.description || "");
-      setHtmlPreview(data.html || "");
-
-      fetchHistory();
-    } catch (err: any) {
-      setError(err?.message || "Error generating content.");
-    } finally {
-      setGenerating(false);
-    }
+    setActionError(null);
+    generate.mutate(topic);
   };
 
-  const handleRegenerateGenZ = async () => {
-    try {
-      setError(null);
-
-      if (!articleText.trim()) {
-        setError("Please generate content first.");
-        return;
-      }
-
-      const token = getToken();
-      if (!token) return router.push("/");
-
-      setRegenerating(true);
-
-      const res = await fetch(`${API_BASE}/content/regenerate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          article: articleText,
-          style_instruction:
-            "Rewrite this article in a casual, fun, Gen Z tone while keeping SEO intact.",
-        }),
-      });
-
-      if (!res.ok) throw new Error("Regenerate failed");
-
-      const data = await res.json();
-
-      setArticleText(data.article || articleText);
-      setHtmlPreview(data.html || htmlPreview);
-
-      fetchHistory();
-    } catch (err) {
-      setError("Failed to regenerate article.");
-    } finally {
-      setRegenerating(false);
-    }
-  };
-
-  const handleLoadFromHistory = (item: HistoryItem) => {
-    setQuery(item.query);
-    setArticleText(item.article);
-    setSeoTitle(item.seo_metadata?.title || "");
-    setSeoDescription(item.seo_metadata?.description || "");
-    setHtmlPreview(item.html);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    router.push("/");
-  };
-
-  const handleDownloadHtml = () => {
-    if (!htmlPreview) return;
-
-    const blob = new Blob([htmlPreview], {
-      type: "text/html;charset=utf-8",
-    });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "generated.html";
-    a.click();
-
-    URL.revokeObjectURL(url);
-  };
+  if (bootstrapping) {
+    return (
+      <div className="flex h-screen items-center justify-center gap-3 bg-slate-950 text-slate-400">
+        <Spinner className="h-6 w-6" /> Restoring session…
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-slate-950 text-white">
-      {/* Sidebar */}
-      <aside className="w-72 border-r border-slate-800 p-4 bg-slate-900/60 flex flex-col">
-        <div>
-          <h2 className="text-base font-semibold mb-4">SearchScribe AI Studio</h2>
+      <ArticleSidebar
+        articles={articles}
+        loading={articlesQuery.isLoading}
+        loadingMore={false}
+        hasMore={false}
+        selectedId={selectedId}
+        deletingId={remove.isPending ? selectedId : null}
+        onSelect={(id) => {
+          setSelectedId(id);
+          setActiveTab("article");
+        }}
+        onNewArticle={() => {
+          setSelectedId(null);
+          setActionError(null);
+          queryInputRef.current?.focus();
+        }}
+        onLoadMore={() => undefined}
+        onDelete={(id) => remove.mutate(id)}
+      />
 
-          <button
-            className="w-full py-2 mb-2 bg-blue-600 hover:bg-blue-700 rounded"
-            onClick={handleGenerate}
-            disabled={generating}
-          >
-            {generating ? "Generating…" : "Generate Content"}
-          </button>
-
-          <button
-            className="w-full py-2 mb-2 bg-rose-500 hover:bg-rose-600 rounded"
-            onClick={handleRegenerateGenZ}
-            disabled={regenerating}
-          >
-            {regenerating ? "Regenerating…" : "Regenerate for GenZ"}
-          </button>
-        </div>
-
-        {/* History */}
-        <div className="mt-6 flex-1 flex flex-col">
-          <h3 className="text-sm font-semibold text-slate-300 mb-2">History</h3>
-
-          {loadingHistory ? (
-            <p className="text-xs text-slate-500">Loading history…</p>
-          ) : history.length === 0 ? (
-            <p className="text-xs text-slate-500">No history found.</p>
-          ) : (
-            <div className="space-y-1 overflow-y-auto text-sm max-h-80 pr-1">
-              {history.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleLoadFromHistory(item)}
-                  className="w-full text-left px-2 py-1 rounded-md hover:bg-slate-800"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-400">ARTICLE + SEO</span>
-                    <span className="text-[10px] text-slate-500">
-                      {new Date(item.created_at).toLocaleTimeString()}
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-200 truncate">{item.query}</div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </aside>
-
-      {/* Main Area */}
-      <main className="flex-1 p-6 flex flex-col gap-4">
-        {/* Top bar */}
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-2xl font-bold tracking-tight">SearchScribe AI Studio</h1>
-
-          <div className="flex items-center gap-3">
-            {userName && <span className="text-sm text-slate-300">Hi, {userName}</span>}
+      <main className="flex min-w-0 flex-1 flex-col gap-4 p-6">
+        <header className="flex items-center justify-between">
+          <h1 className="text-xl font-bold tracking-tight">Article workspace</h1>
+          <div className="flex items-center gap-3 text-sm text-slate-300">
+            {user ? <span>Hi, {user.name}</span> : null}
             <button
-              onClick={handleLogout}
-              className="px-3 py-1.5 text-sm rounded border border-slate-600 hover:bg-slate-800"
+              type="button"
+              onClick={() => void logout()}
+              className="rounded border border-slate-600 px-3 py-1.5 transition-colors hover:bg-slate-800"
             >
               Logout
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* Query */}
+        {/* Query + generate */}
         <div>
-          <label className="block text-sm mb-1 text-slate-300">
-            Topic / Search query
+          <label htmlFor="topic" className="mb-1 block text-sm text-slate-300">
+            Topic / search query
           </label>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g., Things to do in Pune"
-            className="w-full p-2 bg-slate-900 border border-slate-700 rounded text-sm"
-          />
-          {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
+          <div className="flex gap-2">
+            <input
+              id="topic"
+              ref={queryInputRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  event.preventDefault();
+                  handleGenerate();
+                }
+              }}
+              placeholder="e.g. Things to do in Pune"
+              className="w-full rounded border border-slate-700 bg-slate-900 p-2 text-sm outline-none transition-colors focus:border-blue-500"
+            />
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={generate.isPending}
+              className="flex shrink-0 items-center gap-2 rounded bg-blue-600 px-4 py-2 text-sm font-medium transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {generate.isPending ? (
+                <Spinner />
+              ) : (
+                <Sparkles aria-hidden className="h-4 w-4" />
+              )}
+              {generate.isPending ? "Generating…" : "Generate"}
+            </button>
+          </div>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Tip: press <kbd className="rounded bg-slate-800 px-1">Ctrl</kbd>+
+            <kbd className="rounded bg-slate-800 px-1">Enter</kbd> to generate.
+          </p>
         </div>
 
-        {/* Tabs */}
-        <div className="flex-1">
-          <Tabs
-            articleTab={
-              <ArticlePreview content={articleText} /> // <-- only change
-            }
-            seoTab={
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm mb-1">SEO Title</label>
-                  <input
-                    value={seoTitle}
-                    onChange={(e) => setSeoTitle(e.target.value)}
-                    className="w-full p-2 bg-slate-800 border border-slate-700 rounded text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm mb-1">SEO Description</label>
-                  <textarea
-                    value={seoDescription}
-                    onChange={(e) => setSeoDescription(e.target.value)}
-                    className="w-full p-2 bg-slate-800 border border-slate-700 rounded h-32 text-sm resize-none"
-                  />
-                </div>
+        {actionError ? <ErrorBanner message={actionError} /> : null}
+
+        {/* Workspace */}
+        {selectedId === null ? (
+          <div className="flex flex-1 items-center justify-center rounded-xl border border-slate-700 bg-slate-900/50 text-sm text-slate-400">
+            {generate.isPending ? (
+              <div className="w-full max-w-2xl space-y-6 p-8">
+                <p className="text-center text-sm text-slate-300">
+                  Writing your article…
+                </p>
+                <ArticleSkeleton />
               </div>
-            }
-            htmlTab={<HtmlPreview html={htmlPreview} onDownload={handleDownloadHtml} />}
-          />
-        </div>
+            ) : (
+              "Generate an article or pick one from the sidebar."
+            )}
+          </div>
+        ) : selectedQuery.isLoading ? (
+          <div className="flex-1 space-y-3 p-4">
+            <ArticleSkeleton />
+          </div>
+        ) : selectedQuery.isError ? (
+          <ErrorBanner message={(selectedQuery.error as Error).message} />
+        ) : detail ? (
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            {/* Title + actions */}
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                aria-label="Article title"
+                defaultValue={detail.title}
+                key={detail.id}
+                onBlur={(event) => {
+                  const value = event.target.value.trim();
+                  if (value && value !== detail.title) {
+                    rename.mutate(value);
+                  }
+                }}
+                className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-2 py-1 text-lg font-semibold outline-none transition-colors hover:border-slate-700 focus:border-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => duplicate.mutate(detail.id)}
+                title="Duplicate article"
+                className="rounded border border-slate-600 p-2 transition-colors hover:bg-slate-800"
+              >
+                <CopyPlus aria-hidden className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={downloadHtml}
+                title="Download HTML"
+                className="rounded border border-slate-600 p-2 transition-colors hover:bg-slate-800"
+              >
+                <Download aria-hidden className="h-4 w-4" />
+              </button>
+
+              {/* Rewrite controls */}
+              <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1">
+                <label htmlFor="style" className="text-xs text-slate-400">
+                  Rewrite as
+                </label>
+                <select
+                  id="style"
+                  value={style}
+                  onChange={(event) => setStyle(event.target.value)}
+                  className="rounded bg-slate-800 px-2 py-1 text-xs outline-none"
+                >
+                  {(stylesQuery.data?.styles ?? [{ key: "genz", label: "Gen Z" }]).map(
+                    (s) => (
+                      <option key={s.key} value={s.key}>
+                        {s.label}
+                      </option>
+                    ),
+                  )}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => rewrite.mutate()}
+                  disabled={rewrite.isPending}
+                  className="flex items-center gap-1.5 rounded bg-rose-600 px-3 py-1 text-xs font-medium transition-colors hover:bg-rose-700 disabled:opacity-60"
+                >
+                  {rewrite.isPending ? <Spinner className="h-3.5 w-3.5" /> : null}
+                  {rewrite.isPending ? "Rewriting…" : "Rewrite"}
+                </button>
+              </div>
+            </div>
+
+            <Tabs
+              active={activeTab}
+              onChange={setActiveTab}
+              tabs={[
+                {
+                  key: "article",
+                  label: "Article",
+                  content: (
+                    <ArticleView markdown={detail.markdown} onCopy={copyMarkdown} />
+                  ),
+                },
+                {
+                  key: "seo",
+                  label: "SEO Metadata",
+                  content: <SeoPanel seo={detail.seo} />,
+                },
+                {
+                  key: "preview",
+                  label: "HTML Preview",
+                  content: (
+                    <HtmlPreview
+                      html={detail.html}
+                      title={detail.title}
+                      onDownload={downloadHtml}
+                    />
+                  ),
+                },
+                {
+                  key: "versions",
+                  label: "Versions",
+                  content: (
+                    <VersionsPanel
+                      versions={versionsQuery.data?.items ?? []}
+                      currentVersion={detail.current_version}
+                      restoring={restore.isPending}
+                      onRestore={(version) => restore.mutate(version)}
+                    />
+                  ),
+                },
+              ]}
+            />
+          </div>
+        ) : null}
       </main>
     </div>
   );

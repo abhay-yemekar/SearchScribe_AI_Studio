@@ -1,14 +1,18 @@
 import "./globals.css";
+import type { Metadata } from "next";
+import Providers from "./providers";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "SearchScribe AI Studio",
-  description: "AI-powered search-based content generator",
+  description: "AI-powered article, SEO metadata, and HTML page generator",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="bg-black text-white">{children}</body>
+      <body className="bg-slate-950 text-white antialiased">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }
