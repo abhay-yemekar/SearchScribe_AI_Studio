@@ -227,3 +227,34 @@ def test_generation_endpoints_rate_limited(client: TestClient) -> None:
 
     assert 429 in statuses
     assert statuses[-1] == 429
+
+
+def test_deleted_article_does_not_leak_into_next_article(client: TestClient) -> None:
+    """Regression: deleting an article must remove its versions and SEO rows.
+
+    SQLite reuses the freed rowid, so orphaned child rows resurface under the
+    next article with the same id (cross-user content + SEO leak, then a
+    UNIQUE constraint failure on the next write).
+    """
+    alice = register_user(client, email="alice-delete@example.com")
+    alice_headers = auth_headers(alice["access_token"])
+    alice_detail = generate_article(
+        client, alice["access_token"], query="ALICE CONFIDENTIAL DRAFT gardening"
+    )
+
+    deleted = client.delete(f"/api/v1/articles/{alice_detail['id']}", headers=alice_headers)
+    assert deleted.status_code == 204
+
+    bob = register_user(client, email="bob-after-delete@example.com")
+    bob_detail = generate_article(
+        client, bob["access_token"], query="Bob weekend baking tips"
+    )
+
+    assert "ALICE CONFIDENTIAL DRAFT" not in bob_detail["markdown"]
+    assert "ALICE CONFIDENTIAL DRAFT" not in bob_detail["seo"]["title"]
+
+    versions = client.get(
+        f"/api/v1/articles/{bob_detail['id']}/versions",
+        headers=auth_headers(bob["access_token"]),
+    ).json()
+    assert [v["version"] for v in versions["items"]] == [1]

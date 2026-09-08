@@ -18,14 +18,13 @@ os.environ["GEMINI_API_KEY"] = ""
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
 import app.db.models  # noqa: E402  (register models)
 from app.core.rate_limit import limiter  # noqa: E402
 from app.db.base import Base  # noqa: E402
-from app.db.session import get_db  # noqa: E402
+from app.db.session import create_db_engine, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 
 TEST_PASSWORD = "correct-horse-1"
@@ -34,7 +33,7 @@ TEST_PASSWORD = "correct-horse-1"
 def _make_engine():
     # In-memory SQLite shared across connections via StaticPool: one schema,
     # fully isolated per test function, no file cleanup needed.
-    return create_engine(
+    return create_db_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
