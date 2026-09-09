@@ -1,6 +1,7 @@
 "use client";
 
 import { ApiError, type ApiErrorShape } from "./errors";
+import { tokenSchema } from "./schemas";
 import { clearAccessToken, getSnapshot, setAccessToken } from "@/lib/auth/token-store";
 
 /**
@@ -57,10 +58,9 @@ async function tryRefresh(): Promise<boolean> {
     credentials: "include",
   });
   if (!response.ok) return false;
-  const data = (await response.json()) as {
-    access_token: string;
-    expires_in: number;
-  };
+  const data = tokenSchema
+    .pick({ access_token: true, expires_in: true })
+    .parse(await response.json());
   setAccessToken(data.access_token, data.expires_in);
   return true;
 }
@@ -68,7 +68,7 @@ async function tryRefresh(): Promise<boolean> {
 let refreshPromise: Promise<boolean> | null = null;
 
 /** Coalesces concurrent refresh attempts into one request. */
-function refreshOnce(): Promise<boolean> {
+export function refreshOnce(): Promise<boolean> {
   if (!refreshPromise) {
     refreshPromise = tryRefresh().finally(() => {
       refreshPromise = null;

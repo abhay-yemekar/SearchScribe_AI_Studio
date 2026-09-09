@@ -1,7 +1,7 @@
 "use client";
 
 import { apiFetch } from "./client";
-import { tokenSchema, type TokenPayload, type User } from "./schemas";
+import { tokenSchema, userSchema, type TokenPayload, type User } from "./schemas";
 import { setAccessToken, clearAccessToken } from "@/lib/auth/token-store";
 
 export async function signup(input: {
@@ -32,7 +32,7 @@ export async function login(input: {
 }
 
 export async function fetchCurrentUser(): Promise<User> {
-  return apiFetch<User>("/api/v1/auth/me");
+  return userSchema.parse(await apiFetch<unknown>("/api/v1/auth/me"));
 }
 
 export async function logout(): Promise<void> {

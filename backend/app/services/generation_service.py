@@ -308,4 +308,6 @@ class GenerationService:
             keywords=seo_row.keywords,
             og_title=seo_row.og_title,
             og_description=seo_row.og_description,
+            robots=seo_row.robots,
+            canonical_url=seo_row.canonical_url,
         )

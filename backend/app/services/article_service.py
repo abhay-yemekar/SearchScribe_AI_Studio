@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from ..ai.renderer import render_article_html
 from ..ai.sanitizer import sanitize_document
 from ..ai.schemas import GeneratedArticle, SeoResult
-from ..core.exceptions import NotFoundError
+from ..core.exceptions import BadRequestError, NotFoundError
 from ..db.models import Article, User
 from ..repositories.article_repo import ArticleRepository
 from ..schemas.article import (
@@ -47,8 +47,10 @@ class ArticleService:
         return GeneratedArticle.model_validate_json(latest.content)
 
     def _detail(self, article: Article) -> ArticleDetailOut:
-        content = self._current_content(article)
         latest = self.articles.latest_version(article.id)
+        if latest is None:
+            raise NotFoundError("Article content is missing.")
+        content = GeneratedArticle.model_validate_json(latest.content)
         seo_row = self.articles.get_seo(article.id)
         seo_out: SeoOut | None = None
         seo_model = None
@@ -68,6 +70,8 @@ class ArticleService:
                 keywords=seo_row.keywords,
                 og_title=seo_row.og_title,
                 og_description=seo_row.og_description,
+                robots=seo_row.robots,
+                canonical_url=seo_row.canonical_url,
             )
         html = sanitize_document(render_article_html(content, seo_model))
         return ArticleDetailOut(
@@ -92,11 +96,16 @@ class ArticleService:
     def list_articles(
         self, user: User, *, limit: int, cursor: str | None
     ) -> ArticleListOut:
+        if cursor is not None and (not cursor.isascii() or not cursor.isdecimal()
+                                   or len(cursor) > 18 or int(cursor) < 1):
+            raise BadRequestError("Invalid article cursor.", code="INVALID_CURSOR")
         cursor_id = int(cursor) if cursor else None
-        rows = self.articles.list_for_user(user.id, limit=limit, cursor=cursor_id)
+        fetched = self.articles.list_for_user(user.id, limit=limit + 1, cursor=cursor_id)
+        rows = fetched[:limit]
+        latest_by_id = self.articles.latest_versions([row.id for row in rows])
         items = []
         for row in rows:
-            latest = self.articles.latest_version(row.id)
+            latest = latest_by_id.get(row.id)
             items.append(
                 ArticleListItem(
                     id=row.id,
@@ -108,7 +117,7 @@ class ArticleService:
                     updated_at=row.updated_at,
                 )
             )
-        next_cursor = str(rows[-1].id) if len(rows) == limit else None
+        next_cursor = str(rows[-1].id) if len(fetched) > limit else None
         return ArticleListOut(items=items, next_cursor=next_cursor)
 
     def list_versions(self, user: User, article_id: int) -> VersionListOut:
@@ -161,6 +170,9 @@ class ArticleService:
         latest = self.articles.latest_version(article.id)
         seo_row = self.articles.get_seo(article.id)
 
+        if latest is None:
+            raise NotFoundError("Article content is missing.")
+
         copy = self.articles.create(
             user_id=user.id,
             title=article.title[:190] + " (copy)",
@@ -179,6 +191,8 @@ class ArticleService:
                     "keywords": seo_row.keywords,
                     "og_title": seo_row.og_title,
                     "og_description": seo_row.og_description,
+                    "robots": seo_row.robots,
+                    "canonical_url": seo_row.canonical_url,
                 },
             )
         self.db.commit()
@@ -201,8 +215,9 @@ class ArticleService:
             content=record.content,
             change_type="restore",
         )
-        self.db.commit()
         content = GeneratedArticle.model_validate_json(record.content)
+        article.title = content.title
+        self.db.commit()
         logger.info(
             "article.version_restored",
             extra={"user_id": user.id, "article_id": article_id, "version": version},

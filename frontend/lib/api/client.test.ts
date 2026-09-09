@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { apiFetch, UnauthorizedError } from "./client";
+import { apiFetch, refreshOnce, UnauthorizedError } from "./client";
 import { ApiError } from "./errors";
 import { clearAccessToken, setAccessToken } from "@/lib/auth/token-store";
 
@@ -36,10 +36,36 @@ describe("apiFetch", () => {
     expect((init.headers as Headers).get("Authorization")).toBe("Bearer token-1");
   });
 
+  it("shares a refresh request between bootstrap and an expired API request", async () => {
+    let finishRefresh!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      finishRefresh = resolve;
+    });
+    const fetchMock = vi.fn().mockImplementation((path: string, init: RequestInit) => {
+      if (path === "/api/v1/auth/refresh") return pending;
+      const token = (init.headers as Headers).get("Authorization");
+      return Promise.resolve(
+        token === "Bearer fresh"
+          ? jsonResponse(200, { ok: true })
+          : jsonResponse(401, errorEnvelope("AUTHENTICATION_REQUIRED", "expired")),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const bootstrap = refreshOnce();
+    const request = apiFetch("/api/v1/articles");
+    await Promise.resolve();
+    finishRefresh(jsonResponse(200, { access_token: "fresh", expires_in: 900 }));
+    await expect(bootstrap).resolves.toBe(true);
+    await expect(request).resolves.toEqual({ ok: true });
+    expect(
+      fetchMock.mock.calls.filter(([path]) => path === "/api/v1/auth/refresh"),
+    ).toHaveLength(1);
+  });
+
   it("wraps error envelopes into ApiError with code and request id", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(jsonResponse(404, errorEnvelope("NOT_FOUND", "nope")))
+      vi.fn().mockResolvedValue(jsonResponse(404, errorEnvelope("NOT_FOUND", "nope"))),
     );
 
     const error = (await apiFetch("/api/v1/x").catch((e) => e)) as ApiError;
@@ -53,7 +79,9 @@ describe("apiFetch", () => {
   it("falls back to a generic error for non-JSON responses", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(new Response("<html>gateway error</html>", { status: 502 }))
+      vi
+        .fn()
+        .mockResolvedValue(new Response("<html>gateway error</html>", { status: 502 })),
     );
 
     const error = (await apiFetch("/api/v1/x").catch((e) => e)) as ApiError;
@@ -66,8 +94,12 @@ describe("apiFetch", () => {
     setAccessToken("stale-token", 900);
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse(401, errorEnvelope("AUTHENTICATION_REQUIRED", "x")))
-      .mockResolvedValueOnce(jsonResponse(200, { access_token: "fresh", expires_in: 900 }))
+      .mockResolvedValueOnce(
+        jsonResponse(401, errorEnvelope("AUTHENTICATION_REQUIRED", "x")),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, { access_token: "fresh", expires_in: 900 }),
+      )
       .mockResolvedValueOnce(jsonResponse(200, { ok: true }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -84,8 +116,12 @@ describe("apiFetch", () => {
     setAccessToken("stale-token", 900);
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse(401, errorEnvelope("AUTHENTICATION_REQUIRED", "x")))
-      .mockResolvedValueOnce(jsonResponse(401, errorEnvelope("AUTHENTICATION_REQUIRED", "x")));
+      .mockResolvedValueOnce(
+        jsonResponse(401, errorEnvelope("AUTHENTICATION_REQUIRED", "x")),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(401, errorEnvelope("AUTHENTICATION_REQUIRED", "x")),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const error = await apiFetch("/api/v1/articles").catch((e) => e);
@@ -96,7 +132,11 @@ describe("apiFetch", () => {
   it("does not attempt refresh for auth endpoints", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(jsonResponse(401, errorEnvelope("AUTHENTICATION_REQUIRED", "x")))
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(401, errorEnvelope("AUTHENTICATION_REQUIRED", "x")),
+        ),
     );
 
     const error = await apiFetch("/api/v1/auth/login", {

@@ -16,8 +16,12 @@ describe("Tabs", () => {
   it("renders a tablist with accessible tabs", () => {
     renderTabs();
     expect(screen.getByRole("tablist")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { selected: true, name: /article/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { selected: false, name: /seo/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { selected: true, name: /article/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { selected: false, name: /seo/i }),
+    ).toBeInTheDocument();
   });
 
   it("shows the active panel content", () => {
@@ -30,6 +34,16 @@ describe("Tabs", () => {
     renderTabs("article", onChange);
     fireEvent.click(screen.getByRole("tab", { name: /seo/i }));
     expect(onChange).toHaveBeenCalledWith("seo");
+  });
+
+  it("moves keyboard focus to the selected tab", () => {
+    renderTabs();
+    const article = screen.getByRole("tab", { name: /article/i });
+    article.focus();
+    fireEvent.keyDown(article, { key: "End" });
+    expect(screen.getByRole("tab", { name: /seo/i })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole("tab", { name: /seo/i }), { key: "Home" });
+    expect(article).toHaveFocus();
   });
 
   it("switches tabs with arrow keys", () => {

@@ -4,11 +4,18 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from ..core.config import settings
 
 
 class GenerateArticleRequest(BaseModel):
-    query: str = Field(min_length=3, max_length=2000)
+    query: str = Field(min_length=3, max_length=settings.max_query_length)
+
+    @field_validator("query", mode="before")
+    @classmethod
+    def strip_query(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
 
 
 class RewriteRequest(BaseModel):

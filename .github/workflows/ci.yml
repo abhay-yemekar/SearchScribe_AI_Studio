@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -11,8 +14,23 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend (lint + types + tests)
+    name: Backend (${{ matrix.database }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, postgres]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: searchscribe
+          POSTGRES_PASSWORD: test-only-password
+          POSTGRES_DB: searchscribe_test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U searchscribe -d searchscribe_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     defaults:
       run:
         working-directory: backend
@@ -39,7 +57,9 @@ jobs:
         run: mypy app
 
       - name: Test (pytest)
-        run: pytest
+        run: python -m pytest
+        env:
+          TEST_DATABASE_URL: ${{ matrix.database == 'postgres' && 'postgresql+psycopg://searchscribe:test-only-password@localhost:5432/searchscribe_test' || '' }}
 
   frontend:
     name: Frontend (lint + types + unit tests + build)

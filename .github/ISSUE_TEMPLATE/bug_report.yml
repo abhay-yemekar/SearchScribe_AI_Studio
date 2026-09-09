@@ -1,0 +1,27 @@
+name: Bug report
+description: Report a reproducible problem
+title: "bug: "
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+      description: Explain what went wrong without including private articles or credentials.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, OS, deployment or local version, and AI provider if relevant.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Sanitized error message or request ID; remove secrets and personal data.

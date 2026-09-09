@@ -32,7 +32,7 @@ class ArticleRepository:
             select(Article)
             .where(Article.user_id == user_id)
             .order_by(Article.id.desc())
-            .limit(min(limit, MAX_PAGE_SIZE))
+            .limit(min(limit, MAX_PAGE_SIZE + 1))
         )
         if cursor is not None:
             query = query.where(Article.id < cursor)
@@ -45,6 +45,20 @@ class ArticleRepository:
             .order_by(ArticleVersion.version.desc())
             .limit(1)
         )
+
+    def latest_versions(self, article_ids: list[int]) -> dict[int, ArticleVersion]:
+        latest = (
+            select(ArticleVersion.article_id, func.max(ArticleVersion.version).label("version"))
+            .where(ArticleVersion.article_id.in_(article_ids))
+            .group_by(ArticleVersion.article_id)
+            .subquery()
+        )
+        rows = self.db.scalars(select(ArticleVersion).join(
+            latest,
+            (ArticleVersion.article_id == latest.c.article_id)
+            & (ArticleVersion.version == latest.c.version),
+        ))
+        return {row.article_id: row for row in rows}
 
     def get_version(self, article_id: int, version: int) -> ArticleVersion | None:
         return self.db.scalar(
@@ -85,7 +99,7 @@ class ArticleRepository:
     ) -> Article:
         article = Article(user_id=user_id, title=title, query=query, status=status)
         self.db.add(article)
-        self.db.commit()
+        self.db.flush()
         return article
 
     def add_version(

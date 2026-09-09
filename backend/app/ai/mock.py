@@ -58,7 +58,7 @@ class MockProvider:
         )
 
     def _generate_article(self, variables: dict[str, str]) -> GeneratedArticle:
-        topic = variables.get("topic", "Untitled Topic")
+        topic = variables.get("topic", "Untitled Topic")[:160]
         return GeneratedArticle(
             title=f"A Practical Guide to {topic}",
             introduction=(

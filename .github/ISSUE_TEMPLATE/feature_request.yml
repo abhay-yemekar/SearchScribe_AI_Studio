@@ -1,0 +1,23 @@
+name: Feature request
+description: Propose a user-facing improvement
+title: "feat: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Who needs this and what are they trying to accomplish?
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Proposed behavior and acceptance criteria
+      description: Describe a concrete successful outcome and important error states.
+    validations:
+      required: true
+  - type: textarea
+    id: costs
+    attributes:
+      label: Dependencies and limits
+      description: Mention provider costs, free-tier limits, and attribution requirements if known.
