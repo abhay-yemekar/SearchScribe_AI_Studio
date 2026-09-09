@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..db.models import Article, ArticleVersion, SeoMetadata
@@ -123,8 +123,9 @@ class ArticleRepository:
         return article
 
     def delete_for_user(self, user_id: int, article_id: int) -> bool:
-        result = self.db.execute(
-            delete(Article).where(Article.id == article_id, Article.user_id == user_id)
-        )
+        article = self.get_for_user(user_id, article_id)
+        if article is None:
+            return False
+        self.db.delete(article)
         self.db.commit()
-        return bool(getattr(result, "rowcount", 0))
+        return True

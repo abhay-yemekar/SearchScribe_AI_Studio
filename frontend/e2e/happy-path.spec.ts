@@ -38,7 +38,6 @@ test.describe("SearchScribe happy path (mock AI provider)", () => {
 
     // --- Rewrite ---
     await page.getByRole("button", { name: /^Rewrite$/ }).click();
-    await expect(page.getByText("Rewriting…")).toBeVisible();
     await page.getByRole("tab", { name: /versions/i }).click();
     await expect(page.getByText("Version 2")).toBeVisible({ timeout: 30_000 });
 

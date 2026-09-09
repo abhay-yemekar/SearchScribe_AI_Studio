@@ -15,7 +15,7 @@ export RATE_LIMIT_AUTH_PER_MINUTE="120"
 export RATE_LIMIT_GENERATION_PER_MINUTE="120"
 
 PY="${E2E_PYTHON:-../.venv/Scripts/python}"
-if [ ! -x "$PY" ]; then
+if ! command -v "$PY" >/dev/null 2>&1; then
   PY="../.venv/bin/python"
 fi
 
