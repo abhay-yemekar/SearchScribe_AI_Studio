@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from jinja2 import Environment, StrictUndefined, select_autoescape
+from jinja2 import Environment, StrictUndefined
 
 PROMPTS_DIR = Path(__file__).parent
 
@@ -22,7 +22,7 @@ _REGISTRY: dict[tuple[str, str], str] = {
 }
 
 _env = Environment(
-    autoescape=select_autoescape(default=False),
+    autoescape=False,  # noqa: S701 - plain-text model input, never rendered as HTML
     undefined=StrictUndefined,
     keep_trailing_newline=False,
 )

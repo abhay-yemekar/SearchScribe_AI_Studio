@@ -61,6 +61,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault(
             "Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"
         )
+        if request.url.path in {"/docs", "/docs/oauth2-redirect"}:
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; frame-ancestors 'none'; "
+                "script-src 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "style-src 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "img-src https://fastapi.tiangolo.com data:; connect-src 'self'"
+            )
         if request.url.path.startswith(AUTH_PATH_PREFIX):
             # Auth responses may carry tokens/cookies; never cache them.
             response.headers.setdefault("Cache-Control", "no-store")

@@ -69,6 +69,8 @@ class SeoResult(BaseModel):
     keywords: list[str] = Field(min_length=1, max_length=15)
     og_title: str | None = None
     og_description: str | None = None
+    canonical_url: str | None = None
+    robots: str = "index, follow"
 
     @field_validator("keywords")
     @classmethod

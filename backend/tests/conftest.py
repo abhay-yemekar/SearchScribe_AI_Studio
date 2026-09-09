@@ -11,13 +11,15 @@ from typing import Any
 _TMP_DB = os.path.join(tempfile.mkdtemp(prefix="searchscribe-test-"), "test.db")
 
 os.environ["APP_ENV"] = "test"
-os.environ["DATABASE_URL"] = f"sqlite:///{_TMP_DB}"
+_TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL") or f"sqlite:///{_TMP_DB}"
+os.environ["DATABASE_URL"] = _TEST_DATABASE_URL
 os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
 os.environ["AI_PROVIDER"] = "mock"
 os.environ["GEMINI_API_KEY"] = ""
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy.engine import make_url  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
@@ -31,6 +33,13 @@ TEST_PASSWORD = "correct-horse-1"
 
 
 def _make_engine():
+    if not _TEST_DATABASE_URL.startswith("sqlite"):
+        url = make_url(_TEST_DATABASE_URL)
+        if not (url.database or "").endswith("_test") or url.host not in {
+            "localhost", "127.0.0.1", "postgres",
+        }:
+            raise RuntimeError("Tests require a local database whose name ends in _test")
+        return create_db_engine(_TEST_DATABASE_URL)
     # In-memory SQLite shared across connections via StaticPool: one schema,
     # fully isolated per test function, no file cleanup needed.
     return create_db_engine(
@@ -45,6 +54,7 @@ def db_engine() -> Generator[Any, None, None]:
     engine = _make_engine()
     Base.metadata.create_all(engine)
     yield engine
+    Base.metadata.drop_all(engine)
     engine.dispose()
 
 

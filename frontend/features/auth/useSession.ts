@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { subscribe, getSnapshot, clearAccessToken } from "@/lib/auth/token-store";
 import { fetchCurrentUser, logout as apiLogout } from "@/lib/api/auth";
+import { refreshOnce } from "@/lib/api/client";
 import type { User } from "@/lib/api/schemas";
 
 /**
@@ -23,20 +24,9 @@ export function useSession() {
   const bootstrap = useCallback(async () => {
     setBootstrapping(true);
     try {
-      if (!token) {
+      if (!getSnapshot()) {
         // Silent refresh: exchanges the HttpOnly cookie for a fresh token.
-        const response = await fetch("/api/v1/auth/refresh", {
-          method: "POST",
-          credentials: "include",
-        });
-        if (response.ok) {
-          const data = (await response.json()) as {
-            access_token: string;
-            expires_in: number;
-          };
-          const { setAccessToken } = await import("@/lib/auth/token-store");
-          setAccessToken(data.access_token, data.expires_in);
-        }
+        await refreshOnce();
       }
       if (getSnapshot()) {
         setUser(await fetchCurrentUser());
@@ -46,12 +36,11 @@ export function useSession() {
     } finally {
       setBootstrapping(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     void bootstrap();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [bootstrap]);
 
   const logout = useCallback(async () => {
     await apiLogout();

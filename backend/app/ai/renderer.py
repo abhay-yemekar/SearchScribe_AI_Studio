@@ -7,11 +7,13 @@ construction (sanitizer runs afterwards as defense in depth).
 
 from __future__ import annotations
 
-from jinja2 import Environment, select_autoescape
+from jinja2 import Environment, StrictUndefined, select_autoescape
 
 from .schemas import GeneratedArticle, SeoResult
 
-_env = Environment(autoescape=select_autoescape(default=True), trim_blocks=True)
+_env = Environment(
+    autoescape=select_autoescape(default=True), trim_blocks=True, undefined=StrictUndefined
+)
 
 ARTICLE_PAGE_TEMPLATE = _env.from_string(
     """\

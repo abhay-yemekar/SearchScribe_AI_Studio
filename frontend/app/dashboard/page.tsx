@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { CopyPlus, Download, Sparkles } from "lucide-react";
 
 import Tabs from "@/components/shared/Tabs";
@@ -43,13 +48,15 @@ export default function DashboardPage() {
     if (!bootstrapping && !token) router.replace("/");
   }, [bootstrapping, token, router]);
 
-  const articlesQuery = useQuery({
+  const articlesQuery = useInfiniteQuery({
     queryKey: ["articles"],
-    queryFn: () => listArticles(20),
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => listArticles(20, pageParam),
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
     enabled: !!token,
   });
 
-  const articles = articlesQuery.data?.items ?? [];
+  const articles = articlesQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
   const selectedQuery = useQuery({
     queryKey: ["article", selectedId],
@@ -136,7 +143,7 @@ export default function DashboardPage() {
     anchor.href = url;
     anchor.download = `${detail.title.replace(/[^\w\- ]+/g, "").slice(0, 60) || "article"}.html`;
     anchor.click();
-    URL.revokeObjectURL(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, [detail]);
 
   const copyMarkdown = useCallback(() => {
@@ -166,8 +173,8 @@ export default function DashboardPage() {
       <ArticleSidebar
         articles={articles}
         loading={articlesQuery.isLoading}
-        loadingMore={false}
-        hasMore={false}
+        loadingMore={articlesQuery.isFetchingNextPage}
+        hasMore={articlesQuery.hasNextPage}
         selectedId={selectedId}
         deletingId={remove.isPending ? selectedId : null}
         onSelect={(id) => {
@@ -179,7 +186,9 @@ export default function DashboardPage() {
           setActionError(null);
           queryInputRef.current?.focus();
         }}
-        onLoadMore={() => undefined}
+        onLoadMore={() => {
+          void articlesQuery.fetchNextPage();
+        }}
         onDelete={(id) => remove.mutate(id)}
       />
 
@@ -206,6 +215,7 @@ export default function DashboardPage() {
           <div className="flex gap-2">
             <input
               id="topic"
+              maxLength={500}
               ref={queryInputRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, type ReactNode } from "react";
+import { useId, useRef, type ReactNode } from "react";
 
 export type TabDefinition = { key: string; label: string; content: ReactNode };
 
@@ -15,6 +15,7 @@ export default function Tabs({
   onChange: (key: string) => void;
 }) {
   const baseId = useId();
+  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-xl border border-slate-700 bg-slate-900/70">
@@ -24,18 +25,30 @@ export default function Tabs({
         className="flex gap-1 border-b border-slate-700 px-2"
         onKeyDown={(event) => {
           const index = tabs.findIndex((t) => t.key === active);
-          if (event.key === "ArrowRight" && index < tabs.length - 1) {
-            onChange(tabs[index + 1].key);
-          } else if (event.key === "ArrowLeft" && index > 0) {
-            onChange(tabs[index - 1].key);
-          }
+          const next =
+            event.key === "ArrowRight"
+              ? (index + 1) % tabs.length
+              : event.key === "ArrowLeft"
+                ? (index - 1 + tabs.length) % tabs.length
+                : event.key === "Home"
+                  ? 0
+                  : event.key === "End"
+                    ? tabs.length - 1
+                    : -1;
+          if (next < 0) return;
+          event.preventDefault();
+          onChange(tabs[next].key);
+          buttons.current[next]?.focus();
         }}
       >
-        {tabs.map((tab) => {
+        {tabs.map((tab, index) => {
           const isActive = tab.key === active;
           return (
             <button
               key={tab.key}
+              ref={(node) => {
+                buttons.current[index] = node;
+              }}
               role="tab"
               id={`${baseId}-tab-${tab.key}`}
               aria-selected={isActive}

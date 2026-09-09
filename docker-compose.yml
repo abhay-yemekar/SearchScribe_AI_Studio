@@ -1,12 +1,10 @@
-# Full local stack: Postgres + Redis + backend + frontend.
+# Full local stack: Postgres + backend + frontend.
 #
 #   docker compose up --build
 #
 # Frontend:  http://localhost:3000
 # Backend:   http://localhost:8000/docs  (when APP_ENV != production)
 #
-# Redis is provisioned for future distributed rate limiting / caching;
-# the backend's current limiter is in-process and does not require it.
 
 services:
   postgres:
@@ -23,15 +21,7 @@ services:
       timeout: 3s
       retries: 10
     ports:
-      - "5432:5432"
-
-  redis:
-    image: redis:7-alpine
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+      - "127.0.0.1:5432:5432"
 
   backend:
     build:
@@ -40,29 +30,27 @@ services:
       APP_ENV: ${APP_ENV:-local}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DATABASE_URL: postgresql+psycopg://searchscribe:searchscribe@postgres:5432/searchscribe
-      SECRET_KEY: ${SECRET_KEY:-local-dev-secret-key-change-me-1234567890}
+      SECRET_KEY: ${SECRET_KEY:?Set a random SECRET_KEY in the root .env file}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      AI_PROVIDER: ${AI_PROVIDER:-gemini}
+      AI_PROVIDER: ${AI_PROVIDER:-mock}
       AI_MODEL: ${AI_MODEL:-gemini-2.5-flash}
       CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
   frontend:
     build:
       context: ./frontend
       args:
         BACKEND_URL: http://backend:8000
-    environment:
-      BACKEND_URL: http://backend:8000
     depends_on:
       backend:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
 
 volumes:
   pgdata:
