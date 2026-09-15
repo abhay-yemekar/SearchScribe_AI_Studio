@@ -25,7 +25,7 @@ export const seoSchema = z.object({
   og_title: z.string().nullable(),
   og_description: z.string().nullable(),
   canonical_url: z.string().nullable(),
-  robots: z.string(),
+  robots: z.enum(["index, follow", "noindex, follow"]),
 });
 export type Seo = z.infer<typeof seoSchema>;
 

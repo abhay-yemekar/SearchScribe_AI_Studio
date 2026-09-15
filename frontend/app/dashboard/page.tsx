@@ -30,7 +30,7 @@ import {
   rewriteArticle,
   saveArticle,
 } from "@/lib/api/articles";
-import type { ArticleContent } from "@/lib/api/schemas";
+import type { ArticleContent, Seo } from "@/lib/api/schemas";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -129,9 +129,9 @@ export default function DashboardPage() {
   });
 
   const save = useMutation({
-    mutationFn: (content: ArticleContent) => {
-      if (!detail?.seo) throw new Error("SEO metadata is required before saving.");
-      return saveArticle(detail.id, detail.current_version, content, detail.seo);
+    mutationFn: ({ content, seo }: { content: ArticleContent; seo: Seo }) => {
+      if (!detail) throw new Error("Article is not loaded.");
+      return saveArticle(detail.id, detail.current_version, content, seo);
     },
     onSuccess: (updated) => {
       setActionError(null);
@@ -340,14 +340,26 @@ export default function DashboardPage() {
                     <ArticleEditor
                       content={detail.content}
                       saving={save.isPending}
-                      onSave={(content) => save.mutate(content)}
+                      onSave={(content) => {
+                        if (!detail.seo) {
+                          setActionError("SEO metadata is required before saving.");
+                          return;
+                        }
+                        save.mutate({ content, seo: detail.seo });
+                      }}
                     />
                   ),
                 },
                 {
                   key: "seo",
                   label: "SEO Metadata",
-                  content: <SeoPanel seo={detail.seo} />,
+                  content: (
+                    <SeoPanel
+                      seo={detail.seo}
+                      saving={save.isPending}
+                      onSave={(seo) => save.mutate({ content: detail.content, seo })}
+                    />
+                  ),
                 },
                 {
                   key: "preview",

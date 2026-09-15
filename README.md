@@ -10,9 +10,9 @@ SearchScribe is a full-stack AI content platform: a FastAPI backend with a provi
 
 - **Account & sessions** — signup/login/logout with Argon2id password hashing, short-lived access JWTs held in memory, rotating HttpOnly refresh cookies (theft detection included).
 - **Article generation** — a query becomes a structured article (title / intro / sections / conclusion), deterministic Markdown + standalone HTML, all schema-validated.
-- **SEO engine** — separate LLM pass for title, meta description, keywords, and Open Graph fields, clamped by deterministic rules (title ≤ 60, description ≤ 160 chars).
+- **SEO engine** — generated and editable titles, descriptions, keywords, Open Graph fields, canonical URLs, and robots directives, preserved with each article version.
 - **Rewrite styles** — Professional, Casual, Gen Z, Technical, Marketing, Minimal. Every rewrite is a new immutable version.
-- **Version history** — list, inspect, and restore any version without losing history.
+- **Versioned editor** — edit structured article sections and SEO metadata with stale-write protection; list, inspect, and restore snapshots without losing history.
 - **Hardened HTML** — the LLM never emits HTML: Jinja2 autoescaping renders it, nh3 sanitizes it again, the preview iframe is fully sandboxed.
 - **Production posture** — request IDs, structured JSON logs, error envelopes, rate limiting, health/readiness probes, Docker + CI.
 
@@ -42,7 +42,7 @@ The application is a **modular monolith**: routers stay thin, business logic liv
 | AI        | google-genai (Gemini 2.5 Flash default) behind an `LLMProvider` protocol + offline MockProvider |
 | Frontend  | Next.js 14 (App Router), TypeScript strict, TanStack Query, Zod, React Hook Form, Tailwind CSS, DOMPurify |
 | Data      | PostgreSQL (docker-compose), SQLite (zero-setup local dev)               |
-| Testing   | pytest (55 backend tests), Vitest + Testing Library, Playwright E2E      |
+| Testing   | pytest (74 backend tests), Vitest + Testing Library, Playwright E2E      |
 | Infra     | Docker multi-stage non-root images, docker-compose, GitHub Actions CI    |
 
 ## Repository structure
@@ -148,6 +148,7 @@ GET    /api/v1/auth/me                              Current user
 POST   /api/v1/articles                             Generate (rate-limited)
 GET    /api/v1/articles?limit=&cursor=              Cursor pagination
 GET    /api/v1/articles/{id}                        Detail: markdown + SEO + HTML
+PUT    /api/v1/articles/{id}/content                Save content + SEO as a new version
 PATCH  /api/v1/articles/{id}                        Rename
 DELETE /api/v1/articles/{id}                        Delete (cascades versions)
 POST   /api/v1/articles/{id}/duplicate              Copy
