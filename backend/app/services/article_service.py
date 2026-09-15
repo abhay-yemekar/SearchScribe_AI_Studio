@@ -4,18 +4,20 @@ from __future__ import annotations
 
 import logging
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..ai.renderer import render_article_html
 from ..ai.sanitizer import sanitize_document
 from ..ai.schemas import GeneratedArticle, SeoResult
-from ..core.exceptions import BadRequestError, NotFoundError
+from ..core.exceptions import BadRequestError, ConflictError, NotFoundError
 from ..db.models import Article, User
 from ..repositories.article_repo import ArticleRepository
 from ..schemas.article import (
     ArticleDetailOut,
     ArticleListItem,
     ArticleListOut,
+    SaveArticleRequest,
     SeoOut,
     VersionDetailOut,
     VersionListItem,
@@ -23,6 +25,10 @@ from ..schemas.article import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _seo_values(seo: SeoResult) -> dict[str, object]:
+    return seo.model_dump()
 
 
 class ArticleService:
@@ -80,6 +86,7 @@ class ArticleService:
             query=article.query,
             status=article.status,
             current_version=latest.version if latest else 0,
+            content=content,
             markdown=content.to_markdown(),
             html=html,
             seo=seo_out,
@@ -93,11 +100,10 @@ class ArticleService:
     def get_article(self, user: User, article_id: int) -> ArticleDetailOut:
         return self._detail(self._require_article(user, article_id))
 
-    def list_articles(
-        self, user: User, *, limit: int, cursor: str | None
-    ) -> ArticleListOut:
-        if cursor is not None and (not cursor.isascii() or not cursor.isdecimal()
-                                   or len(cursor) > 18 or int(cursor) < 1):
+    def list_articles(self, user: User, *, limit: int, cursor: str | None) -> ArticleListOut:
+        if cursor is not None and (
+            not cursor.isascii() or not cursor.isdecimal() or len(cursor) > 18 or int(cursor) < 1
+        ):
             raise BadRequestError("Invalid article cursor.", code="INVALID_CURSOR")
         cursor_id = int(cursor) if cursor else None
         fetched = self.articles.list_for_user(user.id, limit=limit + 1, cursor=cursor_id)
@@ -128,10 +134,9 @@ class ArticleService:
                 version=v.version,
                 change_type=v.change_type,
                 word_count=len(
-                    GeneratedArticle.model_validate_json(v.content)
-                    .to_markdown()
-                    .split()
+                    GeneratedArticle.model_validate_json(v.content).to_markdown().split()
                 ),
+                complete_snapshot=v.seo_snapshot is not None,
                 created_at=v.created_at,
             )
             for v in versions
@@ -180,7 +185,11 @@ class ArticleService:
         )
         if latest is not None:
             self.articles.add_version(
-                copy, version=1, content=latest.content, change_type="generation"
+                copy,
+                version=1,
+                content=latest.content,
+                change_type="generation",
+                seo_snapshot=latest.seo_snapshot,
             )
         if seo_row is not None:
             self.articles.set_seo(
@@ -202,6 +211,47 @@ class ArticleService:
         )
         return self._detail(copy)
 
+    def save_article(
+        self, user: User, article_id: int, payload: SaveArticleRequest
+    ) -> ArticleDetailOut:
+        article = self._require_article(user, article_id)
+        latest = self.articles.latest_version(article.id)
+        if latest is None:
+            raise NotFoundError("Article content is missing.")
+        if latest.version != payload.base_version:
+            raise ConflictError(
+                "This article changed after you opened it. Reload before saving.",
+                code="STALE_ARTICLE_VERSION",
+                details={"current_version": latest.version},
+            )
+
+        seo = SeoResult.model_validate(payload.seo.model_dump())
+        next_version = latest.version + 1
+        self.articles.add_version(
+            article,
+            version=next_version,
+            content=payload.content.model_dump_json(),
+            change_type="edit",
+            seo_snapshot=seo.model_dump_json(),
+        )
+        article.title = payload.content.title
+        self.articles.set_seo(article, _seo_values(seo))
+        try:
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            current = self.articles.latest_version(article.id)
+            raise ConflictError(
+                "This article changed while it was being saved. Reload before saving.",
+                code="STALE_ARTICLE_VERSION",
+                details={"current_version": current.version if current else None},
+            ) from exc
+        logger.info(
+            "article.edited",
+            extra={"user_id": user.id, "article_id": article.id, "version": next_version},
+        )
+        return self._detail(article)
+
     def restore_version(self, user: User, article_id: int, version: int) -> dict:
         article = self._require_article(user, article_id)
         record = self.articles.get_version(article.id, version)
@@ -214,9 +264,13 @@ class ArticleService:
             version=next_version,
             content=record.content,
             change_type="restore",
+            seo_snapshot=record.seo_snapshot,
         )
         content = GeneratedArticle.model_validate_json(record.content)
         article.title = content.title
+        if record.seo_snapshot is not None:
+            restored_seo = SeoResult.model_validate_json(record.seo_snapshot)
+            self.articles.set_seo(article, _seo_values(restored_seo))
         self.db.commit()
         logger.info(
             "article.version_restored",

@@ -13,7 +13,7 @@ import { CopyPlus, Download, Sparkles } from "lucide-react";
 import Tabs from "@/components/shared/Tabs";
 import { ArticleSkeleton, ErrorBanner, Spinner } from "@/components/shared/States";
 import ArticleSidebar from "@/features/articles/ArticleSidebar";
-import ArticleView from "@/features/articles/ArticleView";
+import ArticleEditor from "@/features/articles/ArticleEditor";
 import SeoPanel from "@/features/articles/SeoPanel";
 import HtmlPreview from "@/features/articles/HtmlPreview";
 import VersionsPanel from "@/features/articles/VersionsPanel";
@@ -26,10 +26,11 @@ import {
   getArticle,
   listArticles,
   listVersions,
-  renameArticle,
   restoreVersion,
   rewriteArticle,
+  saveArticle,
 } from "@/lib/api/articles";
+import type { ArticleContent } from "@/lib/api/schemas";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -103,12 +104,6 @@ export default function DashboardPage() {
     onError: (error) => setActionError((error as Error).message),
   });
 
-  const rename = useMutation({
-    mutationFn: (title: string) => renameArticle(selectedId as number, title),
-    onSuccess: invalidateSelected,
-    onError: (error) => setActionError((error as Error).message),
-  });
-
   const remove = useMutation({
     mutationFn: (id: number) => deleteArticle(id),
     onSuccess: (_data, id) => {
@@ -133,6 +128,19 @@ export default function DashboardPage() {
     onError: (error) => setActionError((error as Error).message),
   });
 
+  const save = useMutation({
+    mutationFn: (content: ArticleContent) => {
+      if (!detail?.seo) throw new Error("SEO metadata is required before saving.");
+      return saveArticle(detail.id, detail.current_version, content, detail.seo);
+    },
+    onSuccess: (updated) => {
+      setActionError(null);
+      queryClient.setQueryData(["article", updated.id], updated);
+      invalidateSelected();
+    },
+    onError: (error) => setActionError((error as Error).message),
+  });
+
   const detail = selectedQuery.data;
 
   const downloadHtml = useCallback(() => {
@@ -144,10 +152,6 @@ export default function DashboardPage() {
     anchor.download = `${detail.title.replace(/[^\w\- ]+/g, "").slice(0, 60) || "article"}.html`;
     anchor.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, [detail]);
-
-  const copyMarkdown = useCallback(() => {
-    if (detail) void navigator.clipboard.writeText(detail.markdown);
   }, [detail]);
 
   const handleGenerate = () => {
@@ -274,18 +278,9 @@ export default function DashboardPage() {
           <div className="flex min-h-0 flex-1 flex-col gap-3">
             {/* Title + actions */}
             <div className="flex flex-wrap items-center gap-2">
-              <input
-                aria-label="Article title"
-                defaultValue={detail.title}
-                key={detail.id}
-                onBlur={(event) => {
-                  const value = event.target.value.trim();
-                  if (value && value !== detail.title) {
-                    rename.mutate(value);
-                  }
-                }}
-                className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-2 py-1 text-lg font-semibold outline-none transition-colors hover:border-slate-700 focus:border-blue-500"
-              />
+              <h2 className="min-w-0 flex-1 truncate px-2 py-1 text-lg font-semibold">
+                {detail.title}
+              </h2>
               <button
                 type="button"
                 onClick={() => duplicate.mutate(detail.id)}
@@ -342,7 +337,11 @@ export default function DashboardPage() {
                   key: "article",
                   label: "Article",
                   content: (
-                    <ArticleView markdown={detail.markdown} onCopy={copyMarkdown} />
+                    <ArticleEditor
+                      content={detail.content}
+                      saving={save.isPending}
+                      onSave={(content) => save.mutate(content)}
+                    />
                   ),
                 },
                 {

@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from ..ai.schemas import GeneratedArticle
 from ..core.config import settings
 
 
@@ -24,6 +27,39 @@ class RewriteRequest(BaseModel):
 
 class UpdateArticleRequest(BaseModel):
     title: str = Field(min_length=1, max_length=200)
+
+
+class SeoInput(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(min_length=1, max_length=400)
+    keywords: list[str] = Field(min_length=1, max_length=15)
+    og_title: str | None = Field(default=None, max_length=200)
+    og_description: str | None = Field(default=None, max_length=400)
+    canonical_url: str | None = Field(default=None, max_length=500)
+    robots: Literal["index, follow", "noindex, follow"] = "index, follow"
+
+    @field_validator("canonical_url")
+    @classmethod
+    def validate_canonical_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        value = value.strip()
+        parsed = urlsplit(value)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("canonical_url must be an absolute HTTP(S) URL")
+        return value
+
+
+class SaveArticleRequest(BaseModel):
+    base_version: int = Field(ge=1)
+    content: GeneratedArticle
+    seo: SeoInput
+
+    @model_validator(mode="after")
+    def validate_content_size(self) -> SaveArticleRequest:
+        if len(self.content.to_markdown()) > settings.max_rewrite_input_length:
+            raise ValueError("article content is too long")
+        return self
 
 
 class SeoOut(BaseModel):
@@ -59,6 +95,7 @@ class ArticleDetailOut(BaseModel):
     query: str
     status: str
     current_version: int
+    content: GeneratedArticle
     markdown: str
     html: str
     seo: SeoOut | None = None
@@ -70,6 +107,7 @@ class VersionListItem(BaseModel):
     version: int
     change_type: str
     word_count: int
+    complete_snapshot: bool
     created_at: datetime
 
 

@@ -56,6 +56,8 @@ class ArticleVersion(Base):
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    # Complete versions include SEO state. NULL identifies a legacy snapshot.
+    seo_snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
     # generation | rewrite | restore | edit
     change_type: Mapped[str] = mapped_column(String(30), nullable=False, default="generation")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)

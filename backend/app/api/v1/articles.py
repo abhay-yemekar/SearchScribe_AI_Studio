@@ -17,6 +17,7 @@ from ...schemas.article import (
     RewriteRequest,
     RewriteStyleOut,
     RewriteStylesOut,
+    SaveArticleRequest,
     UpdateArticleRequest,
     VersionDetailOut,
     VersionListOut,
@@ -66,8 +67,7 @@ def list_articles(
 def rewrite_styles() -> RewriteStylesOut:
     return RewriteStylesOut(
         styles=[
-            RewriteStyleOut(key=key, label=meta["label"])
-            for key, meta in REWRITE_STYLES.items()
+            RewriteStyleOut(key=key, label=meta["label"]) for key, meta in REWRITE_STYLES.items()
         ]
     )
 
@@ -97,6 +97,20 @@ def rename_article(
     current_user: User = Depends(get_current_user),
 ) -> ArticleDetailOut:
     return ArticleService(db).rename_article(current_user, article_id, payload.title)
+
+
+@router.put(
+    "/{article_id}/content",
+    response_model=ArticleDetailOut,
+    summary="Save article content and SEO as a new immutable version",
+)
+def save_article(
+    article_id: int,
+    payload: SaveArticleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ArticleDetailOut:
+    return ArticleService(db).save_article(current_user, article_id, payload)
 
 
 @router.delete(
@@ -185,9 +199,7 @@ def restore_version(
     return ArticleService(db).get_article(current_user, article_id)
 
 
-def _owned_article(
-    db: Session, user: User, article_id: int
-) -> Article:
+def _owned_article(db: Session, user: User, article_id: int) -> Article:
     from ...core.exceptions import NotFoundError
     from ...repositories.article_repo import ArticleRepository
 

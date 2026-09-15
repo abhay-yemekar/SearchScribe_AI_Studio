@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 from pydantic import BaseModel, Field, field_validator
 
 
 class ArticleSection(BaseModel):
+    id: str = Field(default_factory=lambda: uuid4().hex, min_length=8, max_length=64)
     heading: str = Field(min_length=1, max_length=300)
     paragraphs: list[str] = Field(default_factory=list)
     bullets: list[str] = Field(default_factory=list)

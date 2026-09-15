@@ -7,9 +7,11 @@ import {
   rewriteStylesSchema,
   versionListSchema,
   type ArticleDetail,
+  type ArticleContent,
   type ArticleList,
   type RewriteStyles,
   type VersionList,
+  type Seo,
 } from "./schemas";
 
 export async function generateArticle(query: string): Promise<ArticleDetail> {
@@ -39,6 +41,19 @@ export async function renameArticle(id: number, title: string): Promise<ArticleD
   const payload = await apiFetch<unknown>(`/api/v1/articles/${id}`, {
     method: "PATCH",
     body: JSON.stringify({ title }),
+  });
+  return articleDetailSchema.parse(payload);
+}
+
+export async function saveArticle(
+  id: number,
+  baseVersion: number,
+  content: ArticleContent,
+  seo: Seo,
+): Promise<ArticleDetail> {
+  const payload = await apiFetch<unknown>(`/api/v1/articles/${id}/content`, {
+    method: "PUT",
+    body: JSON.stringify({ base_version: baseVersion, content, seo }),
   });
   return articleDetailSchema.parse(payload);
 }
