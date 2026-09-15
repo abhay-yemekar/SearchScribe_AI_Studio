@@ -18,9 +18,9 @@ must be designed alongside the successful flow.
 
 ## Delivery sequence
 
-- [ ] Reliability and security: transaction boundaries, pagination, session
+- [x] Reliability and security: transaction boundaries, pagination, session
   refresh, production settings, provider failures, and SQLite/Postgres CI.
-- [ ] Versioned editing: structured sections, SEO editing, conflict detection,
+- [x] Versioned editing: structured sections, SEO editing, conflict detection,
   and complete snapshots. Old versions must not invent historical metadata.
 - [ ] Supported frontend framework and the editorial workspace redesign.
 - [ ] Research: bounded search, traceable source IDs, citations, and an explicit

@@ -1,9 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-const uniqueEmail = () => `e2e-${Date.now()}-${Math.floor(Math.random() * 10000)}@test.dev`;
+const uniqueEmail = () =>
+  `e2e-${Date.now()}-${Math.floor(Math.random() * 10000)}@test.dev`;
 
 test.describe("SearchScribe happy path (mock AI provider)", () => {
-  test("signup -> generate -> rewrite -> versions -> restore -> logout", async ({
+  test("signup -> generate -> edit SEO -> rewrite -> restore -> logout", async ({
     page,
   }) => {
     const email = uniqueEmail();
@@ -31,15 +32,23 @@ test.describe("SearchScribe happy path (mock AI provider)", () => {
     await page.getByRole("tab", { name: /seo metadata/i }).click();
     await expect(page.getByText(/SEO Title/i)).toBeVisible();
     await expect(page.getByText(/Keywords/i)).toBeVisible();
+    await page.getByRole("button", { name: /edit seo/i }).click();
+    await page.getByLabel(/seo title/i).fill("Weekend trips from Pune: editor pick");
+    await page.getByRole("button", { name: /save version/i }).click();
+    await expect(page.getByText("Weekend trips from Pune: editor pick")).toBeVisible({
+      timeout: 15_000,
+    });
 
     // --- HTML preview tab ---
     await page.getByRole("tab", { name: /html preview/i }).click();
-    await expect(page.frameLocator("iframe").getByRole("heading", { level: 1 }).first()).toBeVisible();
+    await expect(
+      page.frameLocator("iframe").getByRole("heading", { level: 1 }).first(),
+    ).toBeVisible();
 
     // --- Rewrite ---
     await page.getByRole("button", { name: /^Rewrite$/ }).click();
     await page.getByRole("tab", { name: /versions/i }).click();
-    await expect(page.getByText("Version 2")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Version 3")).toBeVisible({ timeout: 30_000 });
 
     // --- Restore version 1 ---
     await page
@@ -47,7 +56,7 @@ test.describe("SearchScribe happy path (mock AI provider)", () => {
       .filter({ hasText: "Version 1" })
       .getByRole("button", { name: /restore/i })
       .click();
-    await expect(page.getByText("Version 3")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Version 4")).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/Restored/)).toBeVisible();
 
     // --- Logout ---

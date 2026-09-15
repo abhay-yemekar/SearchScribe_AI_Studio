@@ -36,11 +36,12 @@ Common codes: `VALIDATION_ERROR` (422), `AUTHENTICATION_REQUIRED` (401), `NOT_FO
 | GET | `/articles?limit=&cursor=` | Newest first; `next_cursor` present while more pages exist. |
 | GET | `/articles/rewrite-styles` | Style registry for the rewrite picker. |
 | GET | `/articles/{id}` | Full detail. |
+| PUT | `/articles/{id}/content` | Save structured content + SEO as a new immutable version. Requires `base_version`; stale writes return `STALE_ARTICLE_VERSION` (409). |
 | PATCH | `/articles/{id}` | `{"title": "..."}` rename. |
 | DELETE | `/articles/{id}` | 204; cascades versions + SEO. |
 | POST | `/articles/{id}/duplicate` | 201 copy with fresh versions. |
 | POST | `/articles/{id}/rewrite` | `{"style": "genz\|professional\|casual\|technical\|marketing\|minimal"}` → new version. |
-| GET | `/articles/{id}/versions` | Version list (version, change_type, word_count, created_at). |
+| GET | `/articles/{id}/versions` | Version list (version, change_type, word_count, complete_snapshot, created_at). |
 | GET | `/articles/{id}/versions/{version}` | One version's markdown. |
 | POST | `/articles/{id}/versions/{version}/restore` | Restores as a **new** version. |
 
@@ -50,6 +51,7 @@ Common codes: `VALIDATION_ERROR` (422), `AUTHENTICATION_REQUIRED` (401), `NOT_FO
 {
   "id": 1, "title": "...", "query": "...", "status": "ready",
   "current_version": 2,
+  "content": {"title": "...", "introduction": "...", "sections": [{"id": "...", "heading": "...", "paragraphs": ["..."], "bullets": []}], "conclusion": "..."},
   "markdown": "# Title ...",
   "html": "<!DOCTYPE html> ...",
   "seo": {"title": "...", "description": "...", "keywords": ["..."],

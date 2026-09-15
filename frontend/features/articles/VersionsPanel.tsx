@@ -59,6 +59,11 @@ export default function VersionsPanel({
                   {version.word_count.toLocaleString()} words ·{" "}
                   {new Date(version.created_at).toLocaleString()}
                 </p>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {version.complete_snapshot
+                    ? "Content + SEO snapshot"
+                    : "Legacy content snapshot"}
+                </p>
               </div>
               {isCurrent ? (
                 <span className="text-xs font-medium text-blue-300">Current</span>
