@@ -24,8 +24,6 @@ const authSchema = z.object({
 const loginSchema = authSchema.omit({ name: true });
 
 type SignupValues = z.infer<typeof authSchema>;
-type LoginValues = z.infer<typeof loginSchema>;
-
 export default function AuthForm() {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
