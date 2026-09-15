@@ -19,14 +19,10 @@ class ArticleRepository:
 
     def get_for_user(self, user_id: int, article_id: int) -> Article | None:
         return self.db.scalar(
-            select(Article).where(
-                Article.id == article_id, Article.user_id == user_id
-            )
+            select(Article).where(Article.id == article_id, Article.user_id == user_id)
         )
 
-    def list_for_user(
-        self, user_id: int, *, limit: int, cursor: int | None
-    ) -> list[Article]:
+    def list_for_user(self, user_id: int, *, limit: int, cursor: int | None) -> list[Article]:
         """Newest-first cursor pagination (cursor = last seen article id)."""
         query = (
             select(Article)
@@ -53,11 +49,13 @@ class ArticleRepository:
             .group_by(ArticleVersion.article_id)
             .subquery()
         )
-        rows = self.db.scalars(select(ArticleVersion).join(
-            latest,
-            (ArticleVersion.article_id == latest.c.article_id)
-            & (ArticleVersion.version == latest.c.version),
-        ))
+        rows = self.db.scalars(
+            select(ArticleVersion).join(
+                latest,
+                (ArticleVersion.article_id == latest.c.article_id)
+                & (ArticleVersion.version == latest.c.version),
+            )
+        )
         return {row.article_id: row for row in rows}
 
     def get_version(self, article_id: int, version: int) -> ArticleVersion | None:
@@ -78,25 +76,19 @@ class ArticleRepository:
         )
 
     def get_seo(self, article_id: int) -> SeoMetadata | None:
-        return self.db.scalar(
-            select(SeoMetadata).where(SeoMetadata.article_id == article_id)
-        )
+        return self.db.scalar(select(SeoMetadata).where(SeoMetadata.article_id == article_id))
 
     def count_for_user(self, user_id: int) -> int:
         return int(
             self.db.scalar(
-                select(func.count()).select_from(Article).where(
-                    Article.user_id == user_id
-                )
+                select(func.count()).select_from(Article).where(Article.user_id == user_id)
             )
             or 0
         )
 
     # --- writes ---
 
-    def create(
-        self, *, user_id: int, title: str, query: str, status: str = "ready"
-    ) -> Article:
+    def create(self, *, user_id: int, title: str, query: str, status: str = "ready") -> Article:
         article = Article(user_id=user_id, title=title, query=query, status=status)
         self.db.add(article)
         self.db.flush()
@@ -109,12 +101,14 @@ class ArticleRepository:
         version: int,
         content: str,
         change_type: str,
+        seo_snapshot: str | None = None,
     ) -> ArticleVersion:
         record = ArticleVersion(
             article_id=article.id,
             version=version,
             content=content,
             change_type=change_type,
+            seo_snapshot=seo_snapshot,
         )
         self.db.add(record)
         self.db.flush()

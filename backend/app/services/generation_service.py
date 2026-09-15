@@ -89,9 +89,7 @@ class GenerationService:
                 status="failed",
                 error_code=type(exc).__name__,
             )
-            logger.warning(
-                "generation.failed", extra={"user_id": user.id, "query_len": len(query)}
-            )
+            logger.warning("generation.failed", extra={"user_id": user.id, "query_len": len(query)})
             raise ExternalServiceError(
                 "Unable to generate content right now. Please try again shortly.",
                 code="GENERATION_FAILED",
@@ -118,14 +116,13 @@ class GenerationService:
         markdown = generated.to_markdown()
         html = sanitize_document(render_article_html(generated, seo))
 
-        article = self.articles.create(
-            user_id=user.id, title=generated.title, query=query
-        )
+        article = self.articles.create(user_id=user.id, title=generated.title, query=query)
         self.articles.add_version(
             article,
             version=1,
             content=generated.model_dump_json(),
             change_type="generation",
+            seo_snapshot=seo.model_dump_json(),
         )
         self.articles.set_seo(
             article,
@@ -135,6 +132,8 @@ class GenerationService:
                 "keywords": seo.keywords,
                 "og_title": seo.og_title,
                 "og_description": seo.og_description,
+                "canonical_url": seo.canonical_url,
+                "robots": seo.robots,
             },
         )
         self.db.commit()
@@ -215,9 +214,7 @@ class GenerationService:
 
         current = GeneratedArticle.model_validate_json(latest.content)
         if len(current.to_markdown()) > settings.max_rewrite_input_length:
-            raise BadRequestError(
-                "Article too long to rewrite.", code="REWRITE_INPUT_TOO_LONG"
-            )
+            raise BadRequestError("Article too long to rewrite.", code="REWRITE_INPUT_TOO_LONG")
 
         try:
             provider = get_provider()
@@ -279,11 +276,13 @@ class GenerationService:
         )
 
         next_version = (latest.version or 0) + 1
+        current_seo = self._seo_for(article)
         self.articles.add_version(
             article,
             version=next_version,
             content=rewritten.model_dump_json(),
             change_type="rewrite",
+            seo_snapshot=current_seo.model_dump_json() if current_seo else None,
         )
         article.title = rewritten.title
         self.db.commit()

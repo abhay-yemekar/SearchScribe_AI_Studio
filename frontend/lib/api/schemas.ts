@@ -29,6 +29,20 @@ export const seoSchema = z.object({
 });
 export type Seo = z.infer<typeof seoSchema>;
 
+export const articleSectionSchema = z.object({
+  id: z.string().min(8),
+  heading: z.string(),
+  paragraphs: z.array(z.string()),
+  bullets: z.array(z.string()),
+});
+export const articleContentSchema = z.object({
+  title: z.string(),
+  introduction: z.string(),
+  sections: z.array(articleSectionSchema),
+  conclusion: z.string(),
+});
+export type ArticleContent = z.infer<typeof articleContentSchema>;
+
 export const articleListItemSchema = z.object({
   id: z.number(),
   title: z.string(),
@@ -52,6 +66,7 @@ export const articleDetailSchema = z.object({
   query: z.string(),
   status: z.string(),
   current_version: z.number(),
+  content: articleContentSchema,
   markdown: z.string(),
   html: z.string(),
   seo: seoSchema.nullable(),
@@ -64,6 +79,7 @@ export const versionItemSchema = z.object({
   version: z.number(),
   change_type: z.string(),
   word_count: z.number(),
+  complete_snapshot: z.boolean(),
   created_at: z.string(),
 });
 export type VersionItem = z.infer<typeof versionItemSchema>;
