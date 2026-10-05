@@ -7,7 +7,7 @@ import { Spinner } from "@/components/shared/States";
 import type { ArticleContent } from "@/lib/api/schemas";
 
 const field =
-  "w-full rounded-lg border border-slate-600 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
+  "w-full rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
 
 function copyContent(content: ArticleContent): ArticleContent {
   return structuredClone(content);
@@ -41,21 +41,25 @@ export default function ArticleEditor({
 
   if (!editing) {
     return (
-      <div className="space-y-5 text-sm leading-7 text-slate-200">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-slate-400">{wordCount(content)} words</span>
+      <div className="mx-auto max-w-3xl space-y-7 font-serif text-base leading-8 text-slate-700">
+        <div className="flex items-center justify-between border-b border-stone-200 pb-4 font-sans">
+          <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
+            {wordCount(content)} words
+          </span>
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="rounded-lg bg-blue-600 px-3 py-1.5 font-medium hover:bg-blue-700"
+            className="rounded-lg bg-teal-700 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-800"
           >
             Edit article
           </button>
         </div>
         <p>{content.introduction}</p>
         {content.sections.map((section) => (
-          <section key={section.id} className="space-y-2">
-            <h2 className="text-lg font-semibold text-white">{section.heading}</h2>
+          <section key={section.id} className="space-y-3">
+            <h2 className="pt-2 font-serif text-2xl font-semibold leading-tight text-slate-900">
+              {section.heading}
+            </h2>
             {section.paragraphs.map((paragraph, index) => (
               <p key={index}>{paragraph}</p>
             ))}
@@ -68,7 +72,9 @@ export default function ArticleEditor({
             ) : null}
           </section>
         ))}
-        <h2 className="text-lg font-semibold text-white">Conclusion</h2>
+        <h2 className="pt-2 font-serif text-2xl font-semibold text-slate-900">
+          Conclusion
+        </h2>
         <p>{content.conclusion}</p>
       </div>
     );
@@ -88,13 +94,13 @@ export default function ArticleEditor({
 
   return (
     <form
-      className="space-y-5"
+      className="mx-auto max-w-3xl space-y-5"
       onSubmit={(event) => {
         event.preventDefault();
         onSave(draft);
       }}
     >
-      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
         Title
         <input
           className={`${field} mt-1`}
@@ -104,7 +110,7 @@ export default function ArticleEditor({
           onChange={(event) => setDraft({ ...draft, title: event.target.value })}
         />
       </label>
-      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
         Introduction
         <textarea
           className={`${field} mt-1 min-h-28`}
@@ -116,10 +122,10 @@ export default function ArticleEditor({
       {draft.sections.map((section, index) => (
         <fieldset
           key={section.id}
-          className="space-y-3 rounded-xl border border-slate-700 p-4"
+          className="space-y-3 rounded-xl border border-stone-200 bg-stone-50/50 p-4"
         >
           <div className="flex items-center justify-between">
-            <legend className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <legend className="text-xs font-semibold uppercase tracking-wide text-slate-600">
               Section {index + 1}
             </legend>
             {draft.sections.length > 1 ? (
@@ -132,7 +138,7 @@ export default function ArticleEditor({
                     sections: draft.sections.filter((_, i) => i !== index),
                   })
                 }
-                className="rounded p-1 text-slate-400 hover:bg-slate-800 hover:text-rose-400"
+                className="rounded p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-700"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -187,11 +193,11 @@ export default function ArticleEditor({
             ],
           })
         }
-        className="flex items-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-sm hover:bg-slate-800"
+        className="flex items-center gap-2 rounded-lg border border-stone-300 px-3 py-2 text-sm text-slate-700 hover:border-teal-600 hover:text-teal-800"
       >
         <Plus className="h-4 w-4" /> Add section
       </button>
-      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
         Conclusion
         <textarea
           className={`${field} mt-1 min-h-28`}
@@ -207,14 +213,14 @@ export default function ArticleEditor({
             setDraft(copyContent(content));
             setEditing(false);
           }}
-          className="rounded-lg border border-slate-600 px-4 py-2 text-sm hover:bg-slate-800"
+          className="rounded-lg border border-stone-300 px-4 py-2 text-sm text-slate-700 hover:bg-stone-50"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+          className="flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 text-sm font-medium text-white hover:bg-teal-800 disabled:opacity-60"
         >
           {saving ? <Spinner /> : <Save className="h-4 w-4" />}
           {saving ? "Saving…" : "Save version"}

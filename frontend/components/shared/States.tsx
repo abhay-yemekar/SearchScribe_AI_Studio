@@ -6,14 +6,14 @@ export function Spinner({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <span
       aria-label="Loading"
-      className={`inline-block animate-spin rounded-full border-2 border-slate-500 border-t-transparent ${className}`}
+      className={`inline-block animate-spin rounded-full border-2 border-current border-t-transparent ${className}`}
     />
   );
 }
 
 export function SkeletonBlock({ className = "h-4 w-full" }: { className?: string }) {
   return (
-    <div aria-hidden className={`animate-pulse rounded bg-slate-800 ${className}`} />
+    <div aria-hidden className={`animate-pulse rounded bg-stone-200 ${className}`} />
   );
 }
 
@@ -35,7 +35,7 @@ export function ArticleSkeleton() {
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 py-16 text-center">
-      <p className="text-sm font-medium text-slate-300">{title}</p>
+      <p className="text-sm font-medium text-slate-700">{title}</p>
       {hint ? <p className="max-w-sm text-xs text-slate-500">{hint}</p> : null}
     </div>
   );
@@ -45,7 +45,7 @@ export function ErrorBanner({ message }: { message: string }) {
   return (
     <p
       role="alert"
-      className="rounded-lg border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-sm text-rose-300"
+      className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"
     >
       {message}
     </p>
@@ -56,7 +56,7 @@ export function SuccessBanner({ message }: { message: string }) {
   return (
     <p
       role="status"
-      className="rounded-lg border border-emerald-900/60 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300"
+      className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-800"
     >
       {message}
     </p>
