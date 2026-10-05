@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   useInfiniteQuery,
@@ -338,6 +338,7 @@ export default function DashboardPage() {
                   label: "Article",
                   content: (
                     <ArticleEditor
+                      key={`article-${detail.id}-${detail.current_version}`}
                       content={detail.content}
                       saving={save.isPending}
                       onSave={(content) => {
@@ -355,6 +356,7 @@ export default function DashboardPage() {
                   label: "SEO Metadata",
                   content: (
                     <SeoPanel
+                      key={`seo-${detail.id}-${detail.current_version}`}
                       seo={detail.seo}
                       saving={save.isPending}
                       onSave={(seo) => save.mutate({ content: detail.content, seo })}

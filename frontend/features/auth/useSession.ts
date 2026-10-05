@@ -39,6 +39,8 @@ export function useSession() {
   }, []);
 
   useEffect(() => {
+    // Session bootstrap is the effect's external synchronization boundary.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void bootstrap();
   }, [bootstrap]);
 

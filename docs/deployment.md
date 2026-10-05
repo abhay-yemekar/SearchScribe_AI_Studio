@@ -9,7 +9,7 @@ docker compose up --build
 - `postgres:16-alpine` with a named volume, `pg_isready` healthcheck
 - `redis:7-alpine` (provisioned for future distributed limiter/caching)
 - backend: multi-stage `python:3.12-slim`, non-root user, runs `alembic upgrade head` then uvicorn, container healthcheck against `/api/v1/health`
-- frontend: multi-stage `node:20-alpine` → Next.js standalone server, non-root, healthcheck
+- frontend: multi-stage `node:24-alpine` → Next.js standalone server, non-root, healthcheck
 
 Keyless demo: `AI_PROVIDER=mock docker compose up`.
 

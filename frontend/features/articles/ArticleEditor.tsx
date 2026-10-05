@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus, Save, Trash2 } from "lucide-react";
 
 import { Spinner } from "@/components/shared/States";
@@ -38,11 +38,6 @@ export default function ArticleEditor({
 }) {
   const [draft, setDraft] = useState(() => copyContent(content));
   const [editing, setEditing] = useState(false);
-
-  useEffect(() => {
-    setDraft(copyContent(content));
-    setEditing(false);
-  }, [content]);
 
   if (!editing) {
     return (

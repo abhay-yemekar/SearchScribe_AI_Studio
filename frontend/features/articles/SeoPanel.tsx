@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Save } from "lucide-react";
 
 import { Spinner } from "@/components/shared/States";
@@ -32,11 +32,6 @@ export default function SeoPanel({
 }) {
   const [draft, setDraft] = useState<Seo | null>(seo ? structuredClone(seo) : null);
   const [editing, setEditing] = useState(false);
-
-  useEffect(() => {
-    setDraft(seo ? structuredClone(seo) : null);
-    setEditing(false);
-  }, [seo]);
 
   if (!seo || !draft) {
     return (

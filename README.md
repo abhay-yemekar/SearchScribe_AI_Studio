@@ -2,7 +2,7 @@
 
 **One search query → a structured AI article, validated SEO metadata, and a sanitized, ready-to-publish HTML page.**
 
-SearchScribe is a full-stack AI content platform: a FastAPI backend with a provider-independent LLM layer, a Next.js 14 frontend, PostgreSQL via SQLAlchemy 2.x + Alembic, rotating refresh-cookie sessions, article versioning, and a multi-style rewrite engine.
+SearchScribe is a full-stack AI content platform: a FastAPI backend with a provider-independent LLM layer, a Next.js 16 frontend, PostgreSQL via SQLAlchemy 2.x + Alembic, rotating refresh-cookie sessions, article versioning, and a multi-style rewrite engine.
 
 ---
 
@@ -20,7 +20,7 @@ SearchScribe is a full-stack AI content platform: a FastAPI backend with a provi
 
 ```mermaid
 flowchart TD
-    Browser[Browser · Next.js 14] -->|"/api proxy rewrites"| FE[Next.js server]
+    Browser[Browser · Next.js 16] -->|"/api proxy rewrites"| FE[Next.js server]
     FE --> API[FastAPI /api/v1]
     API --> Auth[Auth service]
     API --> Gen[Generation service]
@@ -40,7 +40,7 @@ The application is a **modular monolith**: routers stay thin, business logic liv
 | --------- | ------------------------------------------------------------------------ |
 | Backend   | Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic, PyJWT, argon2-cffi, nh3, Jinja2 |
 | AI        | google-genai (Gemini 2.5 Flash default) behind an `LLMProvider` protocol + offline MockProvider |
-| Frontend  | Next.js 14 (App Router), TypeScript strict, TanStack Query, Zod, React Hook Form, Tailwind CSS, DOMPurify |
+| Frontend  | Next.js 16, React 19, App Router, TypeScript strict, TanStack Query, Zod, React Hook Form, Tailwind CSS, DOMPurify |
 | Data      | PostgreSQL (docker-compose), SQLite (zero-setup local dev)               |
 | Testing   | pytest (74 backend tests), Vitest + Testing Library, Playwright E2E      |
 | Infra     | Docker multi-stage non-root images, docker-compose, GitHub Actions CI    |
