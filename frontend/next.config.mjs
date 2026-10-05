@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  agentRules: false,
   // Vercel uses its own build adapter; standalone output is for the Docker image.
   output: process.env.VERCEL ? undefined : "standalone",
   // Playwright opens 127.0.0.1 while Next's dev server starts on localhost.

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Sparkles, FileText, Code2, Search } from "lucide-react";
+import { ArrowLeft, Sparkles, FileText, Code2, Search } from "lucide-react";
+import Link from "next/link";
 
 import { login, signup } from "@/lib/api/auth";
 import { isApiError } from "@/lib/api/errors";
@@ -24,9 +25,13 @@ const authSchema = z.object({
 const loginSchema = authSchema.omit({ name: true });
 
 type SignupValues = z.infer<typeof authSchema>;
-export default function AuthForm() {
+export default function AuthForm({
+  initialMode = "login",
+}: {
+  initialMode?: "login" | "signup";
+}) {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [serverError, setServerError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -65,50 +70,56 @@ export default function AuthForm() {
   };
 
   const fieldClass =
-    "w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm outline-none transition-colors focus:border-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/40";
+    "w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-teal-700 focus-visible:ring-2 focus-visible:ring-teal-700/30";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-white">
+    <div className="flex min-h-screen items-center justify-center bg-[#f5f3ee] px-4 py-10 text-slate-900">
       <div className="flex w-full max-w-5xl flex-col items-center gap-10 md:flex-row md:px-8">
         {/* Hero */}
         <section className="fade-in-up flex-1">
-          <h1 className="text-3xl font-bold leading-tight md:text-4xl">
-            Welcome to <span className="text-blue-400">SearchScribe AI Studio</span>
+          <Link
+            href="/"
+            className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-teal-800 hover:underline"
+          >
+            <ArrowLeft aria-hidden className="h-4 w-4" /> Back to SearchScribe
+          </Link>
+          <h1 className="font-serif text-4xl leading-tight md:text-5xl">
+            Welcome to <span className="text-teal-800">SearchScribe</span>
           </h1>
-          <p className="mt-3 text-xl font-light leading-relaxed text-slate-300">
+          <p className="mt-3 text-xl font-light leading-relaxed text-slate-600">
             Create SEO-optimized articles and ready-to-publish HTML —{" "}
-            <span className="font-medium text-blue-400">all from one search.</span>
+            <span className="font-medium text-teal-800">all from one topic.</span>
           </p>
 
           <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl border border-slate-700 bg-gradient-to-br from-blue-500/20 to-purple-500/10 p-4">
-              <p className="mb-1 text-xs uppercase tracking-wide text-slate-300">
+            <div className="rounded-2xl border border-stone-300 bg-[#e7e9e2] p-4">
+              <p className="mb-1 text-xs uppercase tracking-wide text-slate-600">
                 AI Content Studio
               </p>
-              <p className="text-sm text-slate-200">
+              <p className="text-sm text-slate-700">
                 One query becomes a structured article, SEO metadata, and a standalone
                 HTML page.
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4">
-              <p className="mb-2 text-xs uppercase tracking-wide text-slate-300">
+            <div className="rounded-2xl border border-stone-300 bg-white p-4">
+              <p className="mb-2 text-xs uppercase tracking-wide text-slate-600">
                 What you get
               </p>
-              <ul className="space-y-2 text-sm text-slate-200">
+              <ul className="space-y-2 text-sm text-slate-700">
                 <li className="flex items-center gap-2">
-                  <FileText aria-hidden className="h-4 w-4 text-blue-400" /> Full article
+                  <FileText aria-hidden className="h-4 w-4 text-teal-800" /> Full article
                   with version history
                 </li>
                 <li className="flex items-center gap-2">
-                  <Search aria-hidden className="h-4 w-4 text-blue-400" /> SEO title,
+                  <Search aria-hidden className="h-4 w-4 text-teal-800" /> SEO title,
                   description, keywords
                 </li>
                 <li className="flex items-center gap-2">
-                  <Code2 aria-hidden className="h-4 w-4 text-blue-400" /> Sanitized,
+                  <Code2 aria-hidden className="h-4 w-4 text-teal-800" /> Sanitized,
                   downloadable HTML
                 </li>
                 <li className="flex items-center gap-2">
-                  <Sparkles aria-hidden className="h-4 w-4 text-blue-400" /> Six rewrite
+                  <Sparkles aria-hidden className="h-4 w-4 text-teal-800" /> Six rewrite
                   styles, one click
                 </li>
               </ul>
@@ -118,11 +129,11 @@ export default function AuthForm() {
 
         {/* Auth card */}
         <section className="fade-in-right w-full max-w-md flex-1">
-          <div className="rounded-2xl border border-slate-700 bg-slate-900/90 p-6 shadow-xl md:p-8">
+          <div className="rounded-2xl border border-stone-300 bg-white p-6 shadow-xl md:p-8">
             <h2 className="mb-1 text-center text-xl font-semibold">
               {isSignup ? "Create account" : "Login"}
             </h2>
-            <p className="mb-5 text-center text-xs text-slate-400">
+            <p className="mb-5 text-center text-xs text-slate-600">
               {isSignup
                 ? "Sign up to start generating AI-powered content."
                 : "Sign in to continue using SearchScribe."}
@@ -131,7 +142,7 @@ export default function AuthForm() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
               {isSignup && (
                 <div>
-                  <label htmlFor="name" className="mb-1 block text-xs text-slate-300">
+                  <label htmlFor="name" className="mb-1 block text-xs text-slate-700">
                     Name
                   </label>
                   <input
@@ -152,7 +163,7 @@ export default function AuthForm() {
               )}
 
               <div>
-                <label htmlFor="email" className="mb-1 block text-xs text-slate-300">
+                <label htmlFor="email" className="mb-1 block text-xs text-slate-700">
                   Email
                 </label>
                 <input
@@ -172,7 +183,7 @@ export default function AuthForm() {
               </div>
 
               <div>
-                <label htmlFor="password" className="mb-1 block text-xs text-slate-300">
+                <label htmlFor="password" className="mb-1 block text-xs text-slate-700">
                   Password
                 </label>
                 <input
@@ -200,7 +211,7 @@ export default function AuthForm() {
               <button
                 type="submit"
                 disabled={busy}
-                className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-teal-800 py-2.5 text-sm font-medium text-white transition-colors hover:bg-teal-900 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {busy ? <Spinner /> : null}
                 {busy ? "Please wait…" : isSignup ? "Sign up" : "Login"}
@@ -214,7 +225,7 @@ export default function AuthForm() {
                   setServerError(null);
                   setMode(isSignup ? "login" : "signup");
                 }}
-                className="text-xs text-slate-400 transition-colors hover:text-blue-400"
+                className="text-xs text-slate-600 transition-colors hover:text-teal-800"
               >
                 {isSignup
                   ? "Already have an account? Login"
