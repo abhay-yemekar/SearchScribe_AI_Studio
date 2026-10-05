@@ -1,6 +1,7 @@
 "use client";
 
-import { FilePlus2, Trash2 } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { FilePlus2, Trash2, X } from "lucide-react";
 import { EmptyState, Spinner } from "@/components/shared/States";
 import type { ArticleListItem } from "@/lib/api/schemas";
 
@@ -15,6 +16,8 @@ export default function ArticleSidebar({
   onNewArticle,
   onLoadMore,
   onDelete,
+  mobileOpen = false,
+  onClose,
 }: {
   articles: ArticleListItem[];
   loading: boolean;
@@ -26,15 +29,60 @@ export default function ArticleSidebar({
   onNewArticle: () => void;
   onLoadMore: () => void;
   onDelete: (id: number) => void;
+  mobileOpen?: boolean;
+  onClose?: () => void;
 }) {
+  const sidebarRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (mobileOpen) closeButtonRef.current?.focus();
+  }, [mobileOpen]);
+
   return (
-    <aside className="flex w-72 shrink-0 flex-col border-r border-slate-800 bg-slate-900/60 p-4">
-      <h2 className="mb-4 flex items-center gap-2 text-base font-semibold">
-        SearchScribe
-        <span className="rounded bg-blue-600/20 px-1.5 py-0.5 text-[10px] font-medium text-blue-300">
-          AI Studio
-        </span>
-      </h2>
+    <aside
+      ref={sidebarRef}
+      id="article-sidebar"
+      aria-label="Article navigation"
+      role={mobileOpen ? "dialog" : undefined}
+      aria-modal={mobileOpen ? true : undefined}
+      onKeyDown={(event) => {
+        if (!mobileOpen || event.key !== "Tab") return;
+        const focusable = Array.from(
+          sidebarRef.current?.querySelectorAll<HTMLButtonElement>(
+            "button:not([disabled])",
+          ) ?? [],
+        ).filter((button) => button.getClientRects().length > 0);
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
+      className={`${mobileOpen ? "fixed inset-y-0 left-0 z-40 flex" : "hidden"} w-72 max-w-[85vw] shrink-0 flex-col border-r border-slate-800 bg-slate-900 p-4 shadow-2xl md:static md:z-auto md:flex md:max-w-none md:shadow-none`}
+    >
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 text-base font-semibold">
+          SearchScribe
+          <span className="rounded bg-blue-600/20 px-1.5 py-0.5 text-[10px] font-medium text-blue-300">
+            AI Studio
+          </span>
+        </h2>
+        <button
+          ref={closeButtonRef}
+          type="button"
+          onClick={onClose}
+          aria-label="Close article navigation"
+          className="rounded p-2 text-slate-300 hover:bg-slate-800 md:hidden"
+        >
+          <X aria-hidden className="h-5 w-5" />
+        </button>
+      </div>
 
       <button
         type="button"

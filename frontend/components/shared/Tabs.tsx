@@ -22,7 +22,7 @@ export default function Tabs({
       <div
         role="tablist"
         aria-label="Article views"
-        className="flex gap-1 border-b border-slate-700 px-2"
+        className="flex shrink-0 gap-1 overflow-x-auto border-b border-slate-700 px-2"
         onKeyDown={(event) => {
           const index = tabs.findIndex((t) => t.key === active);
           const next =
@@ -55,7 +55,7 @@ export default function Tabs({
               aria-controls={`${baseId}-panel-${tab.key}`}
               tabIndex={isActive ? 0 : -1}
               onClick={() => onChange(tab.key)}
-              className={`border-b-2 px-4 py-2.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 ${
+              className={`shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-blue-500 ${
                 isActive
                   ? "border-blue-500 text-white"
                   : "border-transparent text-slate-400 hover:text-white"
