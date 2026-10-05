@@ -64,12 +64,12 @@ export default function ArticleSidebar({
           first.focus();
         }
       }}
-      className={`${mobileOpen ? "fixed inset-y-0 left-0 z-40 flex" : "hidden"} w-72 max-w-[85vw] shrink-0 flex-col border-r border-slate-800 bg-slate-900 p-4 shadow-2xl md:static md:z-auto md:flex md:max-w-none md:shadow-none`}
+      className={`${mobileOpen ? "fixed inset-y-0 left-0 z-40 flex" : "hidden"} w-72 max-w-[85vw] shrink-0 flex-col border-r border-stone-200 bg-[#ebeae4] p-4 text-slate-900 shadow-2xl md:static md:z-auto md:flex md:max-w-none md:shadow-none`}
     >
       <div className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-base font-semibold">
+        <h2 className="flex items-center gap-2 font-serif text-lg font-semibold tracking-tight">
           SearchScribe
-          <span className="rounded bg-blue-600/20 px-1.5 py-0.5 text-[10px] font-medium text-blue-300">
+          <span className="rounded bg-teal-100 px-1.5 py-0.5 font-sans text-[10px] font-semibold text-teal-800">
             AI Studio
           </span>
         </h2>
@@ -78,7 +78,7 @@ export default function ArticleSidebar({
           type="button"
           onClick={onClose}
           aria-label="Close article navigation"
-          className="rounded p-2 text-slate-300 hover:bg-slate-800 md:hidden"
+          className="rounded p-2 text-slate-600 hover:bg-stone-100 md:hidden"
         >
           <X aria-hidden className="h-5 w-5" />
         </button>
@@ -87,18 +87,18 @@ export default function ArticleSidebar({
       <button
         type="button"
         onClick={onNewArticle}
-        className="mb-2 flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 py-2 text-sm font-medium transition-colors hover:bg-blue-700"
+        className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-teal-800"
       >
         <FilePlus2 aria-hidden className="h-4 w-4" /> New article
       </button>
 
-      <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <h3 className="mb-2 mt-5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
         Articles
       </h3>
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         {loading ? (
-          <div className="flex items-center gap-2 p-2 text-xs text-slate-500">
+          <div className="flex items-center gap-2 p-2 text-xs text-slate-600">
             <Spinner className="h-3.5 w-3.5" /> Loading articles…
           </div>
         ) : articles.length === 0 ? (
@@ -117,14 +117,16 @@ export default function ArticleSidebar({
                     onClick={() => onSelect(article.id)}
                     aria-current={isSelected ? "true" : undefined}
                     className={`w-full rounded-md px-2 py-2 text-left transition-colors ${
-                      isSelected ? "bg-slate-800" : "hover:bg-slate-800/60"
+                      isSelected
+                        ? "bg-white shadow-sm ring-1 ring-stone-200"
+                        : "hover:bg-white/70"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm text-slate-100">
+                      <span className="truncate text-sm font-medium text-slate-800">
                         {article.title}
                       </span>
-                      <span className="shrink-0 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">
+                      <span className="shrink-0 rounded bg-stone-200 px-1.5 py-0.5 text-[10px] text-slate-600">
                         v{article.current_version}
                       </span>
                     </div>
@@ -142,7 +144,7 @@ export default function ArticleSidebar({
                     aria-label={`Delete ${article.title}`}
                     disabled={deletingId === article.id}
                     onClick={() => onDelete(article.id)}
-                    className="absolute right-1.5 top-1.5 hidden rounded p-1 text-slate-500 transition-colors hover:bg-rose-900/60 hover:text-rose-300 group-hover:block"
+                    className="absolute right-1.5 top-1.5 block rounded p-1 text-slate-500 transition-colors hover:bg-rose-100 hover:text-rose-700 md:hidden md:group-hover:block md:focus-visible:block"
                   >
                     {deletingId === article.id ? (
                       <Spinner className="h-3.5 w-3.5" />
@@ -162,7 +164,7 @@ export default function ArticleSidebar({
           type="button"
           onClick={onLoadMore}
           disabled={loadingMore}
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded border border-slate-700 py-1.5 text-xs text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-60"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white py-1.5 text-xs text-slate-700 transition-colors hover:border-teal-600 disabled:opacity-60"
         >
           {loadingMore ? <Spinner className="h-3.5 w-3.5" /> : null}
           {loadingMore ? "Loading…" : "Load more"}
