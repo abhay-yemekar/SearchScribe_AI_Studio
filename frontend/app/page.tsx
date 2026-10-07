@@ -127,8 +127,8 @@ export default function HomePage() {
             </div>
             <p className="max-w-lg leading-7 text-slate-600">
               This screenshot was captured from the working local interface using its
-              deterministic mock AI provider. It shows the article editor; production
-              generation still needs a verified deployed API.
+              deterministic mock AI provider. It shows the article editor; live AI
+              output varies with your topic.
             </p>
           </div>
           <Image
