@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Providers from "./providers";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://search-scribe-ai-studio.vercel.app"),
+  metadataBase: new URL("https://searchscribe-ai.vercel.app"),
   title: "SearchScribe | An open-source writing studio",
   description:
     "Shape a topic into an article, edit its SEO details, revise with version history, and export HTML.",

@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const site = "https://search-scribe-ai-studio.vercel.app";
+const site = "https://searchscribe-ai.vercel.app";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return ["", "/how-it-works", "/features", "/example", "/privacy"].map((path) => ({
