@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 14
     jwt_algorithm: str = "HS256"
+    google_client_id: str = ""
 
     # --- CORS ---
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"

@@ -8,7 +8,8 @@ import { z } from "zod";
 import { ArrowLeft, Sparkles, FileText, Code2, Search } from "lucide-react";
 import Link from "next/link";
 
-import { login, signup } from "@/lib/api/auth";
+import { googleLogin, login, signup } from "@/lib/api/auth";
+import GoogleSignIn from "./GoogleSignIn";
 import { isApiError } from "@/lib/api/errors";
 import { Spinner } from "@/components/shared/States";
 
@@ -139,6 +140,14 @@ export default function AuthForm({
                 : "Sign in to continue using SearchScribe."}
             </p>
 
+            <GoogleSignIn
+              onError={setServerError}
+              onCredential={async (credential) => {
+                setServerError(null);
+                await googleLogin(credential);
+                router.push("/dashboard");
+              }}
+            />
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
               {isSignup && (
                 <div>

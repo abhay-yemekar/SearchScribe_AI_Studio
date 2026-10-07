@@ -23,12 +23,15 @@ must be designed alongside the successful flow.
 - [x] Versioned editing: structured sections, SEO editing, conflict detection,
   and complete snapshots. Old versions must not invent historical metadata.
 - [x] Next.js 16 and the responsive editorial workspace redesign (PRs #5–7).
-- [ ] Public website: home, How it works, Features, Example, privacy, and
-  password login at `/login` (implemented in draft PR #8; production pending).
+- [x] Public website: home, How it works, Features, Example, privacy, and
+  password login at `/login` (PR #8 merged; live on searchscribe-ai.vercel.app).
 - [ ] Google sign-in: verified stable provider identity, existing session flow,
   and explicit password-authenticated linking; never merge accounts by email.
-- [ ] Live foundation: Vercel frontend, Render API, persistent Neon Postgres,
+- [x] Live foundation: Vercel frontend, Render API, persistent Neon Postgres,
   migrations, and deployed signup/generation/edit/export verification.
+- [ ] Account recovery and email: forgot/reset password, verified email, safe
+  transactional delivery, persistent send limits, and inbox verification.
+  Setup instructions and sender constraints: [auth-setup.md](auth-setup.md).
 - [ ] Research: bounded search, traceable source IDs, citations, and an explicit
   unresearched mode when search fails. Treat retrieved text as untrusted input.
 - [ ] Photos: suggestions for a hero and relevant sections, user selection,

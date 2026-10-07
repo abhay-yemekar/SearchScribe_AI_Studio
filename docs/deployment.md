@@ -15,7 +15,7 @@ daily quotas and provider fallback remain separate launch work.
 
 ### Existing service audit — 7 October 2026
 
-Vercel hosts `search-scribe-ai-studio.vercel.app`. An existing personal Render
+Vercel hosts `searchscribe-ai.vercel.app`; the old hostname redirects there. An existing personal Render
 Free service at `searchscribe-ai-studio.onrender.com` is still on commit
 `c2fbd7f`, with root `backend` and start command `uvicorn ... --port 8000`.
 Its masked environment has legacy `SQLALCHEMY_DATABASE_URL` and
@@ -24,7 +24,20 @@ The old database URL selects SQLite; its contents, live generation, and frontend
 `BACKEND_URL` have not been verified. The existing service and environment remain
 unchanged. An isolated Neon Free organization **SearchScribe Personal** and project
 **searchscribe-beta** were created in AWS Singapore (Postgres 18). The database is
-not yet connected to the API. The unrelated Hirelens organization is unchanged.
+connected to the new `searchscribe-beta-api.onrender.com` API. The unrelated Hirelens organization is unchanged.
+
+The new API uses production validation, migration-before-start, and Neon persistence.
+Vercel Production has `BACKEND_URL=https://searchscribe-beta-api.onrender.com`.
+Live browser and same-origin checks passed signup/login, real Gemini generation,
+article/SEO editing, stale edit rejection, version restore, HTML download, refresh,
+logout, and cross-user access denial. API data persisted when tested across the
+restart workflow. A database backup restore and rollback rehearsal are still pending.
+The legacy service's auto-deploy is Off; no legacy data was migrated or deleted.
+The new API now tracks main with auto-deploy Off; reviewed releases deploy manually.
+
+When changing the public domain, verify CORS_ORIGINS, metadataBase, sitemap,
+canonical links, email-link origins, Google authorized JavaScript origins, the
+old-domain redirect, and a deployed login-to-export journey together.
 
 **Do not deploy current main over this service until the old database is
 identified and any needed data is backed up.** A missing current database variable
@@ -62,7 +75,7 @@ would otherwise select local SQLite. Production settings now fail closed.
 | `APP_ENV` | `production` |
 | `DATABASE_URL` | Dedicated Neon direct URL with TLS |
 | `SECRET_KEY` | Cryptographically random, at least 32 characters |
-| `CORS_ORIGINS` | `https://search-scribe-ai-studio.vercel.app` |
+| `CORS_ORIGINS` | `https://searchscribe-ai.vercel.app` |
 | `AI_PROVIDER` | `gemini` |
 | `AI_MODEL` | An available model verified with the account's actual limits |
 | `GEMINI_API_KEY` | Personal project key in Render's secret environment |

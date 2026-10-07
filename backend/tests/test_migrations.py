@@ -6,7 +6,7 @@ from io import StringIO
 from pathlib import Path
 
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 from alembic import command
 
@@ -20,6 +20,7 @@ EXPECTED_TABLES = {
     "seo_metadata",
     "generations",
     "alembic_version",
+    "provider_identities",
 }
 
 
@@ -65,3 +66,34 @@ def test_postgres_offline_migrations_preserve_encoded_password() -> None:
     assert cfg.get_main_option("sqlalchemy.url") == url.replace(
         "postgresql://", "postgresql+psycopg://"
     )
+
+
+def test_google_upgrade_preserves_existing_users_and_articles(tmp_path) -> None:
+    db_url = f"sqlite:///{tmp_path / 'existing.db'}"
+    cfg = _alembic_config(db_url)
+    command.upgrade(cfg, "a84f2e510c7b")
+    engine = create_engine(db_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users (id,email,name,password_hash,is_active,created_at,updated_at) "
+                "VALUES (1,'old@example.com','Old','hash',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO articles (id,user_id,title,query,status,created_at,updated_at) "
+                "VALUES (1,1,'Old draft','Old topic','draft',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"
+            )
+        )
+    command.upgrade(cfg, "head")
+    with engine.connect() as connection:
+        assert (
+            connection.execute(text("SELECT password_hash FROM users WHERE id=1")).scalar()
+            == "hash"
+        )
+        assert (
+            connection.execute(text("SELECT title FROM articles WHERE id=1")).scalar()
+            == "Old draft"
+        )
+    command.downgrade(cfg, "a84f2e510c7b")

@@ -35,6 +35,28 @@ export async function fetchCurrentUser(): Promise<User> {
   return userSchema.parse(await apiFetch<unknown>("/api/v1/auth/me"));
 }
 
+export async function googleLogin(credential: string): Promise<TokenPayload> {
+  const payload = tokenSchema.parse(
+    await apiFetch<unknown>(
+      "/api/v1/auth/google",
+      {
+        method: "POST",
+        body: JSON.stringify({ credential }),
+      },
+      { skipAuth: true },
+    ),
+  );
+  setAccessToken(payload.access_token, payload.expires_in);
+  return payload;
+}
+
+export async function linkGoogle(credential: string, password: string): Promise<void> {
+  await apiFetch("/api/v1/auth/google/link", {
+    method: "POST",
+    body: JSON.stringify({ credential, password }),
+  });
+}
+
 export async function logout(): Promise<void> {
   try {
     await apiFetch("/api/v1/auth/logout", { method: "POST" });

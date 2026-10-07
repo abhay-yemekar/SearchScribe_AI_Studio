@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   useInfiniteQuery,
   useMutation,
@@ -253,6 +254,9 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-3 text-sm text-slate-600">
             {user ? <span className="hidden sm:inline">Hi, {user.name}</span> : null}
+            <Link href="/account" className="hover:text-teal-800">
+              Account
+            </Link>
             <button
               type="button"
               onClick={() => void logout()}
