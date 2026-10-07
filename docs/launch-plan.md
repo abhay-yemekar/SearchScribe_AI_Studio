@@ -1,8 +1,8 @@
 # Public beta launch plan
 
-Target: 18 September 2026. Release candidate: `v2.0.0-beta.1`.
-The date is a target; authentication, data integrity, attribution, and recovery
-checks remain release gates.
+Target: quality-gated public beta, with no fixed date. The previous
+18 September 2026 target has passed. Release candidate: `v2.0.0-beta.1`.
+Authentication, data integrity, attribution, and recovery remain release gates.
 
 ## Product
 
@@ -22,7 +22,13 @@ must be designed alongside the successful flow.
   refresh, production settings, provider failures, and SQLite/Postgres CI.
 - [x] Versioned editing: structured sections, SEO editing, conflict detection,
   and complete snapshots. Old versions must not invent historical metadata.
-- [ ] Supported frontend framework and the editorial workspace redesign.
+- [x] Next.js 16 and the responsive editorial workspace redesign (PRs #5–7).
+- [ ] Public website: home, How it works, Features, Example, privacy, and
+  password login at `/login` (implemented in draft PR #8; production pending).
+- [ ] Google sign-in: verified stable provider identity, existing session flow,
+  and explicit password-authenticated linking; never merge accounts by email.
+- [ ] Live foundation: Vercel frontend, Render API, persistent Neon Postgres,
+  migrations, and deployed signup/generation/edit/export verification.
 - [ ] Research: bounded search, traceable source IDs, citations, and an explicit
   unresearched mode when search fails. Treat retrieved text as untrusted input.
 - [ ] Photos: suggestions for a hero and relevant sections, user selection,
@@ -57,7 +63,9 @@ quota must not prevent reading, manual editing, restoring, or exporting work.
 - Source links and photo credits survive exports and version restoration.
 - At least 19 of 20 representative generation prompts pass schema validation;
   manually inspect factual attribution and photo relevance for the same set.
-- Public signup/login, generation, editing, export, logout, and cold-start
+- Public website accurately describes shipped features and the complete journey.
+- Password and Google signup/login, safe account linking, generation, editing,
+  export, logout, and cold-start
   recovery work against the deployed API and persistent database.
 - Backup restore and deployment rollback are rehearsed before tagging.
 
