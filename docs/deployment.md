@@ -20,9 +20,11 @@ Free service at `searchscribe-ai-studio.onrender.com` is still on commit
 `c2fbd7f`, with root `backend` and start command `uvicorn ... --port 8000`.
 Its masked environment has legacy `SQLALCHEMY_DATABASE_URL` and
 `GEMINI_MODEL_NAME`; current code reads `DATABASE_URL` and `AI_MODEL`.
-No Neon project exists yet. The old database type, contents, live generation,
-and frontend `BACKEND_URL` have not been verified. No deployment or environment
-change was made during this audit.
+The old database URL selects SQLite; its contents, live generation, and frontend
+`BACKEND_URL` have not been verified. The existing service and environment remain
+unchanged. An isolated Neon Free organization **SearchScribe Personal** and project
+**searchscribe-beta** were created in AWS Singapore (Postgres 18). The database is
+not yet connected to the API. The unrelated Hirelens organization is unchanged.
 
 **Do not deploy current main over this service until the old database is
 identified and any needed data is backed up.** A missing current database variable
@@ -41,7 +43,10 @@ would otherwise select local SQLite. Production settings now fail closed.
 3. Identify the old service's database before changing its environment. If it
    contains real data, back it up and plan an explicit transfer. Alembic creates
    schema; it does not transfer an old SQLite database or convert old data.
-4. After green CI and review, configure the existing Render service below.
+4. After green CI and review, configure an isolated beta Render service below.
+   Keep the old SQLite service intact until its data has been backed up and any
+   transfer is explicitly verified. The new API hostname must be recorded after
+   provisioning; do not send beta writes to the old service.
    `render.yaml` is a reference for a **new** service, not an instruction to replace
    the existing one. Importing it can create a second service. Keep auto-deploy off
    during initial database setup and deploy a reviewed commit explicitly.
@@ -75,8 +80,9 @@ runners require a separate migration job or lock before scaling.
 See [Render Python versions](https://render.com/docs/python-version) and
 [Blueprint settings](https://render.com/docs/blueprint-spec).
 
-5. On Vercel, set server-only `BACKEND_URL` to
-   `https://searchscribe-ai-studio.onrender.com`, then rebuild the frontend.
+5. On Vercel, set server-only `BACKEND_URL` to the **new beta API's HTTPS URL**,
+   then rebuild the frontend. The old `searchscribe-ai-studio.onrender.com` URL
+   belongs to the untouched SQLite service.
    The rewrite is resolved at build time. Use an isolated API/database for preview
    environments; never point automated tests or mock generation at production.
 6. Verify API `/api/v1/health` and `/api/v1/ready`, then the same URLs through
