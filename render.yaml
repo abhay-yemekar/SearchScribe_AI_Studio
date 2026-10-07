@@ -1,0 +1,30 @@
+# Reference blueprint for a NEW service. Existing services require dashboard
+# configuration; do not import this to replace a service containing user data.
+services:
+  - type: web
+    name: searchscribe-api
+    runtime: python
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m app.start
+    healthCheckPath: /api/v1/ready
+    autoDeployTrigger: "off"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.11
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: AI_PROVIDER
+        value: gemini
+      - key: AI_MODEL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from io import StringIO
 from pathlib import Path
 
 from alembic.config import Config
@@ -51,3 +52,16 @@ def test_downgrade_base_drops_all_tables(tmp_path: object) -> None:
     engine = create_engine(db_url)
     tables = set(inspect(engine).get_table_names())
     assert tables == {"alembic_version"} or EXPECTED_TABLES.isdisjoint(tables)
+
+
+def test_postgres_offline_migrations_preserve_encoded_password() -> None:
+    output = StringIO()
+    cfg = Config(str(BACKEND_ROOT / "alembic.ini"), output_buffer=output)
+    cfg.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
+    url = "postgresql://writer:p%40ss%25word@localhost/searchscribe_test?sslmode=require"
+    cfg.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
+    command.upgrade(cfg, "head", sql=True)
+    assert "CREATE TABLE users" in output.getvalue()
+    assert cfg.get_main_option("sqlalchemy.url") == url.replace(
+        "postgresql://", "postgresql+psycopg://"
+    )

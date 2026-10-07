@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import app.db.models
 from app.core.config import settings
+from app.core.database_url import normalize_database_url
 from app.db.base import Base
 
 config = context.config
@@ -23,8 +24,9 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # URL precedence: explicit -x/ini override (tests, tooling) → app settings.
-if not config.get_main_option("sqlalchemy.url"):
-    config.set_main_option("sqlalchemy.url", settings.database_url)
+url = normalize_database_url(config.get_main_option("sqlalchemy.url") or settings.database_url)
+# ConfigParser interprets percent signs; encoded credentials must remain literal.
+config.set_main_option("sqlalchemy.url", url.replace("%", "%%"))
 
 target_metadata = Base.metadata
 

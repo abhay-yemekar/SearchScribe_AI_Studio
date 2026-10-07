@@ -5,8 +5,11 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
+
+from .database_url import normalize_database_url
 
 # Sentinel default; production startup refuses to run with it (see validator).
 _DEFAULT_SECRET = "change-me-in-.env"  # noqa: S105
@@ -18,6 +21,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,
+        hide_input_in_errors=True,
     )
 
     # --- Application ---
@@ -53,6 +57,11 @@ class Settings(BaseSettings):
     rate_limit_auth_per_minute: int = 10
     rate_limit_generation_per_minute: int = 5
 
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_database_url(cls, value: str) -> str:
+        return normalize_database_url(value)
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
@@ -63,10 +72,17 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_security(self) -> Settings:
-        if self.is_production and self.secret_key == _DEFAULT_SECRET:
+        if not self.is_production:
+            return self
+        if self.secret_key == _DEFAULT_SECRET or len(self.secret_key) < 32:
             raise ValueError(
-                "SECRET_KEY must be set to a strong random value in production"
+                "SECRET_KEY must contain at least 32 characters in production; "
+                "generate a strong random value"
             )
+        if make_url(self.database_url).get_backend_name() != "postgresql":
+            raise ValueError("Production requires persistent PostgreSQL; SQLite is local/test only")
+        if self.ai_provider == "mock":
+            raise ValueError("AI_PROVIDER=mock is local/test only")
         return self
 
 
