@@ -2,6 +2,14 @@
 
 from .article import Article, ArticleVersion, SeoMetadata
 from .generation import Generation
-from .user import RefreshToken, User
+from .user import ProviderIdentity, RefreshToken, User
 
-__all__ = ["Article", "ArticleVersion", "Generation", "RefreshToken", "SeoMetadata", "User"]
+__all__ = [
+    "Article",
+    "ArticleVersion",
+    "Generation",
+    "ProviderIdentity",
+    "RefreshToken",
+    "SeoMetadata",
+    "User",
+]

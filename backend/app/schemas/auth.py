@@ -38,6 +38,14 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class GoogleRequest(BaseModel):
+    credential: str = Field(min_length=1, max_length=10000)
+
+
+class GoogleLinkRequest(GoogleRequest):
+    password: str = Field(min_length=1, max_length=128)
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

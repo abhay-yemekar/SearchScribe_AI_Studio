@@ -54,7 +54,7 @@ class AuthService:
         if user is None:
             hash_password(password)
             raise AuthenticationError("Invalid email or password.")
-        if not verify_password(password, user.password_hash):
+        if not user.password_hash or not verify_password(password, user.password_hash):
             raise AuthenticationError("Invalid email or password.")
         if not user.is_active:
             raise AuthenticationError("This account is disabled.")
