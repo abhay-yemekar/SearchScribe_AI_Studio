@@ -2,8 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("article navigation works on a narrow viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
-  await page.getByRole("button", { name: /sign up/i }).click();
+  await page.goto("/login?mode=signup");
   await page.getByLabel("Name").fill("Mobile Tester");
   await page.getByLabel("Email").fill(`mobile-${Date.now()}@test.dev`);
   await page.getByLabel("Password").fill("e2e-password-1");

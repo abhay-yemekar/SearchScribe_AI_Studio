@@ -48,7 +48,7 @@ export default function DashboardPage() {
 
   // Redirect if the session bootstrap comes back empty-handed.
   useEffect(() => {
-    if (!bootstrapping && !token) router.replace("/");
+    if (!bootstrapping && !token) router.replace("/login");
   }, [bootstrapping, token, router]);
 
   useEffect(() => {

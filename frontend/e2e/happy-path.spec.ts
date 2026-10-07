@@ -11,7 +11,13 @@ test.describe("SearchScribe happy path (mock AI provider)", () => {
 
     // --- Landing / signup ---
     await page.goto("/");
-    await page.getByRole("button", { name: /sign up/i }).click();
+    await expect(
+      page.getByRole("heading", { name: /start with a thought/i }),
+    ).toBeVisible();
+    await page
+      .getByRole("link", { name: /start writing/i })
+      .first()
+      .click();
     await page.getByLabel("Name").fill("E2E Tester");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill("e2e-password-1");
@@ -61,7 +67,9 @@ test.describe("SearchScribe happy path (mock AI provider)", () => {
 
     // --- Logout ---
     await page.getByRole("button", { name: /logout/i }).click();
-    await expect(page.getByRole("heading", { name: /welcome to/i })).toBeVisible({
+    await expect(
+      page.getByRole("heading", { name: /start with a thought/i }),
+    ).toBeVisible({
       timeout: 15_000,
     });
 
