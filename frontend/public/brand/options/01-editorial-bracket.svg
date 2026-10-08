@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" viewBox="0 0 400 240" fill="none">
+  <title>Option 01: Editorial bracket</title>
+  <rect width="400" height="240" fill="#f6f4ed"/>
+  <g transform="translate(150 50) scale(2.5)" stroke="#17252b">
+    <path d="M10 5H4V35H10M30 5H36V35H30" stroke-width="2.5"/>
+    <path d="M26 12H15V20H25V28H14" stroke-width="4"/>
+    <path d="M30 12V28" stroke-width="2"/>
+  </g>
+  <text x="200" y="190" fill="#17252b" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">01 / EDITORIAL BRACKET</text>
+</svg>

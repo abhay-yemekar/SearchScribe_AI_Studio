@@ -129,6 +129,33 @@ describe("apiFetch", () => {
     expect(error).toBeInstanceOf(UnauthorizedError);
   });
 
+  it("reports a missing session to the optional caller while sharing the refresh", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(401, {})));
+    const onUnauthorized = vi.fn();
+    await expect(
+      Promise.all([refreshOnce({ onUnauthorized }), refreshOnce()]),
+    ).resolves.toEqual([false, false]);
+    expect(onUnauthorized).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it.each([429, 500, 503])(
+    "does not report HTTP %s as a missing session",
+    async (status) => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(status, {})));
+      const onUnauthorized = vi.fn();
+      await expect(refreshOnce({ onUnauthorized })).resolves.toBe(false);
+      expect(onUnauthorized).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not report network failure as a missing session", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    const onUnauthorized = vi.fn();
+    await expect(refreshOnce({ onUnauthorized })).rejects.toThrow("offline");
+    expect(onUnauthorized).not.toHaveBeenCalled();
+  });
+
   it("does not attempt refresh for auth endpoints", async () => {
     vi.stubGlobal(
       "fetch",

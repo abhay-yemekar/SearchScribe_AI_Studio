@@ -9,12 +9,17 @@ import { fetchCurrentUser, logout as apiLogout } from "@/lib/api/auth";
 import { refreshOnce } from "@/lib/api/client";
 import type { User } from "@/lib/api/schemas";
 
+// Public navigation can remount this hook on every page. Remember only a recent
+// missing session, in this tab; protected routes always check the cookie again.
+const PUBLIC_NO_SESSION_TTL_MS = 30_000;
+let publicNoSessionUntil = 0;
+
 /**
  * Session hook.
  * - `token` mirrors the in-memory access token via useSyncExternalStore.
  * - `bootstrap()` performs the silent refresh-cookie exchange on first load.
  */
-export function useSession() {
+export function useSession({ publicView = false }: { publicView?: boolean } = {}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const token = useSyncExternalStore(subscribe, getSnapshot, () => null);
@@ -25,10 +30,20 @@ export function useSession() {
     setBootstrapping(true);
     try {
       if (!getSnapshot()) {
+        if (publicView && Date.now() < publicNoSessionUntil) return;
         // Silent refresh: exchanges the HttpOnly cookie for a fresh token.
-        await refreshOnce();
+        await refreshOnce(
+          publicView
+            ? {
+                onUnauthorized: () => {
+                  publicNoSessionUntil = Date.now() + PUBLIC_NO_SESSION_TTL_MS;
+                },
+              }
+            : undefined,
+        );
       }
       if (getSnapshot()) {
+        publicNoSessionUntil = 0;
         setUser(await fetchCurrentUser());
       }
     } catch {
@@ -36,7 +51,7 @@ export function useSession() {
     } finally {
       setBootstrapping(false);
     }
-  }, []);
+  }, [publicView]);
 
   useEffect(() => {
     // Session bootstrap is the effect's external synchronization boundary.

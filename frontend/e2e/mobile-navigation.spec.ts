@@ -19,6 +19,11 @@ test("article navigation works on a narrow viewport", async ({ page }) => {
     page.getByRole("button", { name: "Close article navigation" }).last(),
   ).toBeFocused();
 
+  await page.keyboard.press("Shift+Tab");
+  await expect(
+    page.getByRole("link", { name: "SearchScribe home", exact: true }),
+  ).toBeFocused();
+
   await page.keyboard.press("Escape");
   await expect(sidebar).toBeHidden();
   await expect(menu).toBeFocused();

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import Link from "next/link";
 import { FilePlus2, Trash2, X } from "lucide-react";
+import BrandLogo from "@/components/brand/BrandLogo";
 import { EmptyState, Spinner } from "@/components/shared/States";
 import type { ArticleListItem } from "@/lib/api/schemas";
 
@@ -49,8 +51,8 @@ export default function ArticleSidebar({
       onKeyDown={(event) => {
         if (!mobileOpen || event.key !== "Tab") return;
         const focusable = Array.from(
-          sidebarRef.current?.querySelectorAll<HTMLButtonElement>(
-            "button:not([disabled])",
+          sidebarRef.current?.querySelectorAll<HTMLElement>(
+            "a[href], button:not([disabled])",
           ) ?? [],
         ).filter((button) => button.getClientRects().length > 0);
         if (!focusable.length) return;
@@ -64,15 +66,12 @@ export default function ArticleSidebar({
           first.focus();
         }
       }}
-      className={`${mobileOpen ? "fixed inset-y-0 left-0 z-40 flex" : "hidden"} w-72 max-w-[85vw] shrink-0 flex-col border-r border-stone-200 bg-[#ebeae4] p-4 text-slate-900 shadow-2xl md:static md:z-auto md:flex md:max-w-none md:shadow-none`}
+      className={`studio-sidebar ${mobileOpen ? "fixed inset-y-0 left-0 z-40 flex" : "hidden"} w-72 max-w-[85vw] shrink-0 flex-col border-r border-stone-200 bg-[#e9eced] p-5 text-[#17252b] shadow-2xl md:static md:z-auto md:flex md:max-w-none md:shadow-none`}
     >
       <div className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 font-serif text-lg font-semibold tracking-tight">
-          SearchScribe
-          <span className="rounded bg-teal-100 px-1.5 py-0.5 font-sans text-[10px] font-semibold text-teal-800">
-            AI Studio
-          </span>
-        </h2>
+        <Link href="/" aria-label="SearchScribe home" className="rounded-sm">
+          <BrandLogo className="text-[#17252b]" />
+        </Link>
         <button
           ref={closeButtonRef}
           type="button"
@@ -87,7 +86,7 @@ export default function ArticleSidebar({
       <button
         type="button"
         onClick={onNewArticle}
-        className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-teal-800"
+        className="studio-primary-action mb-2 flex w-full items-center justify-center gap-2 rounded-lg bg-[#e0f06b] py-3 text-sm font-semibold text-[#17252b] transition-colors hover:bg-[#d3e458]"
       >
         <FilePlus2 aria-hidden className="h-4 w-4" /> New article
       </button>
@@ -164,7 +163,7 @@ export default function ArticleSidebar({
           type="button"
           onClick={onLoadMore}
           disabled={loadingMore}
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white py-1.5 text-xs text-slate-700 transition-colors hover:border-teal-600 disabled:opacity-60"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white py-1.5 text-xs text-slate-700 transition-colors hover:border-[#17252b] disabled:opacity-60"
         >
           {loadingMore ? <Spinner className="h-3.5 w-3.5" /> : null}
           {loadingMore ? "Loading…" : "Load more"}

@@ -1,197 +1,170 @@
-# SearchScribe AI Studio
+# SearchScribe AI
 
-**One search query → a structured AI article, validated SEO metadata, and a sanitized, ready-to-publish HTML page.**
+![SearchScribe AI — Start with a thought. Leave with a draft.](frontend/public/brand/open-graph.png)
 
-SearchScribe is a full-stack AI content platform: a FastAPI backend with a provider-independent LLM layer, a Next.js 16 frontend, PostgreSQL via SQLAlchemy 2.x + Alembic, rotating refresh-cookie sessions, article versioning, and a multi-style rewrite engine.
+**An open-source writing studio. Turn a topic into a structured draft, make it your own, and export HTML.**
 
----
+[Try the website](https://searchscribe-ai.vercel.app/) · [How it works](https://searchscribe-ai.vercel.app/how-it-works) · [Contribute](CONTRIBUTING.md) · [MIT license](LICENSE)
 
-## Features
+[![CI](https://github.com/abhay-yemekar/SearchScribe_AI_Studio/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/abhay-yemekar/SearchScribe_AI_Studio/actions/workflows/ci.yml)
 
-- **Account & sessions** — signup/login/logout with Argon2id password hashing, short-lived access JWTs held in memory, rotating HttpOnly refresh cookies (theft detection included).
-- **Article generation** — a query becomes a structured article (title / intro / sections / conclusion), deterministic Markdown + standalone HTML, all schema-validated.
-- **SEO engine** — generated and editable titles, descriptions, keywords, Open Graph fields, canonical URLs, and robots directives, preserved with each article version.
-- **Rewrite styles** — Professional, Casual, Gen Z, Technical, Marketing, Minimal. Every rewrite is a new immutable version.
-- **Versioned editor** — edit structured article sections and SEO metadata with stale-write protection; list, inspect, and restore snapshots without losing history.
-- **Hardened HTML** — the LLM never emits HTML: Jinja2 autoescaping renders it, nh3 sanitizes it again, the preview iframe is fully sandboxed.
-- **Production posture** — request IDs, structured JSON logs, error envelopes, rate limiting, health/readiness probes, Docker + CI.
+SearchScribe is built for bloggers and creators who want an editable starting point
+and control over the result. AI supplies a draft; the writer reviews the facts,
+changes the language, and decides what to publish.
 
-## Architecture
+## The writing journey
 
-```mermaid
-flowchart TD
-    Browser[Browser · Next.js 16] -->|"/api proxy rewrites"| FE[Next.js server]
-    FE --> API[FastAPI /api/v1]
-    API --> Auth[Auth service]
-    API --> Gen[Generation service]
-    API --> Art[Article service]
-    Gen --> AI[LLM provider protocol]
-    AI --> Gemini[GeminiProvider · google-genai]
-    AI --> Mock[MockProvider · offline/tests]
-    Gen --> R[Jinja2 renderer → nh3 sanitizer]
-    Auth & Gen & Art --> DB[(PostgreSQL / SQLite)]
+1. **Start with a topic.** Generate a title, introduction, sections, conclusion,
+   and SEO metadata through the configured Gemini provider.
+2. **Shape the article.** Edit the structured content and SEO fields. Save a new
+   version; stale edits are rejected rather than silently overwriting newer work.
+3. **Try another voice.** Rewrite in Professional, Casual, Gen Z, Technical,
+   Marketing, or Minimal style.
+4. **Keep your history.** Inspect and restore saved versions. Restoration creates
+   another version instead of erasing the intervening work.
+5. **Take the result with you.** Preview and download standalone, sanitized HTML.
+
+The public website explains the product before login. `/dashboard` is the writing
+workspace; `/account` manages sign-in connections. Password signup and login remain
+available alongside the configured Google sign-in integration.
+
+## A look inside
+
+![SearchScribe AI homepage with the topic-to-draft demonstration](screenshots/redesign-home-hero.png)
+
+The redesigned homepage, captured from the running local app. Its article scene
+uses clearly labeled sample copy.
+
+![Local SearchScribe workspace showing a mock article and the article, SEO, preview, and versions tabs](screenshots/redesign-workspace.png)
+
+The working editor with a synthetic **Demo Writer** account and an offline mock
+article. This demonstrates the interface, not live AI output or researched advice.
+
+![Six stages of the homepage's illustrative writing walkthrough](screenshots/writing-journey.gif)
+
+A short capture of the homepage's **prewritten walkthrough**, not a recording of
+AI generating content. Static alternatives: [homepage](screenshots/redesign-home-hero.png)
+and [workspace](screenshots/redesign-workspace.png).
+
+## Beta status
+
+This is a **free, noncommercial beta in progress**, not a completed public release.
+The deployed password journey has been checked through real generation, editing,
+version restoration, and HTML export. Google sign-in is deployed; real-identity
+login and explicit account-linking acceptance checks remain pending. Matching
+emails do not silently merge accounts.
+
+The following are **not shipped**: password-reset emails, email verification,
+research citations, photo suggestions, Markdown download, persistent daily AI
+quotas, and provider fallback. Backup restore and deployment rollback rehearsals
+also remain release gates. Follow the [launch plan](docs/launch-plan.md) for scope
+and acceptance criteria. AI drafts need human review before publication.
+
+## Run it locally
+
+Prerequisites: **Python 3.12+**, **Node.js 20.9+**, and npm. SQLite and the mock AI
+provider let you develop without Docker, a cloud account, or a paid API key.
+
+The commands below use Windows PowerShell. On macOS/Linux, use `.venv/bin/python`
+instead of `.venv\Scripts\python.exe`, and `cp` instead of `Copy-Item`.
+
+```powershell
+git clone https://github.com/abhay-yemekar/SearchScribe_AI_Studio.git
+cd SearchScribe_AI_Studio
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend/requirements.txt -r backend/requirements-dev.txt
+Copy-Item backend/.env.example backend/.env
 ```
 
-The application is a **modular monolith**: routers stay thin, business logic lives in services, data access in repositories, and every LLM call goes through one provider protocol. See [docs/architecture.md](docs/architecture.md).
+In `backend/.env`, set `AI_PROVIDER=mock` for deterministic local drafts. Keep
+`APP_ENV=local` and the SQLite default. Set your own random `SECRET_KEY`; generate
+one with `python -c "import secrets; print(secrets.token_urlsafe(48))"`. Do not
+commit environment files. The mock provider produces sample content, not research
+or live AI output.
 
-## Tech stack
+Start the API:
 
-| Layer     | Choices                                                                  |
-| --------- | ------------------------------------------------------------------------ |
-| Backend   | Python 3.12+, FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic, PyJWT, argon2-cffi, nh3, Jinja2 |
-| AI        | google-genai (Gemini 2.5 Flash default) behind an `LLMProvider` protocol + offline MockProvider |
-| Frontend  | Next.js 16, React 19, App Router, TypeScript strict, TanStack Query, Zod, React Hook Form, Tailwind CSS, DOMPurify |
-| Data      | PostgreSQL (docker-compose), SQLite (zero-setup local dev)               |
-| Testing   | pytest (74 backend tests), Vitest + Testing Library, Playwright E2E      |
-| Infra     | Docker multi-stage non-root images, docker-compose, GitHub Actions CI    |
-
-## Repository structure
-
-```
-SearchScribe_AI_Studio/
-├── backend/
-│   ├── app/
-│   │   ├── api/v1/          # thin HTTP routers (auth, articles, health)
-│   │   ├── core/            # config, security, logging, errors, rate limiting
-│   │   ├── db/              # session, declarative base, models
-│   │   ├── schemas/         # Pydantic request/response models
-│   │   ├── services/        # business logic (auth, generation, articles)
-│   │   ├── repositories/    # user-scoped data access
-│   │   └── ai/              # provider protocol, Gemini, Mock, prompts,
-│   │                        # structured-output schemas, renderer, sanitizer
-│   ├── alembic/             # migrations
-│   └── tests/               # unit + API tests (mock provider, no network)
-├── frontend/
-│   ├── app/                 # Next.js App Router pages
-│   ├── features/            # auth, articles (feature-based modules)
-│   ├── components/shared/   # accessible Tabs, loading/empty/error states
-│   ├── lib/api/             # typed API client + Zod schemas
-│   ├── e2e/                 # Playwright specs + backend startup script
-│   └── Dockerfile
-├── docs/                    # architecture, API, security, ADRs, ...
-├── docker-compose.yml       # postgres + redis + backend + frontend
-└── .github/workflows/ci.yml
-```
-
-## Local development
-
-### Backend
-
-```bash
+```powershell
 cd backend
-python -m venv ../.venv && ../.venv/Scripts/pip install -r requirements.txt -r requirements-dev.txt  # Windows
-cp .env.example .env                 # fill in GEMINI_API_KEY (or set AI_PROVIDER=mock)
-../.venv/Scripts/python -m alembic upgrade head
-../.venv/Scripts/python -m uvicorn app.main:app --reload
+../.venv/Scripts/python.exe -m alembic upgrade head
+../.venv/Scripts/python.exe -m uvicorn app.main:app --reload
 ```
 
-- API: http://127.0.0.1:8000 · Docs: http://127.0.0.1:8000/docs
-- No Gemini key? Run with `AI_PROVIDER=mock` — the whole product works offline.
+In another terminal, from the repository root:
 
-### Frontend
-
-```bash
+```powershell
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-http://localhost:3000 — the Next.js server proxies `/api/*` to the backend (see `next.config.mjs`), which keeps the refresh cookie first-party.
+Open [localhost:3000](http://localhost:3000). API documentation is at
+[127.0.0.1:8000/docs](http://127.0.0.1:8000/docs). Next.js forwards `/api/*` to
+the API; `BACKEND_URL` changes its destination. If you change ports, update that
+setting and any configured Google authorized JavaScript origin together.
 
-### Tests
+For real generation, select `AI_PROVIDER=gemini` and put your own `GEMINI_API_KEY`
+in the backend environment. `AI_MODEL` selects an available model. Provider
+accounts, limits, and data-use terms apply; the MIT license does not include API
+credits. Google login is optional for self-hosting and needs a web client ID and
+matching site origin. See the [authentication setup guide](docs/auth-setup.md).
 
-```bash
-# Backend (unit + API, fully offline)
-cd backend && ../.venv/Scripts/python -m pytest
+## Stack and deployment
 
-# Frontend unit tests
-cd frontend && npm test
+| Layer              | Implementation                                                                    |
+| ------------------ | --------------------------------------------------------------------------------- |
+| Website and studio | Next.js 16 App Router, React 19, TypeScript, Tailwind CSS, TanStack Query         |
+| API                | FastAPI, Pydantic, SQLAlchemy 2, Alembic                                          |
+| Generation         | Gemini through a provider protocol; mock provider for local development and tests |
+| Storage            | SQLite locally; persistent Postgres in production                                 |
+| Validation         | Ruff, mypy, pytest, ESLint, TypeScript, Vitest, Playwright, Docker builds         |
 
-# E2E: boots backend (:8001, mock AI) + frontend (:3100) automatically
-cd frontend && npx playwright test
+The current personal beta uses **Vercel → Render → Neon Postgres**. Vercel's
+server-side proxy keeps browser API requests on the website origin. Render runs
+migrations before starting the API. Production settings require Postgres and a
+strong signing secret and refuse the mock provider.
+
+Self-hosting requires your own frontend, API, persistent Postgres, and provider
+configuration. Free service plans have limits and cold starts; they do not promise
+unlimited or always-on capacity. Vercel Hobby is for personal, noncommercial use.
+See [deployment](docs/deployment.md) for configuration, optional Docker Compose,
+backups, and rollback procedures. No production credentials belong in this repo.
+
+## Check a change
+
+From `backend`:
+
+```powershell
+../.venv/Scripts/python.exe -m ruff check .
+../.venv/Scripts/python.exe -m mypy app
+../.venv/Scripts/python.exe -m pytest
 ```
 
-### Docker (production-like)
+From `frontend`:
 
-```bash
-docker compose up --build
-# frontend http://localhost:3000 · backend http://localhost:8000/docs
-# AI_PROVIDER=mock docker compose up   # keyless demo mode
+```powershell
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npx playwright install chromium
+npx playwright test
 ```
 
-Migrations run automatically at container start (`alembic upgrade head` in the CMD).
+Playwright starts an isolated mock API on `:8001` and a frontend on `:3100`.
+GitHub Actions additionally runs backend tests against SQLite and Postgres.
+See [testing](docs/testing.md) for environment details.
 
-## Environment variables
+## Build in the open
 
-All settings are typed and validated in `backend/app/core/config.py`. See [`backend/.env.example`](backend/.env.example) for the full annotated list. Highlights:
+Start with an issue describing the user problem. Use a feature branch and
+Conventional Commits; open a PR, pass the current CI checks, review the diff, and
+squash merge. See [CONTRIBUTING.md](CONTRIBUTING.md). Keep planned features separate
+from shipped behavior and preserve existing user content.
 
-| Variable                       | Default                        | Purpose                                  |
-| ------------------------------ | ------------------------------ | ---------------------------------------- |
-| `APP_ENV`                      | `local`                        | `production` disables docs, secures cookies |
-| `DATABASE_URL`                 | `sqlite:///./searchscribe.db`  | SQLite dev default; Postgres in compose  |
-| `SECRET_KEY`                   | —                              | JWT signing key; required in production  |
-| `AI_PROVIDER` / `AI_MODEL`     | `gemini` / `gemini-2.5-flash`  | `mock` for offline mode                  |
-| `GEMINI_API_KEY`               | —                              | Google AI Studio key (free tier works)   |
-| `CORS_ORIGINS`                 | localhost:3000                 | Comma-separated allowed origins          |
-| `RATE_LIMIT_*_PER_MINUTE`      | 10 auth / 5 generation         | Sliding-window limits                    |
+Useful references: [architecture](docs/architecture.md), [AI pipeline](docs/ai-architecture.md),
+[API](docs/api.md), [database](docs/database.md), [security](docs/security.md),
+[design system](docs/design-system.md), and [brand assets](docs/brand.md).
 
-Never commit `.env`. Generate a strong key with
-`python -c "import secrets; print(secrets.token_urlsafe(48))"`.
-
-## API overview
-
-All endpoints are versioned under `/api/v1` and return a consistent error envelope (`{"error": {"code", "message", "request_id"}}`):
-
-```
-POST   /api/v1/auth/signup|login|refresh|logout     Sessions & tokens
-GET    /api/v1/auth/me                              Current user
-POST   /api/v1/articles                             Generate (rate-limited)
-GET    /api/v1/articles?limit=&cursor=              Cursor pagination
-GET    /api/v1/articles/{id}                        Detail: markdown + SEO + HTML
-PUT    /api/v1/articles/{id}/content                Save content + SEO as a new version
-PATCH  /api/v1/articles/{id}                        Rename
-DELETE /api/v1/articles/{id}                        Delete (cascades versions)
-POST   /api/v1/articles/{id}/duplicate              Copy
-POST   /api/v1/articles/{id}/rewrite                {style} → new version
-GET    /api/v1/articles/{id}/versions[/{version}]   History & inspection
-POST   /api/v1/articles/{id}/versions/{v}/restore   Restore as newest
-GET    /api/v1/articles/rewrite-styles              Available styles
-GET    /api/v1/health | /ready                      Probes
-```
-
-Full request/response schemas: [docs/api.md](docs/api.md) and the interactive `/docs`.
-
-## Documentation
-
-- [Architecture](docs/architecture.md) — layers, data flow, request lifecycle
-- [AI architecture](docs/ai-architecture.md) — provider protocol, prompts, pipeline, failure policy
-- [Database](docs/database.md) — schema, migrations, pagination strategy
-- [Security](docs/security.md) — auth design, sanitization, rate limiting
-- [Testing](docs/testing.md) — what's covered and how to run it
-- [Deployment](docs/deployment.md) — Docker, CI, production checklist
-- [Decision records](docs/decisions/) — ADRs for the load-bearing choices
-
-## Design decisions (short version)
-
-| Decision | Why |
-| --- | --- |
-| Modular monolith | Right-sized; extractable later, no distributed overhead now |
-| Provider protocol + factory | Swap/add LLMs with one file + env vars; tests never call real APIs |
-| LLM returns structured JSON, never HTML | Deterministic rendering eliminates a whole class of XSS and layout failures |
-| Access token in memory + rotating refresh cookie | XSS cannot exfiltrate what isn't in storage; rotation detects theft |
-| SQLite dev / Postgres prod via one SQLAlchemy code path | Zero-setup local dev, production-grade storage |
-| Fail loudly on provider errors | Never fabricate fake "successful" content |
-
-Details and trade-offs in [docs/decisions/](docs/decisions/).
-
-## Roadmap ideas
-
-Background generation queue (Arq/Celery), SSE streaming, admin analytics over the `generations` table, exports (Markdown/PDF/DOCX), multi-language and brand-voice modes, research + citations. The architecture isolates each of these behind existing seams.
-
-## Author
-
-**Abhay Yemekar** · [GitHub](https://github.com/abhay-yemekar) · [LinkedIn](https://www.linkedin.com/in/abhayyemekar)
-
-## License
-
-[MIT](LICENSE)
+Maintained by [Abhay Yemekar](https://github.com/abhay-yemekar). Licensed under
+[MIT](LICENSE).
