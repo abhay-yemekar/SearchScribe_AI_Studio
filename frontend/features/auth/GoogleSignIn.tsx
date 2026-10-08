@@ -30,9 +30,11 @@ type GoogleSdk = {
 export default function GoogleSignIn({
   onCredential,
   onError,
+  showUnavailableMessage = false,
 }: {
   onCredential: (credential: string) => Promise<void>;
   onError: (message: string) => void;
+  showUnavailableMessage?: boolean;
 }) {
   const [challenge, setChallenge] = useState<z.infer<typeof challengeSchema> | null>(
     null,
@@ -100,7 +102,16 @@ export default function GoogleSignIn({
   useEffect(() => {
     if (sdkReady) render();
   }, [sdkReady, render]);
-  if (!challenge?.enabled) return null;
+  if (!challenge?.enabled) {
+    return challenge?.enabled === false && showUnavailableMessage ? (
+      <p
+        role="status"
+        className="my-4 text-center text-xs leading-relaxed text-slate-600"
+      >
+        Google sign-in is unavailable on this instance. Continue with email and password.
+      </p>
+    ) : null;
+  }
   return (
     <div className="my-4 flex flex-col items-center gap-2">
       <Script
