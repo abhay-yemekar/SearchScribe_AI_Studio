@@ -13,7 +13,7 @@ const links = [
 ];
 
 export default function SiteChrome({ children }: { children: React.ReactNode }) {
-  const { user } = useSession();
+  const { user } = useSession({ publicView: true });
   const [menuOpen, setMenuOpen] = useState(false);
   const [dark, setDark] = useState(false);
   const shell = useRef<HTMLDivElement>(null);

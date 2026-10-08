@@ -3,7 +3,28 @@ import { expect, test } from "@playwright/test";
 test("website and workspace navigation preserves the signed-in session", async ({
   page,
 }) => {
-  await page.goto("/login?mode=signup");
+  let refreshes = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().endsWith("/auth/refresh"))
+      refreshes++;
+  });
+  const signedOut = page.waitForResponse(
+    (response) => response.url().endsWith("/auth/refresh") && response.status() === 401,
+  );
+  await page.goto("/");
+  await signedOut;
+  for (const name of ["Features", "How it works", "Example"]) {
+    await page
+      .getByRole("navigation", { name: "Main navigation", exact: true })
+      .getByRole("link", { name, exact: true })
+      .click();
+  }
+  await page
+    .getByRole("link", { name: "SearchScribe home", exact: true })
+    .first()
+    .click();
+  expect(refreshes).toBe(1);
+  await page.getByRole("link", { name: "Start writing", exact: true }).first().click();
   await page.getByLabel("Name").fill("Navigation Tester");
   await page.getByLabel("Email").fill(`navigation-${Date.now()}@test.dev`);
   await page.getByLabel("Password").fill("e2e-password-1");

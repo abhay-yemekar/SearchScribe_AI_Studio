@@ -52,29 +52,37 @@ async function rawRequest(
   return fetch(path, { ...init, headers, credentials: "include" });
 }
 
-async function tryRefresh(): Promise<boolean> {
+type RefreshResult = { refreshed: boolean; unauthorized: boolean };
+
+async function tryRefresh(): Promise<RefreshResult> {
   const response = await fetch("/api/v1/auth/refresh", {
     method: "POST",
     credentials: "include",
   });
-  if (!response.ok) return false;
+  if (!response.ok) {
+    return { refreshed: false, unauthorized: response.status === 401 };
+  }
   const data = tokenSchema
     .pick({ access_token: true, expires_in: true })
     .parse(await response.json());
   setAccessToken(data.access_token, data.expires_in);
-  return true;
+  return { refreshed: true, unauthorized: false };
 }
 
-let refreshPromise: Promise<boolean> | null = null;
+let refreshPromise: Promise<RefreshResult> | null = null;
 
 /** Coalesces concurrent refresh attempts into one request. */
-export function refreshOnce(): Promise<boolean> {
+export async function refreshOnce(
+  options: { onUnauthorized?: () => void } = {},
+): Promise<boolean> {
   if (!refreshPromise) {
     refreshPromise = tryRefresh().finally(() => {
       refreshPromise = null;
     });
   }
-  return refreshPromise;
+  const result = await refreshPromise;
+  if (result.unauthorized) options.onUnauthorized?.();
+  return result.refreshed;
 }
 
 export async function apiFetch<T>(
