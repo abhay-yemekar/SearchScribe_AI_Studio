@@ -20,7 +20,7 @@ export default function LoginClient({
 
   if (bootstrapping || token) {
     return (
-      <div className="flex min-h-screen items-center justify-center gap-3 text-slate-500">
+      <div className="login-shell flex min-h-screen items-center justify-center gap-3 bg-[#f4f5f1] text-slate-500">
         <Spinner className="h-6 w-6" /> Loading SearchScribe…
       </div>
     );

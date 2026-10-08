@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 40 40" fill="none">
+  <title>SearchScribe AI app icon</title>
+  <rect width="40" height="40" rx="8" fill="#e0f06b"/>
+  <g transform="translate(4 4) scale(.8)" stroke="#17252b">
+    <path d="M10 5H4V35H10M30 5H36V35H30" stroke-width="2.5"/>
+    <path d="M26 12H15V20H25V28H14" stroke-width="4"/>
+    <path d="M30 12V28" stroke-width="2"/>
+  </g>
+</svg>

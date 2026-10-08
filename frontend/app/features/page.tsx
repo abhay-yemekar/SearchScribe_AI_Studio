@@ -21,6 +21,10 @@ const available = [
     "Apply a rewrite style, save versions, and restore an earlier draft.",
   ],
   ["HTML export", "Preview and download sanitized HTML to publish in your own workflow."],
+  [
+    "Password and Google sign-in",
+    "Enter your workspace using a password or Google. Existing password accounts link Google explicitly from Account.",
+  ],
 ];
 const planned = [
   [
@@ -32,8 +36,8 @@ const planned = [
     "Choose hero and section images with photographer credit, source links, and alt text.",
   ],
   [
-    "More ways to sign in",
-    "Google sign-in with secure, explicit linking for existing password accounts.",
+    "Account recovery",
+    "Password resets, email verification, and tested transactional delivery.",
   ],
   [
     "Reliability controls",

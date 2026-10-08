@@ -16,7 +16,7 @@ const steps = [
   [
     "02",
     "Generate a draft",
-    "The AI creates a structured article and SEO fields. Generation needs a working backend and model key.",
+    "The AI creates a structured article and SEO fields. Review the result carefully: a first draft can contain mistakes.",
   ],
   [
     "03",

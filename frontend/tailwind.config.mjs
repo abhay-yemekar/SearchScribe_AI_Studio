@@ -9,7 +9,14 @@ const config = {
     "./lib/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)", "Arial", "sans-serif"],
+        serif: ["var(--font-display)", "Georgia", "serif"],
+        mono: ["var(--font-mono)", "monospace"],
+      },
+      colors: { paper: "var(--paper)", ink: "var(--ink)", acid: "var(--acid)" },
+    },
   },
   plugins: [typography],
 };

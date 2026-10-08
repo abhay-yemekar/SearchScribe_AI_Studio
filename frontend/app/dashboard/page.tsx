@@ -9,7 +9,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { CopyPlus, Download, Menu, Sparkles } from "lucide-react";
+import { ArrowUpRight, CopyPlus, Download, Menu, Sparkles } from "lucide-react";
 
 import Tabs from "@/components/shared/Tabs";
 import { ArticleSkeleton, ErrorBanner, Spinner } from "@/components/shared/States";
@@ -181,14 +181,14 @@ export default function DashboardPage() {
 
   if (bootstrapping) {
     return (
-      <div className="flex h-screen items-center justify-center gap-3 bg-stone-50 text-slate-600">
+      <div className="studio-shell flex h-screen items-center justify-center gap-3 bg-stone-50 text-slate-600">
         <Spinner className="h-6 w-6" /> Restoring session…
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-dvh overflow-hidden bg-[#f5f3ee] text-slate-900">
+    <div className="studio-shell relative flex h-dvh overflow-hidden bg-[#f4f5f1] text-[#17252b]">
       {mobileNavOpen ? (
         <button
           type="button"
@@ -230,7 +230,7 @@ export default function DashboardPage() {
       />
 
       <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-4 py-5 sm:px-8 sm:py-8 lg:px-12">
-        <header className="flex items-center justify-between gap-3 border-b border-stone-200 pb-5">
+        <header className="flex flex-col gap-4 border-b border-stone-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <button
               ref={navButtonRef}
@@ -244,23 +244,26 @@ export default function DashboardPage() {
               <Menu aria-hidden className="h-5 w-5" />
             </button>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-700">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Your writing desk
               </p>
-              <h1 className="truncate font-serif text-2xl font-semibold tracking-tight sm:text-3xl">
+              <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
                 Article workspace
               </h1>
             </div>
           </div>
           <div className="flex items-center gap-3 text-sm text-slate-600">
             {user ? <span className="hidden sm:inline">Hi, {user.name}</span> : null}
-            <Link href="/account" className="hover:text-teal-800">
+            <Link href="/" className="inline-flex items-center gap-1 hover:underline">
+              Website <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
+            </Link>
+            <Link href="/account" className="hover:underline">
               Account
             </Link>
             <button
               type="button"
               onClick={() => void logout()}
-              className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 transition-colors hover:border-teal-600 hover:text-teal-800"
+              className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 transition-colors hover:border-[#17252b]"
             >
               Logout
             </button>
@@ -268,7 +271,7 @@ export default function DashboardPage() {
         </header>
 
         {/* Query + generate */}
-        <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-6">
+        <div className="studio-panel rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
           <label
             htmlFor="topic"
             className="mb-2 block text-sm font-semibold text-slate-800"
@@ -290,13 +293,13 @@ export default function DashboardPage() {
                 }
               }}
               placeholder="e.g. Things to do in Pune"
-              className="w-full rounded-xl border border-stone-300 bg-stone-50 px-4 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+              className="w-full rounded-lg border border-stone-300 bg-stone-50 px-4 py-3 text-sm text-[#17252b] outline-none transition-colors placeholder:text-slate-400 focus:border-[#17252b] focus:ring-2 focus:ring-[#17252b]/15"
             />
             <button
               type="button"
               onClick={handleGenerate}
               disabled={generate.isPending}
-              className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="studio-primary-action flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#e0f06b] px-5 py-3 text-sm font-semibold text-[#17252b] transition-colors hover:bg-[#d3e458] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {generate.isPending ? (
                 <Spinner />
@@ -316,7 +319,7 @@ export default function DashboardPage() {
 
         {/* Workspace */}
         {selectedId === null ? (
-          <div className="flex min-h-80 flex-1 items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-white/70 px-4 text-center text-sm text-slate-500">
+          <div className="studio-panel flex min-h-80 flex-1 items-center justify-center rounded-xl border border-stone-200 bg-white/70 px-6 py-12 text-sm text-slate-500">
             {generate.isPending ? (
               <div className="w-full max-w-2xl space-y-6 p-8">
                 <p className="text-center text-sm text-slate-600">
@@ -325,7 +328,45 @@ export default function DashboardPage() {
                 <ArticleSkeleton />
               </div>
             ) : (
-              "Generate an article or pick one from the sidebar."
+              <div className="w-full max-w-2xl">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em]">
+                  A blank page. A place to begin.
+                </p>
+                <h2 className="text-2xl font-semibold tracking-tight text-[#17252b]">
+                  What will you write next?
+                </h2>
+                <p className="mt-3 leading-relaxed">
+                  Enter a topic above to make a first draft, or open a saved article from
+                  the sidebar. Every draft is yours to shape.
+                </p>
+                <ol className="mt-8 grid gap-5 border-t border-stone-200 pt-6 sm:grid-cols-3">
+                  <li>
+                    <span className="text-[11px] font-semibold">01 / START</span>
+                    <p className="mt-2 font-semibold text-[#17252b]">Choose a topic</p>
+                    <p className="mt-1 leading-relaxed">
+                      Tell us what you want to write about.
+                    </p>
+                  </li>
+                  <li>
+                    <span className="text-[11px] font-semibold">02 / SHAPE</span>
+                    <p className="mt-2 font-semibold text-[#17252b]">Make it your own</p>
+                    <p className="mt-1 leading-relaxed">
+                      Edit the draft and review its SEO details.
+                    </p>
+                  </li>
+                  <li>
+                    <span className="text-[11px] font-semibold">
+                      03 / TAKE IT WITH YOU
+                    </span>
+                    <p className="mt-2 font-semibold text-[#17252b]">
+                      Export your article
+                    </p>
+                    <p className="mt-1 leading-relaxed">
+                      Download HTML when you are ready.
+                    </p>
+                  </li>
+                </ol>
+              </div>
             )}
           </div>
         ) : selectedQuery.isLoading ? (
@@ -346,7 +387,7 @@ export default function DashboardPage() {
                 onClick={() => duplicate.mutate(detail.id)}
                 aria-label="Duplicate article"
                 title="Duplicate article"
-                className="rounded-lg border border-stone-300 bg-white p-2 text-slate-600 transition-colors hover:border-teal-600 hover:text-teal-800"
+                className="rounded-lg border border-stone-300 bg-white p-2 text-slate-600 transition-colors hover:border-[#17252b] hover:text-[#17252b]"
               >
                 <CopyPlus aria-hidden className="h-4 w-4" />
               </button>
@@ -355,7 +396,7 @@ export default function DashboardPage() {
                 onClick={downloadHtml}
                 aria-label="Download HTML"
                 title="Download HTML"
-                className="rounded-lg border border-stone-300 bg-white p-2 text-slate-600 transition-colors hover:border-teal-600 hover:text-teal-800"
+                className="rounded-lg border border-stone-300 bg-white p-2 text-slate-600 transition-colors hover:border-[#17252b] hover:text-[#17252b]"
               >
                 <Download aria-hidden className="h-4 w-4" />
               </button>
@@ -369,7 +410,7 @@ export default function DashboardPage() {
                   id="style"
                   value={style}
                   onChange={(event) => setStyle(event.target.value)}
-                  className="rounded bg-stone-100 px-2 py-1 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-teal-600"
+                  className="rounded bg-stone-100 px-2 py-1 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-[#17252b]"
                 >
                   {(stylesQuery.data?.styles ?? [{ key: "genz", label: "Gen Z" }]).map(
                     (s) => (
@@ -383,7 +424,7 @@ export default function DashboardPage() {
                   type="button"
                   onClick={() => rewrite.mutate()}
                   disabled={rewrite.isPending}
-                  className="flex items-center gap-1.5 rounded bg-teal-700 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-teal-800 disabled:opacity-60"
+                  className="flex items-center gap-1.5 rounded bg-[#17252b] px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-[#293f48] disabled:opacity-60"
                 >
                   {rewrite.isPending ? <Spinner className="h-3.5 w-3.5" /> : null}
                   {rewrite.isPending ? "Rewriting…" : "Rewrite"}

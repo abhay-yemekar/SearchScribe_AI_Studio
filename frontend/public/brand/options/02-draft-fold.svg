@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240" viewBox="0 0 400 240" fill="none">
+  <title>Option 02: Draft fold</title>
+  <rect width="400" height="240" fill="#f6f4ed"/>
+  <g transform="translate(150 50) scale(2.5)" stroke="#17252b" stroke-width="2.5">
+    <path d="M7 4H26L34 12V36H7Z"/>
+    <path d="M26 4V12H34"/>
+    <path d="M25 17H15V23H25V29H15" stroke-width="3"/>
+  </g>
+  <text x="200" y="190" fill="#17252b" font-family="Arial, sans-serif" font-size="18" text-anchor="middle">02 / DRAFT FOLD</text>
+</svg>

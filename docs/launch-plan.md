@@ -19,27 +19,28 @@ must be designed alongside the successful flow.
 ## Delivery sequence
 
 - [x] Reliability and security: transaction boundaries, pagination, session
-  refresh, production settings, provider failures, and SQLite/Postgres CI.
+      refresh, production settings, provider failures, and SQLite/Postgres CI.
 - [x] Versioned editing: structured sections, SEO editing, conflict detection,
-  and complete snapshots. Old versions must not invent historical metadata.
+      and complete snapshots. Old versions must not invent historical metadata.
 - [x] Next.js 16 and the responsive editorial workspace redesign (PRs #5–7).
 - [x] Public website: home, How it works, Features, Example, privacy, and
-  password login at `/login` (PR #8 merged; live on searchscribe-ai.vercel.app).
-- [ ] Google sign-in: verified stable provider identity, existing session flow,
-  and explicit password-authenticated linking; never merge accounts by email.
+      password login at `/login` (PR #8 merged; live on searchscribe-ai.vercel.app).
+- [x] Google sign-in implementation and deployment (PR #10): stable provider identity,
+      existing session flow, and explicit password-authenticated linking; no email auto-merge.
+- [ ] Real Google sign-in/session and account-linking acceptance on production.
 - [x] Live foundation: Vercel frontend, Render API, persistent Neon Postgres,
-  migrations, and deployed signup/generation/edit/export verification.
+      migrations, and deployed signup/generation/edit/export verification.
 - [ ] Account recovery and email: forgot/reset password, verified email, safe
-  transactional delivery, persistent send limits, and inbox verification.
-  Setup instructions and sender constraints: [auth-setup.md](auth-setup.md).
+      transactional delivery, persistent send limits, and inbox verification.
+      Setup instructions and sender constraints: [auth-setup.md](auth-setup.md).
 - [ ] Research: bounded search, traceable source IDs, citations, and an explicit
-  unresearched mode when search fails. Treat retrieved text as untrusted input.
+      unresearched mode when search fails. Treat retrieved text as untrusted input.
 - [ ] Photos: suggestions for a hero and relevant sections, user selection,
-  photographer credits, source links, and editable alt text.
+      photographer credits, source links, and editable alt text.
 - [ ] AI routing: one combined article/SEO response, bounded fallback and
-  deadline, persistent daily quotas, and idempotent generation requests.
+      deadline, persistent daily quotas, and idempotent generation requests.
 - [ ] Production deployment, backup/restore rehearsal, accessibility and
-  mobile verification, and release notes.
+      mobile verification, and release notes.
 
 ## Proposed free beta infrastructure
 

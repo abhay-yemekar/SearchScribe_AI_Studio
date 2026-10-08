@@ -1,183 +1,230 @@
 import Link from "next/link";
-import Image from "next/image";
-import { ArrowRight, ArrowUpRight, FileText, History, PenLine } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUpRight } from "lucide-react";
 import SiteChrome from "@/components/marketing/SiteChrome";
+import {
+  HeroDraft,
+  StudioStory,
+  RewriteShowcase,
+} from "@/components/marketing/StudioScenes";
 
-const capabilities = [
-  {
-    icon: FileText,
-    title: "A draft with structure",
-    detail: "Turn a topic into a sectioned article you can refine.",
-  },
-  {
-    icon: PenLine,
-    title: "An editor's final say",
-    detail: "Edit the article and its SEO title, description, and keywords.",
-  },
-  {
-    icon: History,
-    title: "Room to revise",
-    detail: "Try a rewrite, compare versions, and restore an earlier one.",
-  },
+const tools = [
+  [
+    "01",
+    "Find your first draft.",
+    "A topic becomes a structured article. Get past the blank page, then make it yours.",
+  ],
+  [
+    "02",
+    "Keep the final say.",
+    "Edit sections, refine SEO details, and choose a rewrite style. Your judgment stays in charge.",
+  ],
+  [
+    "03",
+    "Leave room to change.",
+    "Compare versions, restore a previous draft, and export sanitized HTML for your publishing workflow.",
+  ],
 ];
 
 export default function HomePage() {
   return (
     <SiteChrome>
-      <section className="overflow-hidden border-b border-stone-200">
-        <div className="mx-auto grid max-w-7xl gap-12 px-5 pb-20 pt-16 sm:px-8 md:pb-28 md:pt-24 lg:grid-cols-[1.12fr_.88fr] lg:items-end lg:gap-20 lg:px-12">
-          <div>
-            <p className="mb-6 flex items-center gap-3 text-xs font-semibold uppercase tracking-[.2em] text-teal-800">
-              <span className="h-px w-8 bg-teal-700" /> The open-source writing studio
+      <section className="hero section-container">
+        <div className="hero-topline">
+          <p className="eyebrow">[ A writing studio. An open source. ]</p>
+          <span className="eyebrow hero-edition">Independent by design / beta</span>
+        </div>
+        <h1 className="hero-title">
+          Start with
+          <br />a{" "}
+          <span className="thought-word">
+            thought
+            <span className="thought-caret" aria-hidden />
+          </span>
+          .<br />
+          <span className="hero-title-muted">Leave with a draft.</span>
+        </h1>
+        <div className="hero-bottom">
+          <div className="hero-intro">
+            <p>
+              An idea is a beginning.
+              <br />
+              Give it structure, find its voice,
+              <br />
+              and make it worth reading.
             </p>
-            <h1 className="max-w-3xl font-serif text-[clamp(3.7rem,7vw,7.1rem)] leading-[.97] tracking-[-.06em] text-slate-900">
-              Start with a thought.{" "}
-              <em className="font-normal text-teal-800">Leave with a draft.</em>
-            </h1>
-            <p className="mt-8 max-w-xl text-lg leading-8 text-slate-600">
-              SearchScribe helps you shape a topic into an article, tune the SEO details,
-              revise with intent, and export clean HTML. You stay the editor.
-            </p>
-            <div className="mt-9 flex flex-wrap items-center gap-5">
-              <Link
-                href="/login?mode=signup"
-                className="inline-flex min-h-12 items-center gap-3 rounded-full bg-teal-800 px-6 py-3 font-semibold text-white hover:bg-teal-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800"
-              >
-                Start writing <ArrowUpRight aria-hidden className="h-5 w-5" />
+            <div className="hero-actions">
+              <Link className="button" href="/login?mode=signup">
+                Start writing
+                <ArrowUpRight size={20} aria-hidden />
               </Link>
-              <Link
-                href="/how-it-works"
-                className="inline-flex items-center gap-2 border-b border-slate-500 py-2 font-semibold text-slate-800 hover:text-teal-800"
-              >
-                See how it works <ArrowRight aria-hidden className="h-4 w-4" />
-              </Link>
+              <a className="text-link" href="#the-process">
+                Explore the studio
+                <ArrowDown size={16} aria-hidden />
+              </a>
             </div>
-            <p className="mt-5 text-xs text-slate-500">
-              Free, noncommercial beta · Password sign-in available · Google sign-in in
-              development
+            <p className="beta-note">
+              Free, noncommercial beta · Password &amp; Google sign-in
             </p>
           </div>
-          <div className="border border-stone-300 bg-[#e5e8e2] p-4 shadow-[20px_20px_0_#d9ddd4] sm:p-7">
-            <div className="flex items-center justify-between border-b border-teal-900/20 pb-4 text-xs font-semibold uppercase tracking-[.16em] text-teal-900">
-              <span>Inside the studio</span>
-              <span>01 / 03</span>
-            </div>
-            <div className="mt-10 rounded-xl border border-stone-200 bg-[#faf9f5] p-5 shadow-sm sm:p-7">
-              <p className="text-xs font-semibold uppercase tracking-[.18em] text-teal-800">
-                Topic / search query
-              </p>
-              <p className="mt-2 border-b border-stone-300 pb-3 text-sm text-slate-700">
-                Things to do in Kerala
-              </p>
-              <p className="mt-7 text-xs font-semibold uppercase tracking-[.18em] text-teal-800">
-                Article draft
-              </p>
-              <h2 className="mt-3 font-serif text-3xl leading-tight text-slate-900 sm:text-4xl">
-                A first look at Kerala
-              </h2>
-              <p className="mt-4 text-sm leading-7 text-slate-600">
-                From the quiet backwaters to the hills of Munnar, organize the places you
-                want to explore into a draft you can make your own.
-              </p>
-              <div className="mt-7 flex gap-2 border-t border-stone-200 pt-4 text-xs text-slate-500">
-                <span className="rounded-full bg-stone-100 px-3 py-1">Article</span>
-                <span className="px-3 py-1">SEO</span>
-                <span className="px-3 py-1">Versions</span>
-              </div>
-            </div>
-            <p className="mt-5 text-xs leading-5 text-slate-600">
-              Illustrative interface preview. Example text is editorial sample copy, not
-              researched travel advice.
-            </p>
-          </div>
+          <HeroDraft />
+        </div>
+        <div className="hero-index">
+          <span className="eyebrow">
+            <span className="status-dot" /> Human ideas. Editorial control.
+          </span>
+          <span className="eyebrow">Scroll to unfold ↓</span>
         </div>
       </section>
-      <section className="mx-auto max-w-7xl px-5 py-20 sm:px-8 lg:px-12">
-        <div className="grid gap-6 md:grid-cols-[.75fr_1.25fr] md:gap-16">
-          <p className="text-xs font-semibold uppercase tracking-[.2em] text-teal-800">
-            Made for the messy middle
-          </p>
-          <h2 className="font-serif text-4xl leading-tight tracking-tight sm:text-5xl">
-            A useful first draft is just the beginning. The work is in what you do next.
+      <section className="manifesto section-container" data-reveal>
+        <p className="eyebrow">(01). / A better starting point</p>
+        <h2>
+          You bring the idea.
+          <br />
+          We help it <span className="serif-italic">take shape.</span>
+          <br />
+          <span className="muted">You stay the editor.</span>
+        </h2>
+        <p className="manifesto-note">
+          For bloggers, independent writers, and curious minds. A focused place to draft,
+          revise, and prepare an article for publication.
+        </p>
+      </section>
+      <StudioStory />
+      <section className="toolkit section-container" data-reveal>
+        <div className="section-heading">
+          <p className="eyebrow">(03). / The toolkit</p>
+          <h2>
+            Less friction.
+            <br />
+            More <span className="serif-italic">intention.</span>
           </h2>
         </div>
-        <div className="mt-12 grid gap-5 md:grid-cols-3">
-          {capabilities.map(({ icon: Icon, title, detail }, index) => (
-            <article key={title} className="border-t border-stone-300 pt-6">
-              <div className="flex items-center justify-between text-teal-800">
-                <Icon aria-hidden className="h-6 w-6" />
-                <span className="text-xs">0{index + 1}</span>
-              </div>
-              <h3 className="mt-8 font-serif text-2xl">{title}</h3>
-              <p className="mt-3 text-sm leading-7 text-slate-600">{detail}</p>
-            </article>
+        <div className="feature-rows">
+          {tools.map(([number, title, text]) => (
+            <Link className="feature-row" href="/features" key={number}>
+              <span className="eyebrow">[{number}]</span>
+              <h3>{title}</h3>
+              <p>{text}</p>
+              <ArrowUpRight className="feature-arrow" size={28} aria-hidden />
+            </Link>
           ))}
         </div>
       </section>
-      <section className="border-t border-stone-200 bg-[#e7e9e2] px-5 py-20 sm:px-8 lg:px-12">
-        <div className="mx-auto max-w-7xl">
-          <div className="mb-8 grid gap-4 md:grid-cols-[1fr_1fr] md:items-end">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[.2em] text-teal-800">
-                A look inside
-              </p>
-              <h2 className="mt-4 font-serif text-4xl tracking-tight sm:text-5xl">
-                The workspace, as it is today.
-              </h2>
-            </div>
-            <p className="max-w-lg leading-7 text-slate-600">
-              This screenshot was captured from the working local interface using its
-              deterministic mock AI provider. It shows the article editor; live AI
-              output varies with your topic.
+      <RewriteShowcase />
+      <section className="open-source section-container" data-reveal>
+        <p className="eyebrow">[ Open code. Your words. ]</p>
+        <h2>
+          A studio you can
+          <br />
+          <span className="serif-italic">look inside.</span>
+        </h2>
+        <div className="open-source-detail">
+          <p>
+            Read the code, run your own instance, or help shape what comes next.
+            SearchScribe is an MIT-licensed project. HTML export keeps your article usable
+            outside this workspace.
+          </p>
+          <a
+            href="https://github.com/abhay-yemekar/SearchScribe_AI_Studio"
+            className="text-link"
+          >
+            Explore the repository
+            <ArrowUpRight size={18} aria-hidden />
+          </a>
+          <div className="keyboard-detail">
+            <span className="eyebrow">A small shortcut</span>
+            <p>
+              <kbd>Ctrl</kbd> + <kbd>Enter</kbd>{" "}
+              <span>Generate from your topic in the studio.</span>
             </p>
           </div>
-          <Image
-            src="/studio-preview.png"
-            alt="SearchScribe article workspace showing a mock-generated Kerala draft, editing tabs, version controls, and export action"
-            width={1440}
-            height={900}
-            className="w-full rounded-xl border border-stone-300 shadow-xl"
-            sizes="(max-width: 1280px) 100vw, 1280px"
-          />
         </div>
       </section>
-      <section className="bg-teal-900 px-5 py-20 text-white sm:px-8 lg:px-12">
-        <div className="mx-auto grid max-w-7xl gap-8 md:grid-cols-[1fr_auto] md:items-end">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[.2em] text-teal-200">
-              What comes next
-            </p>
-            <h2 className="mt-5 max-w-3xl font-serif text-4xl leading-tight sm:text-5xl">
-              Research you can trace. Photos you can credit.
-            </h2>
-            <p className="mt-5 max-w-2xl leading-7 text-teal-100">
-              Source-backed research, relevant licensed photos, and Google sign-in are on
-              the public beta roadmap. They are not available in the current workspace.
-            </p>
-          </div>
-          <Link
-            href="/features"
-            className="inline-flex items-center gap-2 border-b border-teal-200 pb-2 font-semibold hover:text-teal-200"
-          >
-            Explore features <ArrowUpRight aria-hidden className="h-4 w-4" />
+      <section className="roadmap section-container" data-reveal>
+        <div className="section-heading">
+          <p className="eyebrow">(05). / In development</p>
+          <h2>Still becoming.</h2>
+          <p>
+            Built in the open, with a clear line between what works today and what comes
+            next.
+          </p>
+        </div>
+        <div className="roadmap-list">
+          {[
+            ["01", "Research you can trace", "Visible citations and source links."],
+            [
+              "02",
+              "Photos you can credit",
+              "Relevant images, credits, and editable alt text.",
+            ],
+            [
+              "03",
+              "A more resilient studio",
+              "Account recovery, daily quotas, provider fallback, and Markdown export.",
+            ],
+          ].map(([n, title, detail]) => (
+            <div className="roadmap-row" key={n}>
+              <span className="eyebrow">[{n}]</span>
+              <div>
+                <h3>{title}</h3>
+                <p>{detail}</p>
+              </div>
+              <span className="roadmap-tag">In development</span>
+            </div>
+          ))}
+        </div>
+        <Link
+          href="https://github.com/abhay-yemekar/SearchScribe_AI_Studio"
+          className="text-link roadmap-link"
+        >
+          Follow the open-source project
+          <ArrowRight size={18} aria-hidden />
+        </Link>
+      </section>
+      <section className="closing">
+        <div className="section-container" data-reveal>
+          <p className="eyebrow">(06). / Your next sentence</p>
+          <h2>
+            Make something
+            <br />
+            <span className="serif-italic">worth revising.</span>
+          </h2>
+          <Link className="button button-acid" href="/login?mode=signup">
+            Enter the studio
+            <ArrowUpRight size={22} aria-hidden />
           </Link>
         </div>
       </section>
-      <section className="mx-auto grid max-w-7xl gap-8 px-5 py-20 sm:px-8 md:grid-cols-[1fr_auto] md:items-center lg:px-12">
+      <section className="faq section-container" data-reveal>
+        <p className="eyebrow">[ A few things to know ]</p>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[.2em] text-teal-800">
-            Ready for a blank page?
-          </p>
-          <h2 className="mt-4 font-serif text-4xl tracking-tight sm:text-5xl">
-            Make something worth revising.
-          </h2>
+          {[
+            [
+              "Is SearchScribe free?",
+              "The personal, noncommercial beta is free. Hosting and AI providers have limits, so generation may be temporarily unavailable. No unlimited usage promise.",
+            ],
+            [
+              "Is the draft ready to publish?",
+              "It is a starting point. Review facts, originality, tone, and SEO details before publishing. Verified research citations and photo suggestions are still in development.",
+            ],
+            [
+              "Can I use my article elsewhere?",
+              "Yes. Preview and download sanitized HTML, then use it in your own publishing workflow. You can also inspect the open-source code or self-host.",
+            ],
+            [
+              "Can I use Google to sign in?",
+              "Yes. Google sign-in is deployed alongside password login. To link an existing password account, sign in first and use Account. Password-reset emails are still in development.",
+            ],
+          ].map(([question, answer]) => (
+            <details key={question}>
+              <summary>
+                {question}
+                <span aria-hidden>+</span>
+              </summary>
+              <p>{answer}</p>
+            </details>
+          ))}
         </div>
-        <Link
-          href="/login?mode=signup"
-          className="inline-flex items-center gap-2 rounded-full bg-teal-800 px-6 py-3 font-semibold text-white hover:bg-teal-900"
-        >
-          Start writing <ArrowUpRight aria-hidden className="h-4 w-4" />
-        </Link>
       </section>
     </SiteChrome>
   );

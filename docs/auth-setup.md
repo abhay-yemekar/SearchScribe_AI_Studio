@@ -4,7 +4,7 @@ Use personal accounts for SearchScribe. Do not use office OAuth projects, mailbo
 
 ## Current status
 
-The deployed password flow was verified on https://searchscribe-ai.vercel.app on 7 October 2026: signup/login, real Gemini generation, article and SEO edits, version restore, HTML download, refresh, logout, and cross-user access denial. Google sign-in code is a separate feature PR; it is not live until reviewed, deployed, configured, and tested with a real Google identity. Password reset and email verification are a separate implementation; the setup below does not imply they have shipped.
+The deployed password flow was verified on https://searchscribe-ai.vercel.app on 7 October 2026: signup/login, real Gemini generation, article and SEO edits, version restore, HTML download, refresh, logout, and cross-user access denial. Google sign-in was merged in PR #10 and deployed: its official button, nonce challenge, and invalid-token rejection are verified. Real Google sign-in/session and explicit account linking still require production verification. Password reset and email verification are a separate implementation; the setup below does not imply they have shipped.
 
 ## Google Cloud: line by line
 
@@ -51,12 +51,12 @@ Brevo Free is a candidate for the zero-spend beta: its documented limit is 300 e
 8. Enter the key directly into **searchscribe-beta-api → Environment** as a secret. Never paste it in chat or commit it.
 9. The recovery/email PR should implement these settings:
 
-   | Setting | Value |
-   | --- | --- |
-   | `MAIL_PROVIDER` | `brevo` |
-   | `BREVO_API_KEY` | dedicated key, Render secret only |
-   | `MAIL_FROM_EMAIL` | verified personal support mailbox |
-   | `MAIL_FROM_NAME` | `SearchScribe AI` |
+   | Setting           | Value                                |
+   | ----------------- | ------------------------------------ |
+   | `MAIL_PROVIDER`   | `brevo`                              |
+   | `BREVO_API_KEY`   | dedicated key, Render secret only    |
+   | `MAIL_FROM_EMAIL` | verified personal support mailbox    |
+   | `MAIL_FROM_NAME`  | `SearchScribe AI`                    |
    | `PUBLIC_SITE_URL` | `https://searchscribe-ai.vercel.app` |
 
 These variables are **planned**, not yet read by the Google sign-in PR. The send integration uses HTTPS `POST https://api.brevo.com/v3/smtp/email` with bounded timeouts and retries. Do not redeploy expecting recovery emails until that separate PR ships.
