@@ -2,9 +2,41 @@
 
 from __future__ import annotations
 
+from typing import Literal
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
+
+
+class ResearchSource(BaseModel):
+    id: str = Field(pattern=r"^S[1-6]$")
+    title: str = Field(min_length=1, max_length=300)
+    url: str = Field(max_length=1000)
+
+    @field_validator("url")
+    @classmethod
+    def safe_url(cls, value: str) -> str:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme != "https"
+            or parsed.hostname
+            not in {
+                "platform.claude.com",
+                "ai.google.dev",
+                "developers.openai.com",
+            }
+            or parsed.username
+            or parsed.password
+        ):
+            raise ValueError("Source must be an approved primary documentation HTTPS URL")
+        return value
+
+
+class ResearchSummary(BaseModel):
+    status: Literal["unresearched", "sources_retrieved"] = "unresearched"
+    retrieved_at: str | None = None
+    sources: list[ResearchSource] = Field(default_factory=list, max_length=6)
 
 
 class ArticleSection(BaseModel):
@@ -33,6 +65,7 @@ class GeneratedArticle(BaseModel):
     introduction: str = Field(min_length=1)
     sections: list[ArticleSection] = Field(min_length=1, max_length=12)
     conclusion: str = Field(min_length=1)
+    research: ResearchSummary = Field(default_factory=ResearchSummary)
 
     @field_validator("title")
     @classmethod
@@ -52,6 +85,23 @@ class GeneratedArticle(BaseModel):
                 lines += [f"- {bullet}" for bullet in section.bullets]
                 lines.append("")
         lines += ["## Conclusion", "", self.conclusion]
+        if self.research.status == "sources_retrieved":
+            lines += [
+                "",
+                "## Sources",
+                "",
+                f"Documentation retrieved: {self.research.retrieved_at}. "
+                "Review claims before publishing; retrieved sources "
+                "are not a fact-check guarantee.",
+            ]
+            for source in self.research.sources:
+                lines.append(f"- [{source.id}] [{source.title}]({source.url})")
+        else:
+            lines += [
+                "",
+                "Unresearched draft: no live sources were retrieved. "
+                "Verify factual and time-sensitive claims before publishing.",
+            ]
         return "\n".join(lines).strip()
 
     @property

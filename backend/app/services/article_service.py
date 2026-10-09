@@ -226,6 +226,9 @@ class ArticleService:
             )
 
         seo = SeoResult.model_validate(payload.seo.model_dump())
+        # Source provenance is server-owned. An edit keeps its original source
+        # snapshot; it cannot manufacture a research badge or replace citations.
+        payload.content.research = GeneratedArticle.model_validate_json(latest.content).research
         next_version = latest.version + 1
         self.articles.add_version(
             article,

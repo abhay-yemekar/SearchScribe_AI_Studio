@@ -40,6 +40,15 @@ export const articleContentSchema = z.object({
   introduction: z.string(),
   sections: z.array(articleSectionSchema),
   conclusion: z.string(),
+  research: z
+    .object({
+      status: z.enum(["unresearched", "sources_retrieved"]),
+      retrieved_at: z.string().nullable(),
+      sources: z.array(
+        z.object({ id: z.string(), title: z.string(), url: z.string().url() }),
+      ),
+    })
+    .optional(),
 });
 export type ArticleContent = z.infer<typeof articleContentSchema>;
 

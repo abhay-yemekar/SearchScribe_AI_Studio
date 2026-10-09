@@ -377,6 +377,11 @@ export default function DashboardPage() {
           <ErrorBanner message={(selectedQuery.error as Error).message} />
         ) : detail ? (
           <div className="flex min-h-[32rem] flex-1 flex-col gap-4">
+            <p className="text-sm leading-relaxed text-slate-600" role="status">
+              {detail.content.research?.status === "sources_retrieved"
+                ? "Primary documentation retrieved. Review claims and source links before publishing; edits are not automatically fact-checked."
+                : "Unresearched draft. No live sources were retrieved; verify factual and time-sensitive claims before publishing."}
+            </p>
             {/* Title + actions */}
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="w-full min-w-0 px-1 py-1 font-serif text-2xl font-semibold leading-tight sm:flex-1 sm:text-3xl">

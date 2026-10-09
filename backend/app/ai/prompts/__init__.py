@@ -17,7 +17,9 @@ PROMPTS_DIR = Path(__file__).parent
 # (name, version) -> file inside PROMPTS_DIR
 _REGISTRY: dict[tuple[str, str], str] = {
     ("article_generation", "v1"): "article_generation_v1.md",
+    ("article_generation", "v2"): "article_generation_v2.md",
     ("seo_generation", "v1"): "seo_generation_v1.md",
+    ("seo_generation", "v2"): "seo_generation_v2.md",
     ("rewrite", "v1"): "rewrite_v1.md",
 }
 
