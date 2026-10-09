@@ -9,17 +9,20 @@ A failed SEO generation degrades to deterministic fallback metadata (status
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
-from ..ai.base import LLMError, LLMProvider, call_with_retry
+from ..ai.base import LLMError, LLMProvider, SchemaValidationError, call_with_retry
 from ..ai.factory import get_provider
 from ..ai.renderer import _fallback_seo, render_article_html
+from ..ai.research import ResearchResult, needs_current_sources, retrieve_primary_sources
 from ..ai.sanitizer import sanitize_document
-from ..ai.schemas import GeneratedArticle, SeoResult
+from ..ai.schemas import GeneratedArticle, ResearchSummary, SeoResult
 from ..ai.styles import get_style
-from ..ai.validation import normalize_seo
+from ..ai.validation import normalize_seo, seo_descriptions_need_repair
 from ..core.config import settings
 from ..core.exceptions import BadRequestError, ExternalServiceError
 from ..db.models import Article, User
@@ -27,6 +30,11 @@ from ..repositories.article_repo import ArticleRepository
 from ..repositories.generation_repo import GenerationRepository
 
 logger = logging.getLogger(__name__)
+
+
+def _claimed_source_ids(article: GeneratedArticle) -> set[str]:
+    brackets = re.findall(r"\[[^\]\n]*\]", article.to_markdown())
+    return {source_id for bracket in brackets for source_id in re.findall(r"\bS\d+\b", bracket)}
 
 
 @dataclass
@@ -67,17 +75,45 @@ class GenerationService:
                 code="AI_PROVIDER_UNAVAILABLE",
             ) from exc
 
+        # Mock preview/tests never retrieve live pages or consume provider credits.
+        research = (
+            retrieve_primary_sources(query)
+            if provider.name != "mock"
+            else ResearchResult(ResearchSummary(), "Offline mock preview; no live research.")
+        )
+        if (
+            provider.name != "mock"
+            and needs_current_sources(query)
+            and not research.summary.sources
+        ):
+            raise ExternalServiceError(
+                "Current sources could not be retrieved for this topic. "
+                "No draft was generated. Try again later or choose a general topic.",
+                code="CURRENT_SOURCES_UNAVAILABLE",
+            )
+
         # --- article ---
         try:
             article_response = call_with_retry(
                 lambda: provider.generate(
                     "article_generation",
-                    "v1",
-                    {"topic": query},
+                    "v2",
+                    {
+                        "topic": query,
+                        "current_date": datetime.now(UTC).date().isoformat(),
+                        "research_status": research.summary.status,
+                        "research_context": research.context,
+                    },
                     GeneratedArticle,
                 ),
                 max_retries=settings.ai_max_retries,
             )
+            # Discard model-provided metadata before inspecting the actual draft.
+            article_response.data.research = research.summary
+            source_ids = {source.id for source in research.summary.sources}
+            claimed_ids = _claimed_source_ids(article_response.data)
+            if not claimed_ids.issubset(source_ids):
+                raise SchemaValidationError("Article contains an unsupported citation")
         except LLMError as exc:
             self.generations.record(
                 user_id=user.id,
@@ -85,7 +121,7 @@ class GenerationService:
                 provider=getattr(provider, "name", "unknown"),
                 model=getattr(provider, "model", "unknown"),
                 prompt_name="article_generation",
-                prompt_version="v1",
+                prompt_version="v2",
                 status="failed",
                 error_code=type(exc).__name__,
             )
@@ -162,12 +198,29 @@ class GenerationService:
             seo_response = call_with_retry(
                 lambda: provider.generate(
                     "seo_generation",
-                    "v1",
+                    "v2",
                     {"title": article.title, "introduction": article.introduction},
                     SeoResult,
                 ),
                 max_retries=settings.ai_max_retries,
             )
+            repair_failed = False
+            if seo_descriptions_need_repair(seo_response.data):
+                try:
+                    seo_response = provider.generate(
+                        "seo_generation",
+                        "v2",
+                        {
+                            "title": article.title,
+                            "introduction": article.introduction,
+                            "repair": "The previous description was too long or incomplete. "
+                            "Write one complete sentence within 160 characters.",
+                        },
+                        SeoResult,
+                    )
+                except LLMError:
+                    # The original answer remains available for safe normalization.
+                    repair_failed = True
         except LLMError as exc:
             self.generations.record(
                 user_id=user.id,
@@ -175,7 +228,7 @@ class GenerationService:
                 provider=getattr(provider, "name", "unknown"),
                 model=getattr(provider, "model", "unknown"),
                 prompt_name="seo_generation",
-                prompt_version="v1",
+                prompt_version="v2",
                 status="failed",
                 error_code=type(exc).__name__,
             )
@@ -194,7 +247,8 @@ class GenerationService:
             output_tokens=seo_response.output_tokens,
             latency_ms=seo_response.latency_ms,
         )
-        return normalize_seo(seo_response.data), False
+        fallback_used = repair_failed or seo_descriptions_need_repair(seo_response.data)
+        return normalize_seo(seo_response.data, fallback_title=article.title), fallback_used
 
     # ------------------------------------------------------------------
     # rewrite
@@ -243,6 +297,11 @@ class GenerationService:
                 ),
                 max_retries=settings.ai_max_retries,
             )
+            response.data.research = current.research
+            source_ids = {source.id for source in current.research.sources}
+            claimed_ids = _claimed_source_ids(response.data)
+            if not claimed_ids.issubset(source_ids):
+                raise SchemaValidationError("Rewrite contains an unsupported citation")
         except LLMError as exc:
             self.generations.record(
                 user_id=user.id,

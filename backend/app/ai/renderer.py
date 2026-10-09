@@ -10,6 +10,7 @@ from __future__ import annotations
 from jinja2 import Environment, StrictUndefined, select_autoescape
 
 from .schemas import GeneratedArticle, SeoResult
+from .validation import complete_description, normalize_seo
 
 _env = Environment(
     autoescape=select_autoescape(default=True), trim_blocks=True, undefined=StrictUndefined
@@ -58,6 +59,19 @@ ARTICLE_PAGE_TEMPLATE = _env.from_string(
     </section>
     {% endfor %}
     <p class="conclusion">{{ article.conclusion }}</p>
+    <section>
+      {% if article.research.status == "sources_retrieved" %}
+      <h2>Sources</h2>
+      <p>Documentation retrieved: {{ article.research.retrieved_at }}.
+         Review claims before publishing; retrieved sources are not a fact-check guarantee.</p>
+      <ul>{% for source in article.research.sources %}
+        <li>[{{ source.id }}] <a href="{{ source.url }}">{{ source.title }}</a></li>
+      {% endfor %}</ul>
+      {% else %}
+      <p>Unresearched draft: no live sources were retrieved.
+         Verify factual and time-sensitive claims before publishing.</p>
+      {% endif %}
+    </section>
   </article>
 </body>
 </html>
@@ -66,13 +80,12 @@ ARTICLE_PAGE_TEMPLATE = _env.from_string(
 
 
 def _fallback_seo(article: GeneratedArticle) -> SeoResult:
-    """Deterministic metadata when SEO generation is unavailable."""
-    description = article.introduction[:160]
+    """Use a complete introduction sentence or honest topic-based metadata."""
+    description = complete_description(article.introduction, fallback_title=article.title)
     first_word = article.title.split()[0] if article.title.split() else "article"
-    return SeoResult(
-        title=article.title[:60],
-        description=description,
-        keywords=[first_word],
+    return normalize_seo(
+        SeoResult(title=article.title, description=description, keywords=[first_word]),
+        fallback_title=article.title,
     )
 
 
