@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowUpRight, Menu, Moon, Sun, X } from "lucide-react";
 import BrandLogo from "@/components/brand/BrandLogo";
 import { useSession } from "@/features/auth/useSession";
+import { useHydrated } from "@/lib/useHydrated";
 
 const links = [
   { href: "/how-it-works", label: "How it works" },
@@ -12,10 +13,50 @@ const links = [
   { href: "/example", label: "Example" },
 ];
 
+const themeKey = "searchscribe.public-theme";
+const themeEvent = "searchscribe-theme-change";
+let unavailableStorageTheme: boolean | null = null;
+
+function readDarkTheme() {
+  if (unavailableStorageTheme !== null) return unavailableStorageTheme;
+  try {
+    return localStorage.getItem(themeKey) === "dark";
+  } catch {
+    return false;
+  }
+}
+
+function subscribeTheme(listener: () => void) {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === themeKey || event.key === null) {
+      unavailableStorageTheme = null;
+      listener();
+    }
+  };
+  window.addEventListener("storage", onStorage);
+  window.addEventListener(themeEvent, listener);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener(themeEvent, listener);
+  };
+}
+
+function saveDarkTheme(dark: boolean) {
+  try {
+    localStorage.setItem(themeKey, dark ? "dark" : "light");
+    unavailableStorageTheme = null;
+  } catch {
+    // The control still works when browser privacy settings prevent storage.
+    unavailableStorageTheme = dark;
+  }
+  window.dispatchEvent(new Event(themeEvent));
+}
+
 export default function SiteChrome({ children }: { children: React.ReactNode }) {
   const { user } = useSession({ publicView: true });
+  const hydrated = useHydrated();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [dark, setDark] = useState(false);
+  const dark = useSyncExternalStore(subscribeTheme, readDarkTheme, () => false);
   const shell = useRef<HTMLDivElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
 
@@ -75,13 +116,14 @@ export default function SiteChrome({ children }: { children: React.ReactNode }) 
           <div className="nav-actions">
             <button
               className="theme-toggle"
-              onClick={() => setDark(!dark)}
+              disabled={!hydrated}
+              onClick={() => saveDarkTheme(!dark)}
               aria-label={dark ? "Use light theme" : "Use dark theme"}
             >
               {dark ? <Sun size={17} /> : <Moon size={17} />}
             </button>
-            <Link href={user ? "/dashboard" : "/login"} className="nav-login">
-              {user ? "Workspace" : "Log in"}
+            <Link href={user ? "/account" : "/login"} className="nav-login">
+              {user ? "Account" : "Log in"}
             </Link>
             <Link
               href={user ? "/dashboard" : "/login?mode=signup"}
@@ -93,6 +135,7 @@ export default function SiteChrome({ children }: { children: React.ReactNode }) 
             <button
               ref={menuButton}
               className="mobile-menu-toggle"
+              disabled={!hydrated}
               aria-label={menuOpen ? "Close navigation" : "Open navigation"}
               aria-expanded={menuOpen}
               aria-controls="site-mobile-nav"

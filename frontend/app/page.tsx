@@ -37,10 +37,10 @@ export default function HomePage() {
           Start with
           <br />a{" "}
           <span className="thought-word">
-            thought
+            thought.
             <span className="thought-caret" aria-hidden />
           </span>
-          .<br />
+          <br />
           <span className="hero-title-muted">Leave with a draft.</span>
         </h1>
         <div className="hero-bottom">

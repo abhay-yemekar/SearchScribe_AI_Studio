@@ -270,12 +270,12 @@ html {
   position: relative;
 }
 .thought-caret {
-  height: 0.68em;
-  width: 0.08em;
+  display: inline-block;
+  height: 0.7em;
+  width: 0.035em;
   background: var(--acid);
-  position: absolute;
-  top: 0.21em;
-  right: -0.12em;
+  margin-left: 0.1em;
+  vertical-align: -0.025em;
   animation: caret-blink 1s step-end 4;
 }
 .hero-bottom {
@@ -1020,6 +1020,27 @@ html {
 }
 .studio-shell header {
   border-color: var(--line) !important;
+}
+/* Short laptop windows need less whitespace, without clipping forms or errors. */
+@media (min-width: 1024px) and (max-height: 700px) {
+  body .login-shell {
+    padding-block: 12px;
+  }
+  .login-shell .login-header {
+    padding-bottom: 8px;
+  }
+  .login-shell .login-layout {
+    padding-block: 12px;
+  }
+  .login-shell .login-panel {
+    padding: 16px 24px;
+  }
+  .login-panel > p {
+    margin-bottom: 12px;
+  }
+  .login-panel form > * + * {
+    margin-top: 12px;
+  }
 }
 @keyframes caret-entry {
   from {

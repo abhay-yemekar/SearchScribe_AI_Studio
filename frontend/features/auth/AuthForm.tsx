@@ -77,7 +77,7 @@ export default function AuthForm({
   return (
     <div className="login-shell min-h-screen bg-[#f4f5f1] px-5 py-8 text-[#17252b] sm:px-8 sm:py-10">
       <div className="mx-auto w-full max-w-6xl">
-        <header className="flex flex-col items-start gap-5 border-b border-stone-300 pb-6 sm:flex-row sm:items-center sm:justify-between">
+        <header className="login-header flex flex-col items-start gap-5 border-b border-stone-300 pb-6 sm:flex-row sm:items-center sm:justify-between">
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-sm font-semibold hover:underline"
@@ -86,7 +86,7 @@ export default function AuthForm({
           </Link>
           <BrandLogo />
         </header>
-        <div className="grid items-start gap-10 py-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-16 lg:py-14">
+        <div className="login-layout grid items-start gap-10 py-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:gap-16 lg:py-14">
           {/* Hero */}
           <section className="order-2 min-w-0 lg:order-1">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
