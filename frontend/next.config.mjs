@@ -5,6 +5,15 @@ const nextConfig = {
   output: process.env.VERCEL ? undefined : "standalone",
   // Playwright opens 127.0.0.1 while Next's dev server starts on localhost.
   allowedDevOrigins: ["127.0.0.1"],
+  async headers() {
+    return ["/forgot-password", "/reset-password", "/verify-email"].map((source) => ({
+      source,
+      headers: [
+        { key: "Referrer-Policy", value: "no-referrer" },
+        { key: "Cache-Control", value: "no-store" },
+      ],
+    }));
+  },
   async rewrites() {
     // Same-origin proxy to the backend: the browser only ever talks to
     // localhost:3000, which keeps the refresh cookie first-party (SameSite=Lax)

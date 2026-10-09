@@ -224,3 +224,28 @@ def test_normalize_seo_clamps_lengths_and_dedupes() -> None:
 def test_factory_returns_configured_provider() -> None:
     provider = get_provider()
     assert provider.name == "mock"  # tests run with AI_PROVIDER=mock
+
+
+def test_gemini_structured_generation_disables_unused_function_calling(monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from app.ai import gemini
+
+    configs = []
+    payload = SeoResult(
+        title="A complete title", description="A complete description.", keywords=["writing"],
+    )
+
+    def generate_content(**kwargs):
+        configs.append(kwargs["config"])
+        return SimpleNamespace(text=payload.model_dump_json(), usage_metadata=None)
+
+    monkeypatch.setattr(gemini, "_get_client", lambda: SimpleNamespace(
+        models=SimpleNamespace(generate_content=generate_content),
+    ))
+    result = gemini.GeminiProvider().generate(
+        "seo_generation", "v1", {"title": "T", "introduction": "I"}, SeoResult,
+    )
+    assert result.data == payload
+    assert configs[0].automatic_function_calling.disable is True
+    assert configs[0].response_schema is SeoResult

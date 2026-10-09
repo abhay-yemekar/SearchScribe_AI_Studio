@@ -30,6 +30,10 @@ def get_current_user(
     user = UserRepository(db).get_by_id(user_id)
     if user is None or not user.is_active:
         raise AuthenticationError("Invalid or expired token.")
+    # Tokens issued before this migration have version zero. A password reset
+    # increments the stored version, immediately invalidating prior access JWTs.
+    if type(payload.get("sv", 0)) is not int or payload.get("sv", 0) != user.session_version:
+        raise AuthenticationError("Invalid or expired token.")
     return user
 
 

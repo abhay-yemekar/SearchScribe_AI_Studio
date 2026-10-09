@@ -2,7 +2,7 @@
 
 from .article import Article, ArticleVersion, SeoMetadata
 from .generation import Generation
-from .user import ProviderIdentity, RefreshToken, User
+from .user import ProviderIdentity, RefreshToken, SecurityRateBucket, SecurityToken, User
 
 __all__ = [
     "Article",
@@ -10,6 +10,8 @@ __all__ = [
     "Generation",
     "ProviderIdentity",
     "RefreshToken",
+    "SecurityRateBucket",
+    "SecurityToken",
     "SeoMetadata",
     "User",
 ]

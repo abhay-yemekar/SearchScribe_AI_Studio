@@ -13,15 +13,12 @@ import GoogleSignIn from "./GoogleSignIn";
 import { isApiError } from "@/lib/api/errors";
 import { Spinner } from "@/components/shared/States";
 import BrandLogo from "@/components/brand/BrandLogo";
+import { strongPasswordSchema } from "./password-schema";
 
 const authSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
   email: z.string().email("Enter a valid email"),
-  password: z
-    .string()
-    .min(8, "At least 8 characters")
-    .regex(/[A-Za-z]/, "Include a letter")
-    .regex(/\d/, "Include a digit"),
+  password: strongPasswordSchema,
 });
 
 const loginSchema = authSchema.omit({ name: true });
@@ -205,9 +202,19 @@ export default function AuthForm({
                 </div>
 
                 <div>
-                  <label htmlFor="password" className="mb-1 block text-xs text-slate-700">
-                    Password
-                  </label>
+                  <div className="mb-1 flex items-center justify-between gap-3">
+                    <label htmlFor="password" className="block text-xs text-slate-700">
+                      Password
+                    </label>
+                    {!isSignup && (
+                      <Link
+                        href="/forgot-password"
+                        className="text-xs font-medium underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#17252b]"
+                      >
+                        Forgot password?
+                      </Link>
+                    )}
+                  </div>
                   <input
                     id="password"
                     type="password"

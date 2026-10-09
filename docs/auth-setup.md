@@ -4,7 +4,7 @@ Use personal accounts for SearchScribe. Do not use office OAuth projects, mailbo
 
 ## Current status
 
-The deployed password flow was verified on https://searchscribe-ai.vercel.app on 7 October 2026: signup/login, real Gemini generation, article and SEO edits, version restore, HTML download, refresh, logout, and cross-user access denial. Google sign-in was merged in PR #10 and deployed: its official button, nonce challenge, and invalid-token rejection are verified. Real Google sign-in/session and explicit account linking still require production verification. Password reset and email verification are a separate implementation; the setup below does not imply they have shipped.
+The deployed password flow was verified on https://searchscribe-ai.vercel.app on 7 October 2026: signup/login, real Gemini generation, article and SEO edits, version restore, HTML download, refresh, logout, and cross-user access denial. Google sign-in was merged in PR #10 and deployed. The existing personal account showed a persisted Google connection after reload on 9 October; that observation alone does not prove a fresh linking or sign-in journey. Password reset, advisory email verification and branded transactional templates are implemented in the recovery PR. Deployed inbox delivery and the real reset journey remain acceptance gates until recorded below.
 
 ## Google Cloud: line by line
 
@@ -59,9 +59,9 @@ Brevo Free is a candidate for the zero-spend beta: its documented limit is 300 e
    | `MAIL_FROM_NAME`  | `SearchScribe AI`                    |
    | `PUBLIC_SITE_URL` | `https://searchscribe-ai.vercel.app` |
 
-These variables are **planned**, not yet read by the Google sign-in PR. The send integration uses HTTPS `POST https://api.brevo.com/v3/smtp/email` with bounded timeouts and retries. Do not redeploy expecting recovery emails until that separate PR ships.
+The recovery implementation reads these variables. The send integration uses HTTPS `POST https://api.brevo.com/v3/smtp/email` with a bounded timeout, no redirects and no automatic retry: an ambiguous timeout may already have sent the message. Apply the recovery migration and deploy the reviewed recovery commit before enabling the flow. No mail credentials belong in Vercel's browser configuration.
 
-10. Test with addresses whose owners authorize the messages. Verify the actual inbox, spam folder, visible sender rewrite, plain-text fallback, reset-link expiry, and password-change notice. Provider acceptance alone does not establish delivery.
+10. Test with addresses whose owners authorize the messages. Verify the actual inbox, spam folder, visible sender rewrite, plain-text fallback, code expiry, and password-change notice. Provider acceptance alone does not establish delivery.
 11. Keep a persistent daily send cap below the provider's free limit, with a reserve for password resets. Never send marketing without consent. Later move to a verified owned sender domain without changing the public app URL.
 
 References: [Render Free SMTP restriction](https://render.com/docs/free), [Brevo sender compliance and temporary replacement](https://help.brevo.com/hc/en-us/articles/14925263522578-Comply-with-Gmail-Yahoo-and-Microsoft-s-requirements-for-email-senders), [Brevo Free limits](https://help.brevo.com/hc/en-us/articles/208589409-About-Brevo-s-pricing-plans), [transactional email API](https://developers.brevo.com/reference/sendtransacemail).
@@ -69,10 +69,27 @@ References: [Render Free SMTP restriction](https://render.com/docs/free), [Brevo
 ## Recovery/email implementation acceptance
 
 - Login includes **Forgot password?**; request screen always returns the same neutral message for known and unknown emails.
-- Generate cryptographically random reset tokens; store only their hashes in Postgres with expiry and single-use consumption. Apply persistent email/IP send limits and delivery retry bounds.
-- Send branded HTML plus plain text with a reset link to the configured canonical site. Keep the token out of analytics/logs; use a URL fragment and remove it after reading. Disable link tracking on security emails.
+- Generate cryptographically random reset codes; store only their hashes in Postgres with expiry and atomic single-use consumption. Defaults: 30-minute reset expiry, 24-hour verification expiry, 3 security-email requests per email/hour and 20 per ASGI client IP/hour.
+- Send branded HTML plus plain text with a token-free button to the canonical site and a separate strong opaque code to paste. Brevo does not document a per-message tracking-disable option; do not claim tracking is disabled. Keeping the code out of every clickable URL prevents provider click rewriting from capturing it. Optional URL-fragment entry is supported by the form and cleared immediately, but current emails do not put codes in links.
 - New-password validation matches signup. Consume tokens atomically, invalidate all sessions (including access tokens), and send a password-change notice. Do not automatically log the user in after reset.
 - A Google-only account remains Google-only; a reset request must not silently turn it into a password account. Explain the appropriate sign-in route without exposing account existence.
 - Add email verification for password accounts with expiring, hashed, single-use tokens; resend limits; delivery failure handling. Google verified identity can satisfy Google-account email verification, but never authorize merging by email alone.
 - Welcome mail is optional and separate from marketing consent. Do not enroll users into newsletters by default.
 - Prove expiration, replay rejection, concurrency, unknown-email neutrality, rate limits, session revocation, and no cross-user access. Prove deployed inbox delivery before claiming recovery is ready.
+
+## Operational boundaries
+
+The persistent daily send cap defaults to 250 across all security messages, with
+50 reserved from verification traffic for recovery and change notices. Provider
+failures still spend a reservation. Network delivery runs after the response and
+database commit; signup succeeds even when delivery fails. A process crash before
+the background send can lose that message, so the UI supports a bounded resend.
+This beta does not yet use a durable delivery queue.
+
+Rate limiting trusts the ASGI client address and ignores raw forwarding headers.
+Vercel proxy traffic may share an IP budget; verify effective proxy behavior before
+increasing public capacity. Do not trust arbitrary `X-Forwarded-For` values to
+solve this. Password reset increments the account session version and revokes
+refresh sessions, so old access tokens also stop working. Existing accounts keep
+their articles and Google links; advisory verification does not lock out legacy
+password users.

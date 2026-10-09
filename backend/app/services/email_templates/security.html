@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{{ subject }}</title>
+  <style>
+    body { margin:0; padding:0; background:#f6f4ed; }
+    a { color:#0f766e; }
+    @media only screen and (max-width:600px) {
+      .outer { padding:24px 12px !important; }
+      .content { padding:32px 24px !important; }
+      .title { font-size:32px !important; line-height:1.15 !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#f6f4ed;color:#17252b;font-family:Arial,Helvetica,sans-serif;">
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">{{ intro }}</div>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f6f4ed;">
+    <tr><td class="outer" align="center" style="padding:48px 20px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="560" style="width:100%;max-width:560px;">
+        <tr><td style="padding:0 0 28px;">
+          <a href="{{ origin }}" aria-label="SearchScribe AI home" style="text-decoration:none;">
+            <img src="{{ logo_url }}" width="214" height="40" alt="SearchScribe AI" border="0" style="display:block;width:214px;height:40px;max-width:100%;color:#17252b;font-size:22px;font-weight:700;">
+          </a>
+        </td></tr>
+        <tr><td class="content" style="background:#fff;padding:40px;border:1px solid #d9ddd5;border-radius:4px;">
+          <p style="margin:0 0 24px;color:#52716a;font-size:11px;font-weight:700;letter-spacing:2px;">ACCOUNT SECURITY / SEARCHSCRIBE AI</p>
+          <h1 class="title" style="margin:0 0 24px;font-size:38px;font-weight:600;line-height:1.12;letter-spacing:-1.3px;">{{ heading }}</h1>
+          <p style="margin:0 0 12px;font-size:16px;line-height:1.6;">Hi {{ greeting }},</p>
+          <p style="margin:0 0 16px;color:#465957;font-size:16px;line-height:1.6;">{{ intro }}</p>
+          <p style="margin:0 0 24px;color:#465957;font-size:16px;line-height:1.6;">{{ instruction }}</p>
+          {% if code %}
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 24px;border:1px solid #d9ddd5;background:#f5f6f2;">
+            <tr><td style="padding:18px 20px;">
+              <p style="margin:0 0 10px;font-size:10px;font-weight:700;letter-spacing:1.4px;color:#52716a;">{{ label }}</p>
+              <p style="margin:0;font-family:Consolas,'Courier New',monospace;font-size:16px;line-height:1.65;word-break:break-all;overflow-wrap:anywhere;">{{ code }}</p>
+            </td></tr>
+          </table>
+          <p style="margin:0 0 24px;color:#465957;font-size:13px;line-height:1.6;">{{ expiry }} Use it once, only on SearchScribe.</p>
+          {% endif %}
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="#17252b" style="background:#17252b;border-radius:3px;">
+            <a href="{{ action_url }}" style="display:inline-block;padding:15px 24px;color:#fff;text-decoration:none;font-size:15px;line-height:20px;font-weight:700;">{{ action }}</a>
+          </td></tr></table>
+          <p style="margin:20px 0 0;color:#52716a;font-size:12px;line-height:1.6;">Button not opening? Visit<br><a href="{{ action_url }}" style="color:#0f766e;word-break:break-all;">{{ action_url }}</a></p>
+          <hr style="margin:32px 0 20px;border:0;border-top:1px solid #d9ddd5;">
+          <p style="margin:0;color:#465957;font-size:13px;line-height:1.6;">{{ notice }}</p>
+          {% if support_email %}<p style="margin:14px 0 0;color:#465957;font-size:13px;line-height:1.6;">Need help? Reply to this email.</p>{% endif %}
+        </td></tr>
+        <tr><td style="padding:24px 4px 0;color:#52716a;font-size:12px;line-height:1.6;">
+          <p style="margin:0 0 4px;font-weight:700;color:#17252b;">Your words. Your workspace.</p>
+          <p style="margin:0;">An account email from SearchScribe AI. No mailing list signup.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
