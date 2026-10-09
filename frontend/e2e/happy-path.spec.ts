@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 
 const uniqueEmail = () =>
   `e2e-${Date.now()}-${Math.floor(Math.random() * 10000)}@test.dev`;
 
 test.describe("SearchScribe happy path (mock AI provider)", () => {
-  test("signup -> generate -> edit SEO -> rewrite -> restore -> logout", async ({
+  test("signup -> generate -> edit SEO -> export -> rewrite -> restore -> logout", async ({
     page,
   }) => {
     const email = uniqueEmail();
@@ -50,6 +51,21 @@ test.describe("SearchScribe happy path (mock AI provider)", () => {
     await expect(
       page.frameLocator("iframe").getByRole("heading", { level: 1 }).first(),
     ).toBeVisible();
+
+    // Export the actual edited document, including its provenance warning.
+    const downloaded = page.waitForEvent("download");
+    await page
+      .getByRole("button", { name: "Download HTML", exact: true })
+      .first()
+      .click();
+    const download = await downloaded;
+    expect(download.suggestedFilename()).toMatch(/\.html$/);
+    const downloadedPath = await download.path();
+    expect(downloadedPath).not.toBeNull();
+    const html = await readFile(downloadedPath!, "utf8");
+    expect(html).toContain("Weekend trips from Pune: editor pick");
+    expect(html).toContain("Unresearched draft");
+    expect(html).not.toMatch(/<script\b/i);
 
     // --- Rewrite ---
     await page.getByRole("button", { name: /^Rewrite$/ }).click();
