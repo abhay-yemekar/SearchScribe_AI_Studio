@@ -99,7 +99,7 @@ def render_security_email(
         subject=subject, heading=heading, greeting=greeting, intro=intro,
         instruction=instruction, action=action, action_url=action_url,
         origin=origin, code=token, label=label, expiry=expiry, notice=notice,
-        logo_url=origin + "/brand/email-wordmark.png",
+        logo_url=origin + "/brand/email-wordmark-v2.png",
         support_email=settings.mail_from_email,
     )
     lines = ["SearchScribe AI", "", f"Hi {greeting},", "", heading, intro, "", instruction]
