@@ -34,6 +34,15 @@ test("website and workspace navigation preserves the signed-in session", async (
   await page.getByRole("link", { name: "Website", exact: true }).click();
   await expect(page).toHaveURL(/\/$/);
   await page
+    .locator("header")
+    .getByRole("link", { name: "Account", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(
+    page.getByRole("heading", { name: "Your account", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Website", exact: true }).click();
+  await page
     .getByRole("link", { name: /open workspace/i })
     .first()
     .click();

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, FileText, History, MousePointer2 } from "lucide-react";
+import { useHydrated } from "@/lib/useHydrated";
 
 const topic = "Things to do in Kerala";
 
@@ -90,6 +91,7 @@ const steps = [
 ];
 
 export function StudioStory() {
+  const hydrated = useHydrated();
   const section = useRef<HTMLElement>(null);
   const manualSelection = useRef(false);
   const [active, setActive] = useState(0);
@@ -151,6 +153,7 @@ export function StudioStory() {
               {steps.map((step, i) => (
                 <button
                   key={step.name}
+                  disabled={!hydrated}
                   className={active === i ? "active" : ""}
                   onClick={() => {
                     manualSelection.current = true;
@@ -288,6 +291,7 @@ const voices = [
 ];
 
 export function RewriteShowcase() {
+  const hydrated = useHydrated();
   const [voice, setVoice] = useState(0);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   return (
@@ -312,6 +316,7 @@ export function RewriteShowcase() {
               id={`voice-${i}`}
               role="tab"
               type="button"
+              disabled={!hydrated}
               tabIndex={voice === i ? 0 : -1}
               aria-selected={voice === i}
               aria-controls="voice-preview"

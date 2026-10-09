@@ -11,7 +11,7 @@ The beta journey is topic → research → editable article → relevant photos 
 SEO review → HTML or Markdown export. Users keep editorial control and can
 restore saved versions.
 
-The interface will use a warm, light editorial canvas with teal accents,
+The interface uses a warm editorial canvas, charcoal type and restrained accents,
 readable article typography, responsive navigation, accessible controls, and
 an optional dark theme. Loading, empty, error, quota, and unsaved-edit states
 must be designed alongside the successful flow.
@@ -35,12 +35,37 @@ must be designed alongside the successful flow.
       Setup instructions and sender constraints: [auth-setup.md](auth-setup.md).
 - [ ] Research: bounded search, traceable source IDs, citations, and an explicit
       unresearched mode when search fails. Treat retrieved text as untrusted input.
+      PR #14 implements the first increment: bounded official Claude, Gemini and
+      OpenAI model documentation, source snapshots preserved in versions/HTML,
+      and failure for timely queries without sources. General web search remains
+      unfinished; retrieved documentation is not a fact-check guarantee.
 - [ ] Photos: suggestions for a hero and relevant sections, user selection,
       photographer credits, source links, and editable alt text.
 - [ ] AI routing: one combined article/SEO response, bounded fallback and
       deadline, persistent daily quotas, and idempotent generation requests.
 - [ ] Production deployment, backup/restore rehearsal, accessibility and
       mobile verification, and release notes.
+
+## QA priorities after the 9 October review
+
+1. **P0 — Current facts and complete SEO.** Retrieve relevant current sources or
+   decline unsupported timely drafts. Repair generated descriptions once, then
+   use a complete sentence or topic-based fallback. Existing saved articles are
+   retained; these changes do not rewrite the user's previous drafts.
+2. **P1 — Reliable navigation.** Preserve theme choices across public pages,
+   provide distinct Account and Open workspace destinations, make interactive
+   controls usable on their first enabled click, and fit normal login/signup
+   forms on short desktop screens without clipping validation or zoomed content.
+3. **P1 — Authentication acceptance and recovery.** Verify real Google login
+   and explicit linking, then implement password recovery and transactional mail.
+   Google's personalized button can still open an account chooser; that is
+   Google's identity-selection flow, not evidence of failed SearchScribe login.
+4. **P2 — Credited photos and visual enrichment.** Add relevant selectable photos
+   with durable credits and alt text, then refine motion within reduced-motion
+   and performance constraints. Keep the approved logo and editorial design.
+
+Repeatable local QA is available through `$searchscribe-check`; mock tests do not
+establish real Google consent, email delivery, AI accuracy or production persistence.
 
 ## Proposed free beta infrastructure
 
