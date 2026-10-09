@@ -44,6 +44,16 @@ export default function PrivacyPage() {
           </p>
         </section>
         <section>
+          <h2 className="font-serif text-3xl">Account emails</h2>
+          <p className="mt-3 leading-8 text-slate-600">
+            Brevo sends verification, password reset, and password-change notices.
+            It receives your email address, name, and the security message, including
+            any single-use code. Codes are stored as hashes in SearchScribe and are
+            kept out of clickable email URLs. Brevo may track email opens and clicks.
+            Account emails do not subscribe you to a marketing list.
+          </p>
+        </section>
+        <section>
           <h2 className="font-serif text-3xl">Hosting and beta limitations</h2>
           <p className="mt-3 leading-8 text-slate-600">
             Vercel hosts the website, Render runs the API, and Neon stores account

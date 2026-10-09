@@ -12,6 +12,7 @@ const user = {
   id: 1,
   name: "Writer",
   email: "writer@example.com",
+  email_verified: false,
   created_at: "2026-10-08",
 };
 let clock = 1_000_000;

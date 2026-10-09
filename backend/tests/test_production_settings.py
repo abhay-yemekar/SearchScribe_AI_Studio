@@ -67,3 +67,50 @@ def test_local_sqlite_and_mock_remain_available() -> None:
         _env_file=None, app_env="local", database_url="sqlite://", ai_provider="mock"
     )
     assert settings.database_url == "sqlite://"
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "https://example.com/reset",
+        "https://example.com?next=other",
+        "https://example.com#secret",
+        "https://user:pass@example.com",
+        "http://example.com",
+        "https://example.com:wrong",
+    ],
+)
+def test_security_mail_rejects_untrusted_link_origin_shapes(origin: str) -> None:
+    with pytest.raises(ValidationError, match="PUBLIC_SITE_URL"):
+        production_settings(public_site_url=origin)
+
+
+def test_mail_provider_requires_complete_sender_config_and_https() -> None:
+    with pytest.raises(ValidationError, match="BREVO_API_KEY"):
+        production_settings(mail_provider="brevo", brevo_api_key="")
+    with pytest.raises(ValidationError, match="MAIL_FROM_EMAIL"):
+        production_settings(
+            mail_provider="brevo", brevo_api_key="test-api-key", mail_from_email="invalid"
+        )
+    with pytest.raises(ValidationError, match="HTTPS PUBLIC_SITE_URL"):
+        production_settings(
+            mail_provider="brevo",
+            brevo_api_key="test-api-key",
+            mail_from_email="mail@example.com",
+            public_site_url="http://localhost:3000",
+        )
+    configured = production_settings(
+        mail_provider="brevo",
+        brevo_api_key="  test-api-key\n",
+        mail_from_email="mail@example.com",
+        public_site_url="https://searchscribe-ai.vercel.app/",
+    )
+    assert configured.public_site_url == "https://searchscribe-ai.vercel.app"
+    assert configured.brevo_api_key == "test-api-key"
+
+
+def test_daily_mail_limit_stays_below_free_quota_and_has_recovery_capacity() -> None:
+    with pytest.raises(ValidationError):
+        production_settings(mail_daily_limit=300)
+    with pytest.raises(ValidationError, match="MAIL_RECOVERY_RESERVE"):
+        production_settings(mail_daily_limit=50, mail_recovery_reserve=50)

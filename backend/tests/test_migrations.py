@@ -21,6 +21,8 @@ EXPECTED_TABLES = {
     "generations",
     "alembic_version",
     "provider_identities",
+    "security_tokens",
+    "security_rate_buckets",
 }
 
 
@@ -97,3 +99,56 @@ def test_google_upgrade_preserves_existing_users_and_articles(tmp_path) -> None:
             == "Old draft"
         )
     command.downgrade(cfg, "a84f2e510c7b")
+
+
+def test_security_email_upgrade_preserves_legacy_accounts_sessions_and_articles(tmp_path) -> None:
+    db_url = f"sqlite:///{tmp_path / 'security-existing.db'}"
+    cfg = _alembic_config(db_url)
+    command.upgrade(cfg, "b91e_google_identities")
+    engine = create_engine(db_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO users (id,email,name,password_hash,is_active,created_at,updated_at) "
+                "VALUES (1,'old@example.com','Old','hash',1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP), "
+                "(2,'google@example.com','Google',NULL,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO provider_identities (user_id,provider,subject) "
+                "VALUES (2,'google','known-sub')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO refresh_tokens (user_id,token_hash,expires_at,created_at) "
+                "VALUES (1,'old-session-hash','2099-01-01',CURRENT_TIMESTAMP)"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO articles (id,user_id,title,query,status,created_at,updated_at) "
+                "VALUES (1,1,'Existing draft','Old topic','draft',"
+                "CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"
+            )
+        )
+    command.upgrade(cfg, "head")
+    with engine.connect() as connection:
+        password_account = connection.execute(
+            text("SELECT password_hash,email_verified,session_version FROM users WHERE id=1")
+        ).one()
+        assert tuple(password_account) == ("hash", 0, 0)
+        google_account = connection.execute(
+            text("SELECT password_hash,email_verified,session_version FROM users WHERE id=2")
+        ).one()
+        assert tuple(google_account) == (None, 1, 0)
+        assert connection.execute(
+            text("SELECT token_hash,session_version FROM refresh_tokens")
+        ).one() == ("old-session-hash", 0)
+        assert connection.execute(text("SELECT title FROM articles")).scalar() == "Existing draft"
+        assert connection.execute(text("SELECT COUNT(*) FROM security_tokens")).scalar() == 0
+    command.downgrade(cfg, "b91e_google_identities")
+    assert "email_verified" not in {
+        column["name"] for column in inspect(engine).get_columns("users")
+    }

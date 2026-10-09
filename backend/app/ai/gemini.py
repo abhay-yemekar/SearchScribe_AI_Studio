@@ -61,6 +61,7 @@ class GeminiProvider:
                 model=self.model,
                 contents=[prompt],
                 config=types.GenerateContentConfig(
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
                     response_mime_type="application/json",
                     response_schema=schema,
                     temperature=0.7,

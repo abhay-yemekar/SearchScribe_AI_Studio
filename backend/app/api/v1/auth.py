@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
 from ...core.config import settings
@@ -11,12 +11,22 @@ from ...core.rate_limit import rate_limit
 from ...db.models import User
 from ...db.session import get_db
 from ...schemas.auth import (
+    ForgotPasswordRequest,
     GoogleLinkRequest,
     GoogleRequest,
     LoginRequest,
+    MessageOut,
+    ResetPasswordRequest,
+    SecurityTokenRequest,
     SignupRequest,
     TokenOut,
     UserOut,
+)
+from ...services.account_recovery import (
+    FORGOT_MESSAGE,
+    VERIFICATION_MESSAGE,
+    AccountRecoveryService,
+    deliver_security_email,
 )
 from ...services.auth_service import AuthService, SessionTokens
 from ...services.google_auth import google_user, new_challenge, verify_google
@@ -119,11 +129,17 @@ def _token_payload(user: User, tokens: SessionTokens) -> TokenOut:
     summary="Create an account and start a session",
     dependencies=[rate_limit("auth", settings.rate_limit_auth_per_minute)],
 )
-def signup(payload: SignupRequest, response: Response, db: Session = Depends(get_db)) -> TokenOut:
+def signup(
+    payload: SignupRequest, request: Request, response: Response,
+    background_tasks: BackgroundTasks, db: Session = Depends(get_db),
+) -> TokenOut:
     service = AuthService(db)
     user = service.signup(email=payload.email, name=payload.name, password=payload.password)
     tokens = service.issue_session(user)
     _set_refresh_cookie(response, tokens.refresh_token)
+    message = AccountRecoveryService(db).request_verification(user, _client_ip(request))
+    if message is not None:
+        background_tasks.add_task(deliver_security_email, message)
     return _token_payload(user, tokens)
 
 
@@ -175,3 +191,60 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)) 
 )
 def me(current_user: User = Depends(get_current_user)) -> UserOut:
     return UserOut.model_validate(current_user)
+
+
+def _client_ip(request: Request) -> str:
+    # Trust the ASGI client's address, never raw user-supplied forwarding headers.
+    return request.client.host if request.client else "unknown"
+
+
+@router.post("/password/forgot", response_model=MessageOut, status_code=status.HTTP_202_ACCEPTED)
+def forgot_password(
+    payload: ForgotPasswordRequest, request: Request, response: Response,
+    background_tasks: BackgroundTasks, db: Session = Depends(get_db),
+) -> MessageOut:
+    response.headers["Cache-Control"] = "no-store"
+    message = AccountRecoveryService(db).request_password_reset(payload.email, _client_ip(request))
+    if message is not None:
+        background_tasks.add_task(deliver_security_email, message)
+    return MessageOut(message=FORGOT_MESSAGE)
+
+
+@router.post("/password/reset", response_model=MessageOut)
+def reset_password(
+    payload: ResetPasswordRequest, request: Request, response: Response,
+    background_tasks: BackgroundTasks, db: Session = Depends(get_db),
+) -> MessageOut:
+    response.headers["Cache-Control"] = "no-store"
+    message = AccountRecoveryService(db).reset_password(
+        payload.token, payload.password, _client_ip(request),
+    )
+    if message is not None:
+        background_tasks.add_task(deliver_security_email, message)
+    _clear_refresh_cookie(response)
+    return MessageOut(message="Password updated. Sign in again with your new password.")
+
+
+@router.post(
+    "/email/verification/request", response_model=MessageOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def request_email_verification(
+    request: Request, response: Response, background_tasks: BackgroundTasks,
+    current: User = Depends(get_current_user), db: Session = Depends(get_db),
+) -> MessageOut:
+    response.headers["Cache-Control"] = "no-store"
+    message = AccountRecoveryService(db).request_verification(current, _client_ip(request))
+    if message is not None:
+        background_tasks.add_task(deliver_security_email, message)
+    return MessageOut(message=VERIFICATION_MESSAGE)
+
+
+@router.post("/email/verify", response_model=MessageOut)
+def verify_email(
+    payload: SecurityTokenRequest, request: Request, response: Response,
+    db: Session = Depends(get_db),
+) -> MessageOut:
+    response.headers["Cache-Control"] = "no-store"
+    AccountRecoveryService(db).verify_email(payload.token, _client_ip(request))
+    return MessageOut(message="Email verified. You can return to your account.")

@@ -3,6 +3,66 @@
 import { apiFetch } from "./client";
 import { tokenSchema, userSchema, type TokenPayload, type User } from "./schemas";
 import { setAccessToken, clearAccessToken } from "@/lib/auth/token-store";
+import { z } from "zod";
+
+const authMessageSchema = z.object({ message: z.string() });
+
+export async function forgotPassword(email: string) {
+  return authMessageSchema.parse(
+    await apiFetch<unknown>(
+      "/api/v1/auth/password/forgot",
+      {
+        method: "POST",
+        body: JSON.stringify({ email }),
+        referrerPolicy: "no-referrer",
+        cache: "no-store",
+      },
+      { skipAuth: true },
+    ),
+  );
+}
+
+export async function resetPassword(token: string, password: string) {
+  const result = authMessageSchema.parse(
+    await apiFetch<unknown>(
+      "/api/v1/auth/password/reset",
+      {
+        method: "POST",
+        body: JSON.stringify({ token, password }),
+        referrerPolicy: "no-referrer",
+        cache: "no-store",
+      },
+      { skipAuth: true },
+    ),
+  );
+  clearAccessToken();
+  return result;
+}
+
+export async function requestEmailVerification() {
+  return authMessageSchema.parse(
+    await apiFetch<unknown>("/api/v1/auth/email/verification/request", {
+      method: "POST",
+      referrerPolicy: "no-referrer",
+      cache: "no-store",
+    }),
+  );
+}
+
+export async function verifyEmail(token: string) {
+  return authMessageSchema.parse(
+    await apiFetch<unknown>(
+      "/api/v1/auth/email/verify",
+      {
+        method: "POST",
+        body: JSON.stringify({ token }),
+        referrerPolicy: "no-referrer",
+        cache: "no-store",
+      },
+      { skipAuth: true },
+    ),
+  );
+}
 
 export async function signup(input: {
   name: string;

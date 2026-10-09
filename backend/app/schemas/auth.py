@@ -38,6 +38,27 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class SecurityTokenRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+
+
+class ResetPasswordRequest(SecurityTokenRequest):
+    password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def password_strength(cls, value: str) -> str:
+        return SignupRequest.password_strength(value)
+
+
+class MessageOut(BaseModel):
+    message: str
+
+
 class GoogleRequest(BaseModel):
     credential: str = Field(min_length=1, max_length=10000)
 
@@ -52,6 +73,7 @@ class UserOut(BaseModel):
     id: int
     email: EmailStr
     name: str
+    email_verified: bool
     created_at: datetime
 
 

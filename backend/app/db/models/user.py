@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..base import Base, TimestampMixin, utc_now
@@ -18,6 +18,12 @@ class User(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    email_verified: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False,
+    )
+    session_version: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False,
+    )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     refresh_tokens: Mapped[list[RefreshToken]] = relationship(
@@ -59,6 +65,9 @@ class RefreshToken(Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
     )
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    session_version: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False,
+    )
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
@@ -68,3 +77,28 @@ class RefreshToken(Base):
     @property
     def is_active(self) -> bool:
         return self.revoked_at is None and self.expires_at > utc_now()
+
+
+class SecurityToken(Base):
+    """Purpose-bound 256-bit email token; plaintext exists only in the delivery task."""
+
+    __tablename__ = "security_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    purpose: Mapped[str] = mapped_column(String(30), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    session_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, nullable=False)
+
+
+class SecurityRateBucket(Base):
+    """Shared fixed-window counters; HMAC keys conceal email addresses and client IPs."""
+
+    __tablename__ = "security_rate_buckets"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)

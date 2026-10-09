@@ -30,12 +30,13 @@ def verify_password(plain_password: str, password_hash: str) -> bool:
         return False
 
 
-def create_access_token(user_id: int) -> str:
+def create_access_token(user_id: int, session_version: int = 0) -> str:
     """Short-lived signed JWT identifying the user (sent as Bearer token)."""
     now = datetime.now(UTC)
     payload: dict[str, Any] = {
         "sub": str(user_id),
         "type": "access",
+        "sv": session_version,
         "iat": now,
         "exp": now + timedelta(minutes=settings.access_token_expire_minutes),
     }

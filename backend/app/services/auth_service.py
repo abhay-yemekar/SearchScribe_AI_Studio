@@ -6,6 +6,7 @@ import logging
 from dataclasses import dataclass
 from datetime import timedelta
 
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
@@ -18,7 +19,7 @@ from ..core.security import (
     verify_password,
 )
 from ..db.base import utc_now
-from ..db.models import User
+from ..db.models import RefreshToken, User
 from ..repositories.user_repo import UserRepository
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ class SessionTokens:
 
 class AuthService:
     def __init__(self, db: Session) -> None:
+        self.db = db
         self.users = UserRepository(db)
 
     def signup(self, *, email: str, name: str, password: str) -> User:
@@ -58,24 +60,36 @@ class AuthService:
             raise AuthenticationError("Invalid email or password.")
         if not user.is_active:
             raise AuthenticationError("This account is disabled.")
-        self.users.touch_last_login(user)
         logger.info("auth.login.success", extra={"user_id": user.id})
         return user
 
     def issue_session(self, user: User) -> SessionTokens:
         """Create an access JWT and a new rotating refresh-token session."""
+        expected_version = user.session_version
+        locked = self.users.lock_by_id(user.id)
+        if locked is None or not locked.is_active or locked.session_version != expected_version:
+            self.db.rollback()
+            raise AuthenticationError("Account changed. Please sign in again.")
+        return self._issue_locked_session(locked)
+
+    def _issue_locked_session(self, user: User) -> SessionTokens:
+        """Caller holds the user lock until this transaction commits."""
         raw_refresh = generate_refresh_token()
-        self.users.create_refresh_token(
+        self.db.add(RefreshToken(
             user_id=user.id,
             token_hash=hash_refresh_token(raw_refresh),
+            session_version=user.session_version,
             expires_at=utc_now()
             + timedelta(days=settings.refresh_token_expire_days),
-        )
-        return SessionTokens(
-            access_token=create_access_token(user.id),
+        ))
+        user.last_login_at = utc_now()
+        tokens = SessionTokens(
+            access_token=create_access_token(user.id, user.session_version),
             refresh_token=raw_refresh,
             expires_in=settings.access_token_expire_minutes * 60,
         )
+        self.db.commit()
+        return tokens
 
     def rotate_refresh_session(self, raw_refresh_token: str) -> tuple[User, SessionTokens]:
         """Exchange a valid refresh token for new tokens, revoking the old one.
@@ -86,21 +100,34 @@ class AuthService:
         token = self.users.find_refresh_token(hash_refresh_token(raw_refresh_token))
         if token is None:
             raise AuthenticationError("Invalid session.")
+        # The user lock is also held by password reset and session issuance.
+        # Reload both rows after acquiring it; a stale identity-map row could
+        # otherwise resurrect a session that a concurrent reset revoked.
+        user = self.users.lock_by_id(token.user_id)
+        token = self.db.scalar(
+            select(RefreshToken).where(RefreshToken.id == token.id)
+            .execution_options(populate_existing=True)
+        )
+        if token is None or user is None or not user.is_active:
+            raise AuthenticationError("Account not available.")
         if token.revoked_at is not None:
             self.users.revoke_all_refresh_tokens(token.user_id)
             logger.warning(
                 "auth.refresh.reuse_detected", extra={"user_id": token.user_id}
             )
             raise AuthenticationError("Session no longer valid.")
-        if not token.is_active:
+        if not token.is_active or token.session_version != user.session_version:
             raise AuthenticationError("Session expired.")
-
-        user = self.users.get_by_id(token.user_id)
-        if user is None or not user.is_active:
-            raise AuthenticationError("Account not available.")
-
-        self.users.revoke_refresh_token(token)
-        return user, self.issue_session(user)
+        consumed = self.db.scalar(
+            update(RefreshToken).where(
+                RefreshToken.id == token.id, RefreshToken.revoked_at.is_(None),
+                RefreshToken.session_version == user.session_version,
+            ).values(revoked_at=utc_now()).returning(RefreshToken.id)
+        )
+        if consumed is None:
+            self.db.rollback()
+            raise AuthenticationError("Session no longer valid.")
+        return user, self._issue_locked_session(user)
 
     def logout(self, raw_refresh_token: str | None) -> None:
         if not raw_refresh_token:

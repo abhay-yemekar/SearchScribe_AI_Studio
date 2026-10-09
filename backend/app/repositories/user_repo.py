@@ -21,6 +21,12 @@ class UserRepository:
     def get_by_email(self, email: str) -> User | None:
         return self.db.scalar(select(User).where(User.email == email))
 
+    def lock_by_id(self, user_id: int) -> User | None:
+        return self.db.scalar(
+            select(User).where(User.id == user_id).with_for_update()
+            .execution_options(populate_existing=True)
+        )
+
     def create(self, *, email: str, name: str, password_hash: str) -> User:
         user = User(email=email, name=name, password_hash=password_hash)
         self.db.add(user)
