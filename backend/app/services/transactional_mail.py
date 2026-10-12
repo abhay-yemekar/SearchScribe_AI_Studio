@@ -19,7 +19,9 @@ from pydantic import EmailStr, TypeAdapter, ValidationError
 
 from ..core.config import settings
 
-SecurityMailKind = Literal["password_reset", "email_verification", "password_changed"]
+SecurityMailKind = Literal[
+    "password_reset", "email_verification", "password_changed", "password_added"
+]
 _TEMPLATES = Environment(
     loader=FileSystemLoader(Path(__file__).with_name("email_templates")),
     autoescape=select_autoescape(["html"]),
@@ -111,9 +113,23 @@ def render_security_email(
             "If you didn't make this change, reset your password immediately and contact support."
         )
         token = None
+    elif kind == "password_added":
+        subject = "A password was added to your SearchScribe AI account"
+        heading = "Your password is ready."
+        intro = "A password was just added to your SearchScribe AI account."
+        instruction = (
+            "Previous sessions have been signed out. You can now sign in with your email "
+            "and new password, or continue using your linked Google account."
+        )
+        action, path, label = "Open SearchScribe", "/login", ""
+        expiry = ""
+        notice = (
+            "If you didn't add this password, reset it immediately and contact support."
+        )
+        token = None
     else:
         raise ValueError("Unsupported security email")
-    if kind != "password_changed" and (
+    if kind in {"password_reset", "email_verification"} and (
         token is None or re.fullmatch(r"[A-Za-z0-9_-]{20,200}", token) is None
     ):
         raise ValueError("A valid opaque security code is required")

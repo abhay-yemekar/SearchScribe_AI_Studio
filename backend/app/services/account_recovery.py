@@ -25,7 +25,9 @@ from .transactional_mail import MailDeliveryError, send_security_email
 
 logger = logging.getLogger(__name__)
 
-SecurityMailKind = Literal["password_reset", "email_verification", "password_changed"]
+SecurityMailKind = Literal[
+    "password_reset", "email_verification", "password_changed", "password_added"
+]
 FORGOT_MESSAGE = (
     "If this email belongs to an eligible account, we will send password reset instructions."
 )
@@ -113,6 +115,19 @@ class AccountRecoveryService:
         if kind == "email_verification":
             limit -= settings.mail_recovery_reserve
         return self._take_bucket("mail:daily", "all", start, start + timedelta(days=1), limit)
+
+    def limit_password_request(self, user: User, client_ip: str) -> None:
+        """Persist a shared IP/account budget before expensive password/Google checks."""
+        if not self._allow_request("password_management", client_ip, str(user.id)):
+            raise RateLimitError()
+
+    def password_notification(
+        self, user: User, kind: Literal["password_added", "password_changed"]
+    ) -> SecurityEmail | None:
+        """Reserve a courtesy notice inside the password transaction, without sending."""
+        if settings.mail_provider != "disabled" and self._reserve_mail(kind):
+            return SecurityEmail(kind=kind, recipient=user.email, name=user.name)
+        return None
 
     def _request_email(
         self, user: User, kind: Literal["password_reset", "email_verification"]

@@ -16,12 +16,15 @@ from ...schemas.auth import (
     GoogleRequest,
     LoginRequest,
     MessageOut,
+    PasswordAddRequest,
+    PasswordChangeRequest,
     ResetPasswordRequest,
     SecurityTokenRequest,
     SignupRequest,
     TokenOut,
     UserOut,
 )
+from ...services.account_passwords import AccountPasswordService
 from ...services.account_recovery import (
     FORGOT_MESSAGE,
     VERIFICATION_MESSAGE,
@@ -36,6 +39,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 REFRESH_COOKIE_NAME = "ss_refresh_token"
 GOOGLE_COOKIE_NAME = "ss_google_challenge"
+PASSWORD_ADD_COOKIE_NAME = "ss_password_add_challenge"  # noqa: S105 - cookie identifier
+PASSWORD_ADD_COOKIE_PATH = "/api/v1/auth/password/add"  # noqa: S105 - URL path
 
 
 @router.get(
@@ -112,6 +117,12 @@ def _set_refresh_cookie(response: Response, raw_token: str) -> None:
 
 def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/api/v1/auth")
+
+
+def _clear_password_cookies(response: Response) -> None:
+    _clear_refresh_cookie(response)
+    response.delete_cookie(GOOGLE_COOKIE_NAME, path="/api/v1/auth/google")
+    response.delete_cookie(PASSWORD_ADD_COOKIE_NAME, path=PASSWORD_ADD_COOKIE_PATH)
 
 
 def _token_payload(user: User, tokens: SessionTokens) -> TokenOut:
@@ -196,6 +207,55 @@ def me(current_user: User = Depends(get_current_user)) -> UserOut:
 def _client_ip(request: Request) -> str:
     # Trust the ASGI client's address, never raw user-supplied forwarding headers.
     return request.client.host if request.client else "unknown"
+
+
+@router.get("/password/add/challenge")
+def password_add_challenge(
+    request: Request, response: Response, current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, str | bool]:
+    response.headers["Cache-Control"] = "no-store"
+    if not settings.google_client_id:
+        return {"enabled": False}
+    nonce, signed = AccountPasswordService(db).add_challenge(current, _client_ip(request))
+    response.set_cookie(
+        PASSWORD_ADD_COOKIE_NAME, signed, max_age=300, httponly=True,
+        secure=settings.is_production, samesite="strict", path=PASSWORD_ADD_COOKIE_PATH,
+    )
+    return {"enabled": True, "client_id": settings.google_client_id, "nonce": nonce}
+
+
+@router.post("/password/add", response_model=MessageOut)
+def password_add(
+    payload: PasswordAddRequest, request: Request, response: Response,
+    background_tasks: BackgroundTasks, current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MessageOut:
+    response.headers["Cache-Control"] = "no-store"
+    message = AccountPasswordService(db).add_password(
+        current, payload.credential, request.cookies.get(PASSWORD_ADD_COOKIE_NAME),
+        payload.password, _client_ip(request),
+    )
+    if message is not None:
+        background_tasks.add_task(deliver_security_email, message)
+    _clear_password_cookies(response)
+    return MessageOut(message="Password added. Sign in again with your password or Google.")
+
+
+@router.post("/password/change", response_model=MessageOut)
+def password_change(
+    payload: PasswordChangeRequest, request: Request, response: Response,
+    background_tasks: BackgroundTasks, current: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MessageOut:
+    response.headers["Cache-Control"] = "no-store"
+    message = AccountPasswordService(db).change_password(
+        current, payload.current_password, payload.password, _client_ip(request),
+    )
+    if message is not None:
+        background_tasks.add_task(deliver_security_email, message)
+    _clear_password_cookies(response)
+    return MessageOut(message="Password updated. Sign in again with your new password.")
 
 
 @router.post("/password/forgot", response_model=MessageOut, status_code=status.HTTP_202_ACCEPTED)

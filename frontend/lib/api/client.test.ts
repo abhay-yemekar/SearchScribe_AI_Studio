@@ -36,6 +36,32 @@ describe("apiFetch", () => {
     expect((init.headers as Headers).get("Authorization")).toBe("Bearer token-1");
   });
 
+  it("can ignore a committed mutation's malformed success body without changing normal error handling", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(new Response("truncated-json", { status: 200 }))
+        .mockResolvedValueOnce(
+          jsonResponse(401, errorEnvelope("PASSWORD_CURRENT_INVALID", "Wrong password")),
+        ),
+    );
+    await expect(
+      apiFetch<void>(
+        "/api/v1/auth/password/change",
+        { method: "POST" },
+        { ignoreSuccessBody: true },
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      apiFetch<void>(
+        "/api/v1/auth/password/change",
+        { method: "POST" },
+        { ignoreSuccessBody: true },
+      ),
+    ).rejects.toMatchObject({ status: 401, code: "PASSWORD_CURRENT_INVALID" });
+  });
+
   it("shares a refresh request between bootstrap and an expired API request", async () => {
     let finishRefresh!: (response: Response) => void;
     const pending = new Promise<Response>((resolve) => {

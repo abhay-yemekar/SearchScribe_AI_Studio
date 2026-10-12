@@ -88,7 +88,11 @@ export async function refreshOnce(
 export async function apiFetch<T>(
   path: string,
   init: RequestInit = {},
-  options: { skipAuth?: boolean; skipRefresh?: boolean } = {},
+  options: {
+    skipAuth?: boolean;
+    skipRefresh?: boolean;
+    ignoreSuccessBody?: boolean;
+  } = {},
 ): Promise<T> {
   let response = await rawRequest(path, init, options.skipAuth ? null : getSnapshot());
 
@@ -114,6 +118,11 @@ export async function apiFetch<T>(
   if (!response.ok) {
     throw await parseError(response);
   }
+
+  // Security mutations may commit and revoke sessions before their response
+  // body arrives. Their callers must clean up on HTTP success even if that
+  // optional body is empty or truncated. Errors still use the normal envelope.
+  if (options.ignoreSuccessBody) return undefined as T;
 
   return (await response.json()) as T;
 }

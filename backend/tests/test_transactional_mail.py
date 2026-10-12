@@ -119,14 +119,19 @@ def test_enabled_links_are_fragment_only_and_do_not_display_codes(
 
 
 @pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("kind", ["password_changed", "password_added"])
 def test_password_change_notice_contains_no_security_code(
-    enabled: bool, monkeypatch: pytest.MonkeyPatch,
+    enabled: bool, kind: Any, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(mail.settings, "security_email_links_enabled", enabled)
-    rendered = mail.render_security_email("password_changed", "Abhay", token=CODE)
+    rendered = mail.render_security_email(kind, "Abhay", token=CODE)
     assert CODE not in rendered.html and CODE not in rendered.text
     assert "Previous sessions have been signed out." in rendered.text
     assert "https://searchscribe.example/login" in rendered.text
+    if kind == "password_added":
+        assert "A password was just added" in rendered.text
+        assert "continue using your linked Google account" in rendered.text
+        assert "was changed" not in rendered.subject
 
 
 @pytest.mark.parametrize("enabled", [False, True])
@@ -173,7 +178,9 @@ def intercept(monkeypatch: pytest.MonkeyPatch, handler: Any) -> dict[str, Any]:
     return options
 
 
-@pytest.mark.parametrize("kind", ["password_reset", "email_verification", "password_changed"])
+@pytest.mark.parametrize("kind", [
+    "password_reset", "email_verification", "password_changed", "password_added",
+])
 @pytest.mark.parametrize("enabled", [False, True])
 def test_provider_uses_https_and_approved_sender_with_plain_text_fallback(
     kind: Any, enabled: bool, monkeypatch: pytest.MonkeyPatch,
@@ -195,7 +202,7 @@ def test_provider_uses_https_and_approved_sender_with_plain_text_fallback(
     assert payload["sender"] == {"name": "SearchScribe AI", "email": "support@example.com"}
     assert payload["replyTo"] == payload["sender"]
     assert payload["to"] == [{"email": "reader@example.com", "contactPixelTrackingConsent": False}]
-    if kind == "password_changed":
+    if kind in {"password_changed", "password_added"}:
         assert CODE not in payload["htmlContent"] and CODE not in payload["textContent"]
     else:
         assert CODE in payload["htmlContent"] and CODE in payload["textContent"]

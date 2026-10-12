@@ -80,7 +80,7 @@ class RefreshToken(Base):
 
 
 class SecurityToken(Base):
-    """Purpose-bound 256-bit email token; plaintext exists only in the delivery task."""
+    """Purpose-bound, one-use security tokens and authorization nonces stored as hashes."""
 
     __tablename__ = "security_tokens"
 

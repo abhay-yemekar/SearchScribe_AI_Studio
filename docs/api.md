@@ -18,46 +18,72 @@ Common codes: `VALIDATION_ERROR` (422), `AUTHENTICATION_REQUIRED` (401), `NOT_FO
 
 ## Auth
 
-| Method | Path | Auth | Notes |
-| --- | --- | --- | --- |
-| POST | `/auth/signup` | — | 201, sets refresh cookie, returns access token + user. Rate-limited 10/min. |
-| POST | `/auth/login` | — | 200, same shape as signup. |
-| POST | `/auth/refresh` | refresh cookie | Rotates the cookie, returns a fresh access token. 401 on expiry/reuse. |
-| POST | `/auth/logout` | refresh cookie | Revokes the session, clears the cookie. |
-| GET  | `/auth/me` | Bearer | Current user. |
+| Method | Path                           | Auth                                | Notes                                                                                                |
+| ------ | ------------------------------ | ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| POST   | `/auth/signup`                 | —                                   | 201, sets refresh cookie, returns access token + user. Rate-limited 10/min.                          |
+| POST   | `/auth/login`                  | —                                   | 200, same shape as signup.                                                                           |
+| POST   | `/auth/refresh`                | refresh cookie                      | Rotates the cookie, returns a fresh access token. 401 on expiry/reuse.                               |
+| POST   | `/auth/logout`                 | refresh cookie                      | Revokes the session, clears the cookie.                                                              |
+| GET    | `/auth/me`                     | Bearer                              | Current user.                                                                                        |
+| GET    | `/auth/password/add/challenge` | Bearer                              | Google-only account: five-minute, one-use identity challenge; sets a dedicated HttpOnly cookie.      |
+| POST   | `/auth/password/add`           | Bearer + dedicated challenge cookie | Body `{credential, password}`. Confirms the already-linked Google identity before adding a password. |
+| POST   | `/auth/password/change`        | Bearer                              | Body `{current_password, password}`. Confirms the current password before changing it.               |
+
+Password mutations return `{message}`, clear session cookies, and invalidate all
+access/refresh sessions and outstanding security tokens. Sign in again afterward.
+The account, saved articles, and Google connection remain intact. New passwords
+must contain a letter and digit and be 8–128 characters. These operations do not
+return a password or automatically issue a new session.
 
 `TokenOut`: `{access_token, token_type: "bearer", expires_in, user: {id, email, name, created_at}}`
 
 ## Articles
 
-| Method | Path | Notes |
-| --- | --- | --- |
-| POST | `/articles` | Generate. Body `{"query": "..."}` (3–500 chars). 201 → detail. Rate-limited 5/min. |
-| GET | `/articles?limit=&cursor=` | Newest first; `next_cursor` present while more pages exist. |
-| GET | `/articles/rewrite-styles` | Style registry for the rewrite picker. |
-| GET | `/articles/{id}` | Full detail. |
-| PUT | `/articles/{id}/content` | Save structured content + SEO as a new immutable version. Requires `base_version`; stale writes return `STALE_ARTICLE_VERSION` (409). |
-| PATCH | `/articles/{id}` | `{"title": "..."}` rename. |
-| DELETE | `/articles/{id}` | 204; cascades versions + SEO. |
-| POST | `/articles/{id}/duplicate` | 201 copy with fresh versions. |
-| POST | `/articles/{id}/rewrite` | `{"style": "genz\|professional\|casual\|technical\|marketing\|minimal"}` → new version. |
-| GET | `/articles/{id}/versions` | Version list (version, change_type, word_count, complete_snapshot, created_at). |
-| GET | `/articles/{id}/versions/{version}` | One version's markdown. |
-| POST | `/articles/{id}/versions/{version}/restore` | Restores as a **new** version. |
+| Method | Path                                        | Notes                                                                                                                                 |
+| ------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/articles`                                 | Generate. Body `{"query": "..."}` (3–500 chars). 201 → detail. Rate-limited 5/min.                                                    |
+| GET    | `/articles?limit=&cursor=`                  | Newest first; `next_cursor` present while more pages exist.                                                                           |
+| GET    | `/articles/rewrite-styles`                  | Style registry for the rewrite picker.                                                                                                |
+| GET    | `/articles/{id}`                            | Full detail.                                                                                                                          |
+| PUT    | `/articles/{id}/content`                    | Save structured content + SEO as a new immutable version. Requires `base_version`; stale writes return `STALE_ARTICLE_VERSION` (409). |
+| PATCH  | `/articles/{id}`                            | `{"title": "..."}` rename.                                                                                                            |
+| DELETE | `/articles/{id}`                            | 204; cascades versions + SEO.                                                                                                         |
+| POST   | `/articles/{id}/duplicate`                  | 201 copy with fresh versions.                                                                                                         |
+| POST   | `/articles/{id}/rewrite`                    | `{"style": "genz\|professional\|casual\|technical\|marketing\|minimal"}` → new version.                                               |
+| GET    | `/articles/{id}/versions`                   | Version list (version, change_type, word_count, complete_snapshot, created_at).                                                       |
+| GET    | `/articles/{id}/versions/{version}`         | One version's markdown.                                                                                                               |
+| POST   | `/articles/{id}/versions/{version}/restore` | Restores as a **new** version.                                                                                                        |
 
 `ArticleDetailOut`:
 
 ```json
 {
-  "id": 1, "title": "...", "query": "...", "status": "ready",
+  "id": 1,
+  "title": "...",
+  "query": "...",
+  "status": "ready",
   "current_version": 2,
-  "content": {"title": "...", "introduction": "...", "sections": [{"id": "...", "heading": "...", "paragraphs": ["..."], "bullets": []}], "conclusion": "..."},
+  "content": {
+    "title": "...",
+    "introduction": "...",
+    "sections": [
+      { "id": "...", "heading": "...", "paragraphs": ["..."], "bullets": [] }
+    ],
+    "conclusion": "..."
+  },
   "markdown": "# Title ...",
   "html": "<!DOCTYPE html> ...",
-  "seo": {"title": "...", "description": "...", "keywords": ["..."],
-           "og_title": "...", "og_description": "...",
-           "canonical_url": null, "robots": "index, follow"},
-  "created_at": "2026-08-21T10:00:00", "updated_at": "2026-08-21T10:05:00"
+  "seo": {
+    "title": "...",
+    "description": "...",
+    "keywords": ["..."],
+    "og_title": "...",
+    "og_description": "...",
+    "canonical_url": null,
+    "robots": "index, follow"
+  },
+  "created_at": "2026-08-21T10:00:00",
+  "updated_at": "2026-08-21T10:05:00"
 }
 ```
 
