@@ -94,8 +94,8 @@ class AuthService:
     def rotate_refresh_session(self, raw_refresh_token: str) -> tuple[User, SessionTokens]:
         """Exchange a valid refresh token for new tokens, revoking the old one.
 
-        Presenting an already-revoked token is treated as theft: every session
-        belonging to that user is revoked.
+        Presenting an already-revoked token for the current session version is
+        treated as theft: every session belonging to that user is revoked.
         """
         token = self.users.find_refresh_token(hash_refresh_token(raw_refresh_token))
         if token is None:
@@ -110,13 +110,16 @@ class AuthService:
         )
         if token is None or user is None or not user.is_active:
             raise AuthenticationError("Account not available.")
+        # Earlier account versions must not revoke sessions created after a reset.
+        if token.session_version != user.session_version:
+            raise AuthenticationError("Session expired.")
         if token.revoked_at is not None:
             self.users.revoke_all_refresh_tokens(token.user_id)
             logger.warning(
                 "auth.refresh.reuse_detected", extra={"user_id": token.user_id}
             )
             raise AuthenticationError("Session no longer valid.")
-        if not token.is_active or token.session_version != user.session_version:
+        if not token.is_active:
             raise AuthenticationError("Session expired.")
         consumed = self.db.scalar(
             update(RefreshToken).where(
