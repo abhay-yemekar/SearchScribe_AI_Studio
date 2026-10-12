@@ -67,6 +67,25 @@ class GoogleLinkRequest(GoogleRequest):
     password: str = Field(min_length=1, max_length=128)
 
 
+class PasswordAddRequest(GoogleRequest):
+    password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def password_strength(cls, value: str) -> str:
+        return SignupRequest.password_strength(value)
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def password_strength(cls, value: str) -> str:
+        return SignupRequest.password_strength(value)
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

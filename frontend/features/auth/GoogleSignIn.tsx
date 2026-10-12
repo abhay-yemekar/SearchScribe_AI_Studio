@@ -10,6 +10,12 @@ const challengeSchema = z.discriminatedUnion("enabled", [
   z.object({ enabled: z.literal(true), client_id: z.string(), nonce: z.string() }),
 ]);
 
+export type GoogleChallenge = z.infer<typeof challengeSchema>;
+
+function loginChallenge() {
+  return apiFetch<unknown>("/api/v1/auth/google/challenge", {}, { skipAuth: true });
+}
+
 type GoogleSdk = {
   accounts: {
     id: {
@@ -31,10 +37,18 @@ export default function GoogleSignIn({
   onCredential,
   onError,
   showUnavailableMessage = false,
+  challengeLoader = loginChallenge,
+  unavailableMessage = "Google sign-in is unavailable on this instance. Continue with email and password.",
+  failureMessage = "Google sign-in is unavailable. Password login is still available.",
+  verificationLabel = "Verifying Google sign-in…",
 }: {
   onCredential: (credential: string) => Promise<void>;
   onError: (message: string) => void;
   showUnavailableMessage?: boolean;
+  challengeLoader?: () => Promise<unknown>;
+  unavailableMessage?: string;
+  failureMessage?: string;
+  verificationLabel?: string;
 }) {
   const [challenge, setChallenge] = useState<z.infer<typeof challengeSchema> | null>(
     null,
@@ -42,9 +56,13 @@ export default function GoogleSignIn({
   const [sdkReady, setSdkReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [loadFailed, setLoadFailed] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   const callback = useRef(onCredential);
   const errorCallback = useRef(onError);
+  const active = useRef(false);
+  const processing = useRef(false);
+  const generation = useRef(0);
   useEffect(() => {
     callback.current = onCredential;
     errorCallback.current = onError;
@@ -52,40 +70,63 @@ export default function GoogleSignIn({
 
   useEffect(() => {
     let cancelled = false;
-    void apiFetch<unknown>("/api/v1/auth/google/challenge", {}, { skipAuth: true })
+    active.current = true;
+    generation.current++;
+    // A fresh provider challenge replaces the old SDK authorization boundary.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setChallenge(null);
+    void challengeLoader()
       .then((data) => {
-        if (!cancelled) setChallenge(challengeSchema.parse(data));
+        if (!cancelled) {
+          setChallenge(challengeSchema.parse(data));
+          setLoadFailed(false);
+        }
       })
       .catch(() => {
-        if (!cancelled)
-          errorCallback.current(
-            "Google sign-in is unavailable. Password login is still available.",
-          );
+        if (!cancelled) {
+          setLoadFailed(true);
+          setChallenge(null);
+          errorCallback.current(failureMessage);
+        }
       });
     return () => {
       cancelled = true;
+      active.current = false;
     };
-  }, [attempt]);
+  }, [attempt, challengeLoader, failureMessage]);
 
   const render = useCallback(() => {
     const sdk = (window as Window & { google?: GoogleSdk }).google;
     if (!sdk || !container.current || !challenge?.enabled) return;
+    const currentGeneration = generation.current;
     sdk.accounts.id.initialize({
       client_id: challenge.client_id,
       nonce: challenge.nonce,
       auto_select: false,
       callback: ({ credential }) => {
+        if (
+          !active.current ||
+          generation.current !== currentGeneration ||
+          processing.current
+        )
+          return;
+        processing.current = true;
         setBusy(true);
         void callback
           .current(credential)
           .catch((error: unknown) => {
-            errorCallback.current(
-              error instanceof Error ? error.message : "Google sign-in failed.",
-            );
+            if (active.current && generation.current === currentGeneration)
+              errorCallback.current(
+                error instanceof Error ? error.message : "Google sign-in failed.",
+              );
           })
           .finally(() => {
-            setBusy(false);
-            setAttempt((value) => value + 1);
+            processing.current = false;
+            if (active.current && generation.current === currentGeneration) {
+              setBusy(false);
+              setChallenge(null);
+              setAttempt((value) => value + 1);
+            }
           });
       },
     });
@@ -102,13 +143,26 @@ export default function GoogleSignIn({
   useEffect(() => {
     if (sdkReady) render();
   }, [sdkReady, render]);
+  if (loadFailed)
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setLoadFailed(false);
+          setAttempt((value) => value + 1);
+        }}
+        className="my-4 block text-sm font-medium underline underline-offset-4"
+      >
+        Retry Google connection
+      </button>
+    );
   if (!challenge?.enabled) {
     return challenge?.enabled === false && showUnavailableMessage ? (
       <p
         role="status"
         className="my-4 text-center text-xs leading-relaxed text-slate-600"
       >
-        Google sign-in is unavailable on this instance. Continue with email and password.
+        {unavailableMessage}
       </p>
     ) : null;
   }
@@ -117,15 +171,17 @@ export default function GoogleSignIn({
       <Script
         src="https://accounts.google.com/gsi/client"
         strategy="afterInteractive"
-        onReady={() => setSdkReady(true)}
-        onError={() =>
-          onError("Google sign-in could not load. Please use password login.")
-        }
+        onReady={() => {
+          if (active.current) setSdkReady(true);
+        }}
+        onError={() => {
+          if (active.current) onError(failureMessage);
+        }}
       />
       <div ref={container} className={busy ? "pointer-events-none opacity-60" : ""} />
       {busy && (
         <p role="status" className="text-sm text-slate-600">
-          Verifying Google sign-in…
+          {verificationLabel}
         </p>
       )}
     </div>

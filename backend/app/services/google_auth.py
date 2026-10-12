@@ -31,7 +31,9 @@ def new_challenge() -> tuple[str, str]:
     return nonce, signed
 
 
-def verify_google(credential: str, challenge: str | None) -> dict[str, Any]:
+def verify_google(
+    credential: str, challenge: str | None, *, expected_audience: str = "google-challenge"
+) -> dict[str, Any]:
     if not settings.google_client_id:
         raise ServiceUnavailableError("Google sign-in is not configured yet.")
     try:
@@ -39,7 +41,7 @@ def verify_google(credential: str, challenge: str | None) -> dict[str, Any]:
             challenge or "",
             settings.secret_key,
             algorithms=["HS256"],
-            audience="google-challenge",
+            audience=expected_audience,
             options={"require": ["exp", "nonce"]},
         )["nonce"]
 

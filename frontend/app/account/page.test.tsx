@@ -1,10 +1,16 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as renderView, screen, waitFor } from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import AccountPage from "./page";
 import { useSession } from "@/features/auth/useSession";
 import { apiFetch } from "@/lib/api/client";
-import { fetchCurrentUser, requestEmailVerification } from "@/lib/api/auth";
+import {
+  changePassword,
+  fetchCurrentUser,
+  requestEmailVerification,
+} from "@/lib/api/auth";
 
 const { router } = vi.hoisted(() => ({ router: { replace: vi.fn() } }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
@@ -15,6 +21,9 @@ vi.mock("@/lib/api/auth", () => ({
   fetchCurrentUser: vi.fn(),
   requestEmailVerification: vi.fn(),
   linkGoogle: vi.fn(),
+  addPassword: vi.fn(),
+  changePassword: vi.fn(),
+  passwordAddChallenge: vi.fn(),
 }));
 
 const user = {
@@ -25,6 +34,15 @@ const user = {
   email_verified: false,
 };
 const setUser = vi.fn();
+
+function render(element: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return renderView(element, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+}
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -95,4 +113,53 @@ it("allows retry after an email request fails", async () => {
     "If email delivery is available, verification instructions will be sent.",
   );
   expect(requestEmailVerification).toHaveBeenCalledTimes(2);
+});
+
+it("does not assume Google-only sign-in while connections load or fail", async () => {
+  vi.mocked(apiFetch).mockRejectedValueOnce(new Error("offline"));
+  const interaction = userEvent.setup();
+  render(<AccountPage />);
+  expect(screen.getByText("Loading sign-in methods…")).toBeVisible();
+  expect(
+    screen.queryByRole("region", { name: "Add a password" }),
+  ).not.toBeInTheDocument();
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Could not load account connections",
+  );
+  expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+  await interaction.click(screen.getByRole("button", { name: "Retry sign-in methods" }));
+  expect(await screen.findByRole("region", { name: "Change password" })).toBeVisible();
+});
+
+it("keeps password-change confirmation visible after the revoked session disappears", async () => {
+  vi.mocked(changePassword).mockResolvedValue(undefined);
+  const interaction = userEvent.setup();
+  const view = render(<AccountPage />);
+  await screen.findByRole("region", { name: "Change password" });
+  await interaction.type(screen.getByLabelText("Current password"), "OldPassword123");
+  await interaction.type(screen.getByLabelText("New password"), "NewPassword123");
+  await interaction.type(screen.getByLabelText("Confirm new password"), "NewPassword123");
+  await interaction.click(screen.getByRole("button", { name: "Change password" }));
+  expect(
+    await screen.findByText("Password updated. Sign in again with your new password."),
+  ).toBeVisible();
+  vi.mocked(useSession).mockReturnValue({
+    token: null,
+    user: null,
+    bootstrapping: false,
+    setUser,
+    logout: vi.fn(),
+  });
+  view.rerender(<AccountPage />);
+  expect(screen.getByRole("link", { name: "Go to login" })).toHaveAttribute(
+    "href",
+    "/login",
+  );
+  expect(screen.getByRole("link", { name: "Back to website" })).toHaveAttribute(
+    "href",
+    "/",
+  );
+  expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
+  expect(router.replace).not.toHaveBeenCalled();
+  expect(setUser).toHaveBeenCalledWith(null);
 });

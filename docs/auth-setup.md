@@ -79,6 +79,40 @@ References: [Render Free SMTP restriction](https://render.com/docs/free), [Brevo
 - Welcome mail is optional and separate from marketing consent. Do not enroll users into newsletters by default.
 - Prove expiration, replay rejection, concurrency, unknown-email neutrality, rate limits, session revocation, and no cross-user access. Prove deployed inbox delivery before claiming recovery is ready.
 
+## Add or change a password
+
+Google sign-in does not create a password. A stored password cannot be displayed:
+SearchScribe stores only its Argon2id hash. A Show button reveals only what you
+have just typed into a form.
+
+- **Google-only account:** open Account, enter and confirm a new password, then
+  use the official Google button to confirm the identity already linked to that
+  account. Matching an email address alone never authorizes this change.
+- **Password account:** open Account and confirm the current password before
+  entering and confirming a new one. If the current password is forgotten, use
+  the existing recovery email flow.
+- After either change, sign in again. All existing access and refresh sessions
+  and outstanding security challenges are invalidated. The account, articles,
+  and Google connection are retained; Google remains available as a sign-in method.
+
+Adding a password uses a separate authenticated five-minute Google challenge,
+bound to the user, account session version, nonce, and linked Google subject.
+It cannot use the public login challenge or create or merge another account.
+The nonce is stored as a hash and consumed once. Changing a password verifies
+the current hash under the same account lock used by reset and session issuance.
+Both operations use request limits and the existing daily security-mail budget.
+The added/changed notification is sent after commit; delivery is best effort.
+
+No new provider secret or database migration is needed. Reuse the configured
+Google web client and transactional email settings. Complete real Google identity
+confirmation and new-password entry manually when verifying the deployed flow.
+
+Security email links remain disabled until a fresh delivered message proves that
+link rewriting and open pixels are absent. Brevo's API reference currently
+describes `contactPixelTrackingConsent: false` as anonymizing events while its
+Help article describes preventing them; the consent setting alone does not prove
+complete opt-out.
+
 ## Operational boundaries
 
 The persistent daily send cap defaults to 250 across all security messages, with

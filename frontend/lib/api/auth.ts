@@ -7,6 +7,39 @@ import { z } from "zod";
 
 const authMessageSchema = z.object({ message: z.string() });
 
+export function passwordAddChallenge() {
+  return apiFetch<unknown>("/api/v1/auth/password/add/challenge", {
+    cache: "no-store",
+    referrerPolicy: "no-referrer",
+  });
+}
+
+async function updateAccountPassword(path: string, input: Record<string, string>) {
+  await apiFetch<void>(
+    path,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+      cache: "no-store",
+      referrerPolicy: "no-referrer",
+    },
+    { ignoreSuccessBody: true },
+  );
+  // A successful mutation revokes sessions even if its message is malformed.
+  // The caller clears private state and displays a fixed local confirmation.
+}
+
+export function addPassword(credential: string, password: string) {
+  return updateAccountPassword("/api/v1/auth/password/add", { credential, password });
+}
+
+export function changePassword(currentPassword: string, password: string) {
+  return updateAccountPassword("/api/v1/auth/password/change", {
+    current_password: currentPassword,
+    password,
+  });
+}
+
 export async function forgotPassword(email: string) {
   return authMessageSchema.parse(
     await apiFetch<unknown>(
