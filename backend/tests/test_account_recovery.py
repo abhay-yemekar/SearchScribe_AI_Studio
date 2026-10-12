@@ -114,6 +114,39 @@ def test_reset_revokes_all_sessions_and_requires_new_login(client, security_mail
     )
 
 
+def test_pre_reset_refresh_replay_preserves_new_session(client, security_mail):
+    account = register_user(client)
+    old_refresh = client.cookies.get("ss_refresh_token")
+    code = request_reset(client, security_mail)
+    assert client.post(RESET, json={"token": code, "password": NEW_PASSWORD}).status_code == 200
+    signed_in = client.post(
+        "/api/v1/auth/login", json={"email": "user@example.com", "password": NEW_PASSWORD}
+    )
+    assert signed_in.status_code == 200
+    new_refresh = client.cookies.get("ss_refresh_token")
+    assert new_refresh and new_refresh != old_refresh
+
+    client.cookies.clear()
+    client.cookies.set("ss_refresh_token", old_refresh)
+    assert client.post("/api/v1/auth/refresh").status_code == 401
+
+    client.cookies.clear()
+    client.cookies.set("ss_refresh_token", new_refresh)
+    refreshed = client.post("/api/v1/auth/refresh")
+    assert refreshed.status_code == 200
+    assert refreshed.json()["user"]["id"] == account["user"]["id"]
+
+    # Replay within the current account version still revokes the rotated session.
+    rotated_refresh = refreshed.cookies.get("ss_refresh_token")
+    assert rotated_refresh and rotated_refresh != new_refresh
+    client.cookies.clear()
+    client.cookies.set("ss_refresh_token", new_refresh)
+    assert client.post("/api/v1/auth/refresh").status_code == 401
+    client.cookies.clear()
+    client.cookies.set("ss_refresh_token", rotated_refresh)
+    assert client.post("/api/v1/auth/refresh").status_code == 401
+
+
 def test_forgot_is_neutral_for_unknown_disabled_and_google_only(client, security_mail, db_session):
     register_user(client)
     db_session.add_all(
