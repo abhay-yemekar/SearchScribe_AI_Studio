@@ -78,6 +78,9 @@ def test_local_sqlite_and_mock_remain_available() -> None:
         "https://user:pass@example.com",
         "http://example.com",
         "https://example.com:wrong",
+        "https://example.com?",
+        "https://example.com#",
+        "https://example.com\\suffix",
     ],
 )
 def test_security_mail_rejects_untrusted_link_origin_shapes(origin: str) -> None:

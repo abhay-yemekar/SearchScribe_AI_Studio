@@ -108,8 +108,8 @@ export default function AccountPage() {
           {user && !user.email_verified && (
             <>
               <p className="my-4 text-sm leading-relaxed text-slate-600">
-                Request a verification code, then paste it on the verification page. Email
-                delivery must be configured for codes to arrive.
+                Request a verification email, then follow its instructions to confirm your
+                address. Email delivery must be configured for messages to arrive.
               </p>
               <button
                 type="button"
@@ -123,16 +123,16 @@ export default function AccountPage() {
                   </span>
                 )}
                 {verificationBusy
-                  ? "Requesting code…"
+                  ? "Requesting email…"
                   : verificationMessage
-                    ? "Resend verification code"
-                    : "Send verification code"}
+                    ? "Resend verification email"
+                    : "Send verification email"}
               </button>
               <Link
                 href="/verify-email"
                 className={`mt-4 inline-block text-sm ${recoveryLinkClass}`}
               >
-                Enter verification code
+                Have a code from an older email?
               </Link>
             </>
           )}

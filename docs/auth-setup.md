@@ -4,7 +4,7 @@ Use personal accounts for SearchScribe. Do not use office OAuth projects, mailbo
 
 ## Current status
 
-The deployed password flow was verified on https://searchscribe-ai.vercel.app on 7 October 2026: signup/login, real Gemini generation, article and SEO edits, version restore, HTML download, refresh, logout, and cross-user access denial. Google sign-in was merged in PR #10 and deployed. The existing personal account showed a persisted Google connection after reload on 9 October; that observation alone does not prove a fresh linking or sign-in journey. Password reset, advisory email verification and branded transactional templates are implemented in the recovery PR. Deployed inbox delivery and the real reset journey remain acceptance gates until recorded below.
+The deployed password flow was verified on https://searchscribe-ai.vercel.app on 7 October 2026: signup/login, real Gemini generation, article and SEO edits, version restore, HTML download, refresh, logout, and cross-user access denial. Google sign-in was merged in PR #10 and deployed. The existing personal account signed in with Google and recovered its saved articles on 9 October. A separate password test account received its verification email and completed verification that day. Branded security emails shipped in PR #16; the opaque email-logo fix shipped in PR #17. A fresh password-to-Google linking journey, actual mobile rendering of the new logo, and the complete live password-reset journey remain acceptance gates.
 
 ## Google Cloud: line by line
 
@@ -51,18 +51,20 @@ Brevo Free is a candidate for the zero-spend beta: its documented limit is 300 e
 8. Enter the key directly into **searchscribe-beta-api → Environment** as a secret. Never paste it in chat or commit it.
 9. The recovery/email PR should implement these settings:
 
-   | Setting           | Value                                |
-   | ----------------- | ------------------------------------ |
-   | `MAIL_PROVIDER`   | `brevo`                              |
-   | `BREVO_API_KEY`   | dedicated key, Render secret only    |
-   | `MAIL_FROM_EMAIL` | verified personal support mailbox    |
-   | `MAIL_FROM_NAME`  | `SearchScribe AI`                    |
-   | `PUBLIC_SITE_URL` | `https://searchscribe-ai.vercel.app` |
+   | Setting                        | Value                                      |
+   | ------------------------------ | ------------------------------------------ |
+   | `MAIL_PROVIDER`                | `brevo`                                    |
+   | `BREVO_API_KEY`                | dedicated key, Render secret only          |
+   | `MAIL_FROM_EMAIL`              | verified personal support mailbox          |
+   | `MAIL_FROM_NAME`               | `SearchScribe AI`                          |
+   | `PUBLIC_SITE_URL`              | `https://searchscribe-ai.vercel.app`       |
+   | `SECURITY_EMAIL_LINKS_ENABLED` | `false` until untracked links are verified |
 
 The recovery implementation reads these variables. The send integration uses HTTPS `POST https://api.brevo.com/v3/smtp/email` with a bounded timeout, no redirects and no automatic retry: an ambiguous timeout may already have sent the message. Apply the recovery migration and deploy the reviewed recovery commit before enabling the flow. No mail credentials belong in Vercel's browser configuration.
 
-10. Test with addresses whose owners authorize the messages. Verify the actual inbox, spam folder, visible sender rewrite, plain-text fallback, code expiry, and password-change notice. Provider acceptance alone does not establish delivery.
-11. Keep a persistent daily send cap below the provider's free limit, with a reserve for password resets. Never send marketing without consent. Later move to a verified owned sender domain without changing the public app URL.
+10. In **Settings → Contacts → Per-contact pixel tracking consent**, enable **Yes** and set **Track contacts whose consent is unknown** to **No**. This changes existing contacts to Unknown; use only the personal account. The integration sends `contactPixelTrackingConsent: false` on each recipient. Before setting `SECURITY_EMAIL_LINKS_ENABLED=true`, verify a fresh delivered security message has direct canonical links, intact fragments, and no Brevo open-tracking pixel. Anonymized tracking alone is not tracking disabled. Never copy a live security token into logs, screenshots, or chat.
+11. Test with addresses whose owners authorize the messages. Verify the actual inbox, spam folder, visible sender rewrite, plain-text fallback, expiry, and password-change notice. Opening a verification link must not consume it; only explicit confirmation sends the POST. A reset link opens the new-password form and must not change the password until submission. Provider acceptance alone does not establish delivery.
+12. Keep a persistent daily send cap below the provider's free limit, with a reserve for password resets. Never send marketing without consent. Later move to a verified owned sender domain without changing the public app URL.
 
 References: [Render Free SMTP restriction](https://render.com/docs/free), [Brevo sender compliance and temporary replacement](https://help.brevo.com/hc/en-us/articles/14925263522578-Comply-with-Gmail-Yahoo-and-Microsoft-s-requirements-for-email-senders), [Brevo Free limits](https://help.brevo.com/hc/en-us/articles/208589409-About-Brevo-s-pricing-plans), [transactional email API](https://developers.brevo.com/reference/sendtransacemail).
 
@@ -70,7 +72,7 @@ References: [Render Free SMTP restriction](https://render.com/docs/free), [Brevo
 
 - Login includes **Forgot password?**; request screen always returns the same neutral message for known and unknown emails.
 - Generate cryptographically random reset codes; store only their hashes in Postgres with expiry and atomic single-use consumption. Defaults: 30-minute reset expiry, 24-hour verification expiry, 3 security-email requests per email/hour and 20 per ASGI client IP/hour.
-- Send branded HTML plus plain text with a token-free button to the canonical site and a separate strong opaque code to paste. Brevo does not document a per-message tracking-disable option; do not claim tracking is disabled. Keeping the code out of every clickable URL prevents provider click rewriting from capturing it. Optional URL-fragment entry is supported by the form and cleared immediately, but current emails do not put codes in links.
+- Send branded HTML plus plain text. With security links enabled, the canonical verify/reset URL carries the opaque token in its fragment; the form immediately removes it from the address bar, retains it only in memory, and submits it in a POST body after the user's action. No token belongs in a query string, analytics, browser storage, or logs. Expiry and atomic single-use checks remain server-side. The disabled default preserves manual-code emails; old-email code entry remains available in the forms. Brevo's per-recipient tracking flag requires account activation and an actual delivered-message check; see [official tracking-consent guidance](https://help.brevo.com/hc/en-us/articles/37114679474706-About-email-tracking-pixels-and-the-CNIL-recommendation-in-Brevo).
 - New-password validation matches signup. Consume tokens atomically, invalidate all sessions (including access tokens), and send a password-change notice. Do not automatically log the user in after reset.
 - A Google-only account remains Google-only; a reset request must not silently turn it into a password account. Explain the appropriate sign-in route without exposing account existence.
 - Add email verification for password accounts with expiring, hashed, single-use tokens; resend limits; delivery failure handling. Google verified identity can satisfy Google-account email verification, but never authorize merging by email alone.

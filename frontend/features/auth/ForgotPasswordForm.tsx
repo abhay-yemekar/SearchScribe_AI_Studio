@@ -40,7 +40,7 @@ export default function ForgotPasswordForm() {
   return (
     <RecoveryShell
       title="Forgot your password?"
-      description="Enter your account email to request a password reset code."
+      description="Enter your account email to request password reset instructions."
     >
       <form
         method="post"
@@ -95,10 +95,10 @@ export default function ForgotPasswordForm() {
             </span>
           )}
           {form.formState.isSubmitting
-            ? "Requesting code…"
+            ? "Requesting email…"
             : message
-              ? "Request another code"
-              : "Request reset code"}
+              ? "Request another email"
+              : "Request reset email"}
         </button>
       </form>
       <p className="mt-5 text-sm leading-relaxed text-slate-600">
@@ -109,8 +109,8 @@ export default function ForgotPasswordForm() {
         .
       </p>
       <p className="mt-3 text-xs leading-relaxed text-slate-600">
-        For privacy, this request never confirms whether an email has an account. Codes
-        are sent only when email delivery is configured.
+        For privacy, this request never confirms whether an email has an account.
+        Instructions are sent only when email delivery is configured.
       </p>
     </RecoveryShell>
   );

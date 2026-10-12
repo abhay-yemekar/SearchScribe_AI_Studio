@@ -27,11 +27,11 @@ export default function PrivacyPage() {
         <section>
           <h2 className="font-serif text-3xl">Optional Google sign-in</h2>
           <p className="mt-3 leading-8 text-slate-600">
-            If you choose Google sign-in, SearchScribe receives your verified email,
-            name, and stable Google account identifier to create or identify your
-            account. It does not request access to Gmail or Google Drive. Linking
-            Google to an existing password account requires your password and an
-            explicit linking action.
+            If you choose Google sign-in, SearchScribe receives your verified email, name,
+            and stable Google account identifier to create or identify your account. It
+            does not request access to Gmail or Google Drive. Linking Google to an
+            existing password account requires your password and an explicit linking
+            action.
           </p>
         </section>
         <section>
@@ -39,26 +39,28 @@ export default function PrivacyPage() {
           <p className="mt-3 leading-8 text-slate-600">
             A short-lived access token and an HttpOnly refresh cookie keep you signed in.
             When you request generation or a rewrite, your topic or article content is
-            sent to Google Gemini, the configured AI provider. Avoid entering sensitive personal or
-            confidential information.
+            sent to Google Gemini, the configured AI provider. Avoid entering sensitive
+            personal or confidential information.
           </p>
         </section>
         <section>
           <h2 className="font-serif text-3xl">Account emails</h2>
           <p className="mt-3 leading-8 text-slate-600">
-            Brevo sends verification, password reset, and password-change notices.
-            It receives your email address, name, and the security message, including
-            any single-use code. Codes are stored as hashes in SearchScribe and are
-            kept out of clickable email URLs. Brevo may track email opens and clicks.
-            Account emails do not subscribe you to a marketing list.
+            Brevo sends verification, password reset, and password-change notices. It
+            receives your email address, name, and the security message, including any
+            single-use verification or reset link or code. SearchScribe stores only hashes
+            of these secrets and requests that Brevo not track opens or clicks for
+            security emails. Brevo still processes email contents and delivery records. Do
+            not share your security links or codes. Account emails do not subscribe you to
+            a marketing list.
           </p>
         </section>
         <section>
           <h2 className="font-serif text-3xl">Hosting and beta limitations</h2>
           <p className="mt-3 leading-8 text-slate-600">
-            Vercel hosts the website, Render runs the API, and Neon stores account
-            and article data in Postgres. Self-service account deletion and a
-            published retention schedule are not yet available. You can inspect the current
+            Vercel hosts the website, Render runs the API, and Neon stores account and
+            article data in Postgres. Self-service account deletion and a published
+            retention schedule are not yet available. You can inspect the current
             implementation and raise questions in the{" "}
             <a
               className="underline hover:text-teal-800"

@@ -37,7 +37,7 @@ beforeEach(() => {
   });
   vi.mocked(apiFetch).mockResolvedValue({ password: true, google: true });
   vi.mocked(requestEmailVerification).mockResolvedValue({
-    message: "If email delivery is available, a verification code will be sent.",
+    message: "If email delivery is available, verification instructions will be sent.",
   });
   vi.mocked(fetchCurrentUser).mockResolvedValue({ ...user, email_verified: true });
 });
@@ -47,13 +47,15 @@ it("shows unverified email and resend feedback while preserving linked Google st
   render(<AccountPage />);
   expect(screen.getByText("Email not verified")).toBeVisible();
   await screen.findByText("Google is linked to your account.");
-  await interaction.click(screen.getByRole("button", { name: "Send verification code" }));
+  await interaction.click(
+    screen.getByRole("button", { name: "Send verification email" }),
+  );
   expect(
     await screen.findByText(
-      "If email delivery is available, a verification code will be sent.",
+      "If email delivery is available, verification instructions will be sent.",
     ),
   ).toBeVisible();
-  expect(screen.getByRole("button", { name: "Resend verification code" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Resend verification email" })).toBeEnabled();
   await interaction.click(
     screen.getByRole("button", { name: "Refresh verification status" }),
   );
@@ -73,7 +75,7 @@ it("hides resend once email is verified", async () => {
   render(<AccountPage />);
   expect(screen.getByText("Email verified")).toBeVisible();
   expect(
-    screen.queryByRole("button", { name: "Send verification code" }),
+    screen.queryByRole("button", { name: "Send verification email" }),
   ).not.toBeInTheDocument();
   await screen.findByText("Google is linked to your account.");
 });
@@ -82,11 +84,15 @@ it("allows retry after an email request fails", async () => {
   vi.mocked(requestEmailVerification).mockRejectedValueOnce(new Error("offline"));
   const interaction = userEvent.setup();
   render(<AccountPage />);
-  await interaction.click(screen.getByRole("button", { name: "Send verification code" }));
+  await interaction.click(
+    screen.getByRole("button", { name: "Send verification email" }),
+  );
   expect(await screen.findByRole("alert")).toHaveTextContent("Check your connection");
-  await interaction.click(screen.getByRole("button", { name: "Send verification code" }));
+  await interaction.click(
+    screen.getByRole("button", { name: "Send verification email" }),
+  );
   await screen.findByText(
-    "If email delivery is available, a verification code will be sent.",
+    "If email delivery is available, verification instructions will be sent.",
   );
   expect(requestEmailVerification).toHaveBeenCalledTimes(2);
 });

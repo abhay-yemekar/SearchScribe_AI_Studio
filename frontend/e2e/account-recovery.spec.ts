@@ -2,7 +2,8 @@ import { expect, test } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 
-const neutralMessage = "If this email has a password account, a reset code will be sent.";
+const neutralMessage =
+  "If this email has a password account, reset instructions will be sent.";
 
 test("forgot password waits for hydration and submits by API on the first enabled interaction", async ({
   page,
@@ -20,7 +21,7 @@ test("forgot password waits for hydration and submits by API on the first enable
   );
   await page.goto("/forgot-password", { waitUntil: "commit" });
   const email = page.getByLabel("Email", { exact: true });
-  const submit = page.getByRole("button", { name: "Request reset code" });
+  const submit = page.getByRole("button", { name: "Request reset email" });
   try {
     await expect(email).toBeDisabled();
     await expect(submit).toBeDisabled();
@@ -70,7 +71,8 @@ test("login recovery and account verification preserve linked Google sign-in", a
     return route.fulfill({
       status: 202,
       json: {
-        message: "If email delivery is available, a verification code will be sent.",
+        message:
+          "If email delivery is available, verification instructions will be sent.",
       },
     });
   });
@@ -84,21 +86,23 @@ test("login recovery and account verification preserve linked Google sign-in", a
   await page.goto("/account");
   await expect(page.getByText("Email not verified", { exact: true })).toBeVisible();
   await expect(page.getByText("Google is linked to your account.")).toBeVisible();
-  await page.getByRole("button", { name: "Send verification code" }).click();
+  await page.getByRole("button", { name: "Send verification email" }).click();
   await expect(
-    page.getByText("If email delivery is available, a verification code will be sent."),
+    page.getByText(
+      "If email delivery is available, verification instructions will be sent.",
+    ),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Resend verification code" }),
+    page.getByRole("button", { name: "Resend verification email" }),
   ).toBeEnabled();
   await expect(
-    page.getByRole("link", { name: "Enter verification code" }),
+    page.getByRole("link", { name: "Have a code from an older email?" }),
   ).toHaveAttribute("href", "/verify-email");
   emailVerified = true;
   await page.getByRole("button", { name: "Refresh verification status" }).click();
   await expect(page.getByText("Email verified", { exact: true })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Resend verification code" }),
+    page.getByRole("button", { name: "Resend verification email" }),
   ).toHaveCount(0);
   await expect(page.getByText("Google is linked to your account.")).toBeVisible();
 });
@@ -107,7 +111,7 @@ for (const viewport of [
   { width: 1422, height: 588 },
   { width: 390, height: 844 },
 ]) {
-  test(`recovery code forms are keyboard reachable at ${viewport.width}px`, async ({
+  test(`recovery links are keyboard reachable at ${viewport.width}px`, async ({
     page,
   }) => {
     await page.setViewportSize(viewport);
@@ -137,12 +141,13 @@ for (const viewport of [
     await email.focus();
     await page.keyboard.type("writer@example.com");
     await page.keyboard.press("Tab");
-    await expect(page.getByRole("button", { name: "Request reset code" })).toBeFocused();
+    await expect(page.getByRole("button", { name: "Request reset email" })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("status")).toContainText(neutralMessage);
 
-    await page.goto("/reset-password");
-    await expect(page.getByLabel("Reset code", { exact: true })).toBeVisible();
+    await page.goto("/reset-password#token=synthetic_reset_link_0123456789");
+    await expect(page).toHaveURL(/\/reset-password$/);
+    await expect(page.getByLabel("Reset code", { exact: true })).toHaveCount(0);
     if (process.env.SCREENSHOT_DIR) {
       const folder = path.resolve(process.env.SCREENSHOT_DIR);
       await mkdir(folder, { recursive: true });
@@ -151,7 +156,6 @@ for (const viewport of [
         fullPage: true,
       });
     }
-    await page.getByLabel("Reset code", { exact: true }).fill("manual-reset-code");
     await page.getByLabel("New password", { exact: true }).fill("NewPassword123");
     await page.keyboard.press("Tab");
     await expect(page.getByLabel("Repeat new password")).toBeFocused();
@@ -176,11 +180,12 @@ for (const viewport of [
     );
     await expect(page).toHaveURL(/\/reset-password$/);
 
-    await page.goto("/verify-email");
-    await page.getByLabel("Verification code").fill("manual-verification-code");
-    await page.keyboard.press("Tab");
+    await page.goto("/verify-email#token=synthetic_verification_link_0123456789");
+    await expect(page).toHaveURL(/\/verify-email$/);
+    await expect(page.getByLabel("Verification code")).toHaveCount(0);
+    await page.getByRole("button", { name: "Confirm email", exact: true }).focus();
     await expect(
-      page.getByRole("button", { name: "Verify email", exact: true }),
+      page.getByRole("button", { name: "Confirm email", exact: true }),
     ).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("status")).toContainText("email is verified");
@@ -262,18 +267,109 @@ test("invalid manual verification allows a fresh code and consumes nothing on pa
   await page.goto("/verify-email?token=unsupported_query_code");
   await expect(page).toHaveURL(/\/verify-email$/);
   expect(calls).toBe(0);
-  await page.getByRole("button", { name: "Verify email", exact: true }).click();
+  await expect(page.getByLabel("Verification code")).not.toBeVisible();
+  const legacy = page.getByRole("button", { name: "Have a code from an older email?" });
+  await expect(legacy).toHaveAttribute("aria-expanded", "false");
+  await legacy.focus();
+  await page.keyboard.press("Enter");
+  await expect(legacy).toHaveAttribute("aria-expanded", "true");
+  await page.getByRole("button", { name: "Confirm email", exact: true }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "Paste the full verification code",
+    "Paste the complete code from your older email",
   );
   expect(calls).toBe(0);
-  await page.getByLabel("Verification code").fill("expired-code");
-  await page.getByRole("button", { name: "Verify email", exact: true }).click();
+  await page.getByLabel("Verification code").fill("expired_legacy_code_0123456789");
+  await page.getByRole("button", { name: "Confirm email", exact: true }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "invalid, expired, or already used",
   );
-  await page.getByLabel("Verification code").fill("fresh-code");
-  await page.getByRole("button", { name: "Verify email", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("email is verified");
+  await page.getByLabel("Verification code").fill("fresh_legacy_code_0123456789");
+  await page.getByRole("button", { name: "Confirm email", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("status")).toContainText(
+    "email is verified",
+  );
   expect(calls).toBe(2);
+});
+
+test("malformed links show a new-link action without sending a token", async ({
+  page,
+}) => {
+  let calls = 0;
+  await page.route("**/api/v1/auth/password/reset", (route) => {
+    calls += 1;
+    return route.fulfill({ json: { message: "Unexpected request." } });
+  });
+  await page.route("**/api/v1/auth/email/verify", (route) => {
+    calls += 1;
+    return route.fulfill({ json: { message: "Unexpected request." } });
+  });
+  await page.goto("/reset-password#token=short");
+  await expect(page).toHaveURL(/\/reset-password$/);
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "reset link is invalid",
+  );
+  await expect(
+    page.getByRole("link", { name: "Request a new reset link" }),
+  ).toBeFocused();
+  await expect(page.getByLabel("New password", { exact: true })).toHaveCount(0);
+  await page.goto(`/verify-email#token=${"x".repeat(201)}`);
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "verification link is invalid",
+  );
+  await expect(
+    page.getByRole("link", { name: "Request a new verification link" }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole("button", { name: "Confirm email", exact: true }),
+  ).toHaveCount(0);
+  expect(calls).toBe(0);
+});
+
+test("expired links offer a focused new-link action instead of manual-code retry", async ({
+  page,
+}) => {
+  const expired = {
+    error: {
+      code: "INVALID_TOKEN",
+      message: "Invalid or expired link.",
+      request_id: "mock",
+    },
+  };
+  let resetCalls = 0;
+  let verificationCalls = 0;
+  await page.route("**/api/v1/auth/password/reset", (route) => {
+    resetCalls += 1;
+    return route.fulfill({ status: 400, json: expired });
+  });
+  await page.route("**/api/v1/auth/email/verify", (route) => {
+    verificationCalls += 1;
+    return route.fulfill({ status: 410, json: expired });
+  });
+  await page.goto("/reset-password#token=expired_reset_link_0123456789");
+  expect(resetCalls).toBe(0);
+  await page.getByLabel("New password", { exact: true }).fill("NewPassword123");
+  await page.getByLabel("Repeat new password").fill("NewPassword123");
+  await page.getByRole("button", { name: "Reset password", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "expired, or already used",
+  );
+  await expect(
+    page.getByRole("link", { name: "Request a new reset link" }),
+  ).toBeFocused();
+  await expect(page.getByLabel("Reset code")).toHaveCount(0);
+  await expect(page.getByLabel("New password", { exact: true })).toHaveCount(0);
+  await page.goto("/verify-email#token=expired_verification_link_0123456789");
+  expect(verificationCalls).toBe(0);
+  await page.getByRole("button", { name: "Confirm email", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "expired, or already used",
+  );
+  await expect(
+    page.getByRole("link", { name: "Request a new verification link" }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole("button", { name: "Have a code from an older email?" }),
+  ).toHaveCount(0);
+  expect(resetCalls).toBe(1);
+  expect(verificationCalls).toBe(1);
 });

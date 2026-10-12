@@ -1,8 +1,8 @@
-"""Branded security emails over HTTPS, with secrets outside tracked links.
+"""Branded security emails with opt-in fragment links and tracking consent off.
 
-Brevo does not document per-message tracking controls. Security codes therefore
-appear as text, while every clickable destination is a token-free site page.
-Provider acceptance is not evidence of inbox delivery. No payload is logged.
+Fragment links are enabled only after Brevo's account-level per-contact tracking
+feature is activated and verified. Until then, emails retain manual security
+codes and token-free destinations. Acceptance is not inbox proof. No payload is logged.
 """
 
 from __future__ import annotations
@@ -39,20 +39,30 @@ class RenderedSecurityEmail:
 
 
 def _site_origin() -> str:
-    origin = settings.public_site_url.rstrip("/")
-    parsed = urlsplit(origin)
+    origin = settings.public_site_url
+    try:
+        parsed = urlsplit(origin)
+        _ = parsed.port
+    except ValueError:
+        raise MailDeliveryError("Email service is unavailable.") from None
     if (
         parsed.scheme not in {"http", "https"}
-        or not parsed.netloc
-        or parsed.username
-        or parsed.password
-        or parsed.path
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
         or parsed.query
         or parsed.fragment
+        or any(character in origin for character in "?#\\")
+        or any(character.isspace() for character in origin)
+        or (
+            parsed.scheme == "http"
+            and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}
+        )
         or (settings.is_production and parsed.scheme != "https")
     ):
         raise MailDeliveryError("Email service is unavailable.")
-    return origin
+    return origin.rstrip("/")
 
 
 def render_security_email(
@@ -60,22 +70,35 @@ def render_security_email(
 ) -> RenderedSecurityEmail:
     """Render deterministic HTML/plain text; caller owns token creation/expiry."""
     origin = _site_origin()
+    link_mode = settings.security_email_links_enabled
     greeting = re.sub(r"[\x00-\x1f\x7f]", "", name).strip().split(" ")[0][:60] or "there"
     if kind == "password_reset":
         subject = "Reset your SearchScribe AI password"
         heading = "Reset your password."
         intro = "We received a request to reset the password for your SearchScribe AI account."
-        instruction = "Open SearchScribe, paste the code below, and choose a new password."
+        instruction = (
+            "Use the button below to choose a new password."
+            if link_mode else "Open SearchScribe, paste the code below, and choose a new password."
+        )
         action, path, label = "Reset password", "/reset-password", "YOUR RESET CODE"
-        expiry = f"This code expires in {settings.password_reset_expire_minutes} minutes."
+        expiry = (
+            f"This {'link' if link_mode else 'code'} expires in "
+            f"{settings.password_reset_expire_minutes} minutes."
+        )
         notice = "If you didn't request this, ignore this email. Your password hasn't changed."
     elif kind == "email_verification":
         subject = "Verify your email for SearchScribe AI"
         heading = "Verify your email."
         intro = "Confirm this email address belongs to you to complete your account setup."
-        instruction = "Open SearchScribe and paste the verification code below."
+        instruction = (
+            "Use the button below to confirm your email address."
+            if link_mode else "Open SearchScribe and paste the verification code below."
+        )
         action, path, label = "Verify email", "/verify-email", "YOUR VERIFICATION CODE"
-        expiry = f"This code expires in {settings.email_verification_expire_hours} hours."
+        expiry = (
+            f"This {'link' if link_mode else 'code'} expires in "
+            f"{settings.email_verification_expire_hours} hours."
+        )
         notice = "If you didn't create a SearchScribe AI account, you can ignore this email."
     elif kind == "password_changed":
         subject = "Your SearchScribe AI password was changed"
@@ -91,20 +114,26 @@ def render_security_email(
     else:
         raise ValueError("Unsupported security email")
     if kind != "password_changed" and (
-        token is None or re.fullmatch(r"[A-Za-z0-9_-]{20,512}", token) is None
+        token is None or re.fullmatch(r"[A-Za-z0-9_-]{20,200}", token) is None
     ):
         raise ValueError("A valid opaque security code is required")
-    action_url = origin + path
+    action_page = origin + path
+    # Tokens are constrained to URL-safe characters, so the fragment cannot
+    # inject query parameters or change the canonical destination.
+    action_url = action_page + (f"#token={token}" if link_mode and token else "")
     html = _TEMPLATES.get_template("security.html").render(
         subject=subject, heading=heading, greeting=greeting, intro=intro,
         instruction=instruction, action=action, action_url=action_url,
-        origin=origin, code=token, label=label, expiry=expiry, notice=notice,
+        origin=origin, code=None if link_mode else token, label=label,
+        expiry=expiry, notice=notice, action_page=action_page,
         logo_url=origin + "/brand/email-wordmark-v2.png",
         support_email=settings.mail_from_email,
     )
     lines = ["SearchScribe AI", "", f"Hi {greeting},", "", heading, intro, "", instruction]
-    if token:
+    if token and not link_mode:
         lines.extend(["", label, token, "", expiry, "Use this code only on SearchScribe."])
+    elif token:
+        lines.extend(["", expiry, "Use this link once, only on SearchScribe."])
     lines.extend(["", f"{action}: {action_url}", "", notice])
     if settings.mail_from_email:
         lines.extend(["", f"Need help? Reply to {settings.mail_from_email}."])
@@ -126,7 +155,9 @@ def send_security_email(
         raise MailDeliveryError("Email service is unavailable.") from exc
     payload = {
         "sender": {"name": settings.mail_from_name, "email": from_email},
-        "to": [{"email": to_email}],
+        # Brevo documents this recipient setting for opens and clicks after its
+        # per-contact tracking consent feature is activated on the account.
+        "to": [{"email": to_email, "contactPixelTrackingConsent": False}],
         "replyTo": {"name": settings.mail_from_name, "email": from_email},
         "subject": rendered.subject,
         "htmlContent": rendered.html,
