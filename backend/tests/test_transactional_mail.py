@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 import re
+from html.parser import HTMLParser
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
 
+from app.core.config import Settings
 from app.services import transactional_mail as mail
 
 CODE = "test_security_code_" + "A" * 40
@@ -22,6 +25,9 @@ def mail_settings(monkeypatch: pytest.MonkeyPatch) -> None:
         "mail_from_email": "support@example.com",
         "mail_provider": "brevo",
         "brevo_api_key": "fake-key-for-tests",
+        "security_email_links_enabled": False,
+        "password_reset_expire_minutes": 30,
+        "email_verification_expire_hours": 24,
     }.items():
         monkeypatch.setattr(mail.settings, field, value)
 
@@ -43,15 +49,96 @@ def test_codes_are_in_text_but_never_in_clickable_links(kind: Any, path: str) ->
     assert "mailing list signup" in rendered.html
 
 
-def test_password_change_notice_contains_no_security_code() -> None:
+class ParsedEmail(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.text: list[str] = []
+        self.attributes: list[tuple[str, str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.attributes.extend((tag, key, value) for key, value in attrs if value is not None)
+
+    def handle_data(self, data: str) -> None:
+        self.text.append(data)
+
+
+def test_security_email_links_default_to_disabled() -> None:
+    assert Settings.model_fields["security_email_links_enabled"].default is False
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_renderer_normalizes_optional_origin_slash(
+    enabled: bool, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(mail.settings, "public_site_url", "https://searchscribe.example/")
+    monkeypatch.setattr(mail.settings, "security_email_links_enabled", enabled)
+    rendered = mail.render_security_email("email_verification", "Reader", token=CODE)
+    destination = "https://searchscribe.example/verify-email" + (
+        "#token=" + CODE if enabled else ""
+    )
+    assert f'href="{destination}"' in rendered.html
+    assert destination in rendered.text
+    assert "https://searchscribe.example//" not in rendered.html
+
+
+@pytest.mark.parametrize("kind,path,expiry", [
+    ("password_reset", "/reset-password", "30 minutes"),
+    ("email_verification", "/verify-email", "24 hours"),
+])
+def test_enabled_links_are_fragment_only_and_do_not_display_codes(
+    kind: Any, path: str, expiry: str, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(mail.settings, "security_email_links_enabled", True)
+    rendered = mail.render_security_email(kind, "Reader", token=CODE)
+    parser = ParsedEmail()
+    parser.feed(rendered.html)
+    page = "https://searchscribe.example" + path
+    destination = page + "#token=" + CODE
+    secret_attributes = [
+        (tag, key, value) for tag, key, value in parser.attributes if CODE in value
+    ]
+    assert secret_attributes == [("a", "href", destination), ("a", "href", destination)]
+    for _, attribute, value in parser.attributes:
+        if attribute in {"href", "src"}:
+            url = urlsplit(value)
+            assert url.scheme == "https" and url.netloc == "searchscribe.example"
+            assert not url.query
+            assert not url.fragment or value == destination
+    visible_text = " ".join(parser.text)
+    assert CODE not in visible_text and "YOUR RESET CODE" not in visible_text
+    assert "YOUR VERIFICATION CODE" not in visible_text
+    assert "This link expires in " + expiry in visible_text
+    assert "Use it once, only on SearchScribe." in visible_text
+    assert page in visible_text
+    assert rendered.text.count(CODE) == 1
+    assert destination in rendered.text
+    assert "This link expires in " + expiry in rendered.text
+    assert "Use this link once, only on SearchScribe." in rendered.text
+    assert "paste" not in rendered.text.lower()
+    assert CODE not in rendered.subject
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_password_change_notice_contains_no_security_code(
+    enabled: bool, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(mail.settings, "security_email_links_enabled", enabled)
     rendered = mail.render_security_email("password_changed", "Abhay", token=CODE)
     assert CODE not in rendered.html and CODE not in rendered.text
     assert "Previous sessions have been signed out." in rendered.text
     assert "https://searchscribe.example/login" in rendered.text
 
 
-@pytest.mark.parametrize("code", [None, "short", "x" * 513, "<script>" + "x" * 30])
-def test_renderer_rejects_missing_or_malformed_codes(code: str | None) -> None:
+@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("code", [
+    None, "short", "x" * 201, "x" * 513, "<script>" + "x" * 30,
+    CODE + "#token=other", CODE + "&redirect=other", CODE + "%2Fother",
+    CODE + "?token=other", CODE + "/other",
+])
+def test_renderer_rejects_missing_or_malformed_codes(
+    code: str | None, enabled: bool, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(mail.settings, "security_email_links_enabled", enabled)
     with pytest.raises(ValueError):
         mail.render_security_email("password_reset", "Name", token=code)
 
@@ -59,11 +146,16 @@ def test_renderer_rejects_missing_or_malformed_codes(code: str | None) -> None:
 @pytest.mark.parametrize("origin", [
     "https://user:password@site.example", "https://site.example/subpath",
     "https://site.example?token=x", "https://site.example#token=x",
-    "javascript:alert(1)",
+    "javascript:alert(1)", "https://@site.example", "https://site.example:wrong",
+    "https://site.example/path/", "https://site.example//", "http://site.example",
+    "https://site.example\n", "https://[malformed",
+    "https://site.example?", "https://site.example#", "https://site.example\\suffix",
 ])
+@pytest.mark.parametrize("enabled", [False, True])
 def test_renderer_rejects_noncanonical_origins(
-    origin: str, monkeypatch: pytest.MonkeyPatch,
+    origin: str, enabled: bool, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(mail.settings, "security_email_links_enabled", enabled)
     monkeypatch.setattr(mail.settings, "public_site_url", origin)
     with pytest.raises(mail.MailDeliveryError, match="unavailable"):
         mail.render_security_email("password_reset", "Name", token=CODE)
@@ -81,9 +173,12 @@ def intercept(monkeypatch: pytest.MonkeyPatch, handler: Any) -> dict[str, Any]:
     return options
 
 
+@pytest.mark.parametrize("kind", ["password_reset", "email_verification", "password_changed"])
+@pytest.mark.parametrize("enabled", [False, True])
 def test_provider_uses_https_and_approved_sender_with_plain_text_fallback(
-    monkeypatch: pytest.MonkeyPatch,
+    kind: Any, enabled: bool, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(mail.settings, "security_email_links_enabled", enabled)
     calls: list[httpx.Request] = []
 
     def accept(request: httpx.Request) -> httpx.Response:
@@ -91,7 +186,7 @@ def test_provider_uses_https_and_approved_sender_with_plain_text_fallback(
         return httpx.Response(201, json={"messageId": "not-inbox-proof"})
 
     options = intercept(monkeypatch, accept)
-    mail.send_security_email("password_reset", "reader@example.com", "Reader", token=CODE)
+    mail.send_security_email(kind, "reader@example.com", "Reader", token=CODE)
     assert len(calls) == 1
     request = calls[0]
     assert str(request.url) == "https://api.brevo.com/v3/smtp/email"
@@ -99,7 +194,13 @@ def test_provider_uses_https_and_approved_sender_with_plain_text_fallback(
     payload = json.loads(request.content)
     assert payload["sender"] == {"name": "SearchScribe AI", "email": "support@example.com"}
     assert payload["replyTo"] == payload["sender"]
-    assert CODE in payload["htmlContent"] and CODE in payload["textContent"]
+    assert payload["to"] == [{"email": "reader@example.com", "contactPixelTrackingConsent": False}]
+    if kind == "password_changed":
+        assert CODE not in payload["htmlContent"] and CODE not in payload["textContent"]
+    else:
+        assert CODE in payload["htmlContent"] and CODE in payload["textContent"]
+    assert not any("tracking" in key.lower() for key in request.headers)
+    assert "headers" not in payload
     assert options["follow_redirects"] is False
     assert options["trust_env"] is False
     assert options["timeout"].connect == 3

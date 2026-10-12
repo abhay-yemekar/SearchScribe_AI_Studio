@@ -41,6 +41,7 @@ class Settings(BaseSettings):
 
     # --- Transactional security email ---
     mail_provider: Literal["disabled", "brevo"] = "disabled"
+    security_email_links_enabled: bool = False
     public_site_url: str = "http://localhost:3000"
     mail_from_name: str = "SearchScribe AI"
     mail_from_email: str = ""
@@ -94,6 +95,7 @@ class Settings(BaseSettings):
             or parsed.path not in {"", "/"}
             or parsed.query
             or parsed.fragment
+            or any(character in value for character in "?#\\")
             or any(character.isspace() for character in value)
             or (
                 parsed.scheme == "http"
