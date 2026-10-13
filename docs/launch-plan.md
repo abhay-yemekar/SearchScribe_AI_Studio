@@ -41,14 +41,14 @@ must be designed alongside the successful flow.
       from saved versions with source links and provenance.
 - [ ] Research: bounded search, traceable source IDs, citations, and an explicit
       unresearched mode when search fails. Treat retrieved text as untrusted input.
-      Next priority: replace topic-specific source catalogs with dynamic retrieval
-      for any topic, including dated news. Show missing configuration, unavailable
-      search and insufficient evidence distinctly; do not claim a post is the
-      latest without evidence of its original timestamp and search coverage.
-      PR #14 implements the first increment: bounded official Claude, Gemini and
-      OpenAI model documentation, source snapshots preserved in versions/HTML,
-      and failure for timely queries without sources. General web search remains
-      unfinished; retrieved documentation is not a fact-check guarantee.
+      Dynamic Tavily search replaces the topic-specific source catalog. It uses
+      the actual query, one bounded basic search and saved source excerpts.
+      Relative current-topic queries use dated recent coverage (default 30 days);
+      undated and out-of-window results are excluded. Missing configuration,
+      unavailable search and insufficient evidence have distinct errors.
+      Source links and estimated dates survive versions, HTML and Markdown.
+      Live provider acceptance remains required; source retrieval does not prove
+      every claim or establish that a social post is the absolute latest.
 - [ ] Photos: suggestions for a hero and relevant sections, user selection,
       photographer credits, source links, and editable alt text.
 - [ ] AI routing: one combined article/SEO response, bounded fallback and

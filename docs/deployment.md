@@ -79,6 +79,7 @@ would otherwise select local SQLite. Production settings now fail closed.
 | `AI_PROVIDER` | `gemini` |
 | `AI_MODEL` | An available model verified with the account's actual limits |
 | `GEMINI_API_KEY` | Personal project key in Render's secret environment |
+| `TAVILY_API_KEY` | Personal Tavily Free search key; backend only, paid/PAYG disabled |
 
 Generate a key privately with `secrets.token_urlsafe(48)`; do not copy an example
 key. Changing the signing key invalidates existing sessions. Keep the old model
@@ -117,8 +118,14 @@ Record commit SHAs, migration head, timestamp, and outcome without secrets:
   arbitrary forwarded IP headers; proxy traffic may share a minute-limit bucket.
   Configure and test a trusted ingress design before widening those limits.
 
-Google sign-in, research citations, credited photos, Markdown export, and daily
-quotas remain release gates even after this foundation passes.
+Google account linking, current-source generation, credited photos, and daily
+quotas remain release gates even after this foundation passes. Markdown download
+and unsaved-edit protection shipped in PR #21.
+
+Tavily research is a separate reviewed API deployment. Saving its key without
+deploying the integration does not enable search. Verify a fresh sourced article
+on the deployed stack before claiming general research works. Free search limits
+and persistent application budgets must be checked before public release.
 
 ## Backup restore and rollback rehearsal
 

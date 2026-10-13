@@ -42,7 +42,7 @@ def _install(
 ) -> None:
     monkeypatch.setattr("app.services.generation_service.get_provider", lambda: provider)
     monkeypatch.setattr(
-        "app.services.generation_service.retrieve_primary_sources", lambda _: research
+        "app.services.generation_service.retrieve_sources", lambda _: research
     )
 
 

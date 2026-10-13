@@ -112,6 +112,7 @@ if (-not $taskApiOwner) {
         AI_PROVIDER = 'mock'
         GOOGLE_CLIENT_ID = ''
         GEMINI_API_KEY = ''
+        TAVILY_API_KEY = ''
         MAIL_PROVIDER = 'disabled'
         BREVO_API_KEY = ''
         DATABASE_URL = 'sqlite:///' + (Join-Path $taskBackend 'codex_runapp_preview.db').Replace('\', '/')

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from ..ai.base import LLMError, LLMProvider, SchemaValidationError, call_with_retry
 from ..ai.factory import get_provider
 from ..ai.renderer import _fallback_seo, render_article_html
-from ..ai.research import ResearchResult, needs_current_sources, retrieve_primary_sources
+from ..ai.research import ResearchResult, needs_current_sources, retrieve_sources
 from ..ai.sanitizer import sanitize_document
 from ..ai.schemas import GeneratedArticle, ResearchSummary, SeoResult
 from ..ai.styles import get_style
@@ -77,7 +77,7 @@ class GenerationService:
 
         # Mock preview/tests never retrieve live pages or consume provider credits.
         research = (
-            retrieve_primary_sources(query)
+            retrieve_sources(query)
             if provider.name != "mock"
             else ResearchResult(ResearchSummary(), "Offline mock preview; no live research.")
         )
@@ -86,10 +86,23 @@ class GenerationService:
             and needs_current_sources(query)
             and not research.summary.sources
         ):
+            if research.failure == "not_configured":
+                raise ExternalServiceError(
+                    "Live web research is not configured on this server. "
+                    "A current-events draft cannot be generated yet.",
+                    code="RESEARCH_NOT_CONFIGURED",
+                )
+            if research.failure == "no_evidence":
+                raise ExternalServiceError(
+                    research.failure_message or (
+                        "Search returned no usable relevant evidence for this topic. "
+                        "Try a more specific topic or include the post's title and date."
+                    ),
+                    code="CURRENT_SOURCES_NOT_FOUND",
+                )
             raise ExternalServiceError(
-                "Current sources could not be retrieved for this topic. "
-                "No draft was generated. Try again later or choose a general topic.",
-                code="CURRENT_SOURCES_UNAVAILABLE",
+                "Live web research is temporarily unavailable. No current-events draft was "
+                "generated. Please try again shortly.", code="CURRENT_SOURCES_UNAVAILABLE",
             )
 
         # --- article ---

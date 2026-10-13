@@ -60,9 +60,12 @@ silently merge accounts.
 
 Recovery emails and password management are implemented and deployed; direct
 token-bearing email links remain disabled pending complete tracking opt-out.
-Research currently retrieves bounded official model documentation; general web
-research, photo suggestions, persistent daily AI quotas, and provider fallback
-remain unfinished. Backup restore and deployment rollback rehearsals also remain
+Research uses Tavily to search the actual topic and passes bounded source excerpts
+to Gemini. Links and estimated source dates remain visible through versions and
+exports. Relative current-topic queries use a recent date window and fail when
+usable evidence is missing; retrieval does not guarantee factual accuracy or the
+absolute latest social post. Photo suggestions, persistent daily AI quotas, and
+provider fallback remain unfinished. Backup restore and deployment rollback rehearsals also remain
 release gates. Follow the [launch plan](docs/launch-plan.md) for scope and acceptance
 criteria. AI drafts need human review before publication.
 

@@ -42,6 +42,12 @@ export default function PrivacyPage() {
             sent to Google Gemini, the configured AI provider. Avoid entering sensitive
             personal or confidential information.
           </p>
+          <p className="mt-3 leading-8 text-slate-600">
+            For web research, Tavily receives your search topic. Source excerpts are
+            passed to Gemini to help write the draft; source links and research dates are
+            saved with your article versions and exports. Search results do not establish
+            that every claim is correct or that coverage is complete.
+          </p>
         </section>
         <section>
           <h2 className="font-serif text-3xl">Account emails</h2>
