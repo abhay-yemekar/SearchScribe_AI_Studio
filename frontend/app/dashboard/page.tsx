@@ -578,8 +578,8 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
         ) : selectedQuery.isError ? (
           <ErrorBanner message={(selectedQuery.error as Error).message} />
         ) : detail ? (
-          <div className="flex min-h-[32rem] flex-1 flex-col gap-4">
-            <ResearchPanel research={detail.content.research} />
+          <div className="flex min-h-[32rem] flex-auto shrink-0 flex-col gap-4">
+            <ResearchPanel key={detail.id} research={detail.content.research} />
             {/* Title + actions */}
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="w-full min-w-0 px-1 py-1 font-serif text-2xl font-semibold leading-tight sm:text-3xl">

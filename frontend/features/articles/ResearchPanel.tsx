@@ -36,7 +36,7 @@ export default function ResearchPanel({
   return (
     <section
       aria-label="Article sources"
-      className="rounded-lg border border-stone-200 bg-white px-4 py-3 text-sm text-slate-600"
+      className="shrink-0 rounded-lg border border-stone-200 bg-white px-4 py-3 text-sm text-slate-600"
     >
       <p role="status" className="leading-relaxed">
         {hasSources ? (
@@ -56,37 +56,43 @@ export default function ResearchPanel({
         </p>
       ) : null}
       {hasSources ? (
-        <ol className="mt-3 space-y-2 border-t border-stone-200 pt-3">
-          {research.sources.map((source) => {
-            const href = sourceLink(source.url);
-            const published = displayDate(source.published_at);
-            return (
-              <li key={source.id} className="min-w-0 break-words">
-                <span className="mr-2 font-mono text-xs text-slate-500">
-                  [{source.id}]
-                </span>
-                {href ? (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium text-teal-700 underline decoration-teal-700/40 underline-offset-4 hover:decoration-teal-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700"
-                  >
-                    {source.title || "Source"}
-                  </a>
-                ) : (
-                  <span>{source.title || "Source"} (link unavailable)</span>
-                )}
-                {published ? (
-                  <p className="mt-1 text-xs">
-                    Reported publication/update (estimated):{" "}
-                    <time dateTime={source.published_at!}>{published}</time>
-                  </p>
-                ) : null}
-              </li>
-            );
-          })}
-        </ol>
+        <details className="mt-3 border-t border-stone-200 pt-3">
+          <summary className="w-fit cursor-pointer rounded-sm font-medium text-teal-700 underline underline-offset-4 hover:text-teal-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700">
+            View {research.sources.length}{" "}
+            {research.sources.length === 1 ? "source" : "sources"}
+          </summary>
+          <ol className="mt-3 space-y-3">
+            {research.sources.map((source) => {
+              const href = sourceLink(source.url);
+              const published = displayDate(source.published_at);
+              return (
+                <li key={source.id} className="min-w-0 break-words">
+                  <span className="mr-2 font-mono text-xs text-slate-500">
+                    [{source.id}]
+                  </span>
+                  {href ? (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-teal-700 underline decoration-teal-700/40 underline-offset-4 hover:decoration-teal-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700"
+                    >
+                      {source.title || "Source"}
+                    </a>
+                  ) : (
+                    <span>{source.title || "Source"} (link unavailable)</span>
+                  )}
+                  {published ? (
+                    <p className="mt-1 text-xs">
+                      Reported publication/update (estimated):{" "}
+                      <time dateTime={source.published_at!}>{published}</time>
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
+        </details>
       ) : null}
     </section>
   );
