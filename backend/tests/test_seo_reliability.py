@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 from conftest import auth_headers, generate_article, register_user
@@ -180,3 +181,55 @@ def test_strict_generated_constraints_do_not_clip_valid_manual_metadata() -> Non
         title="Title", description="Complete.",
         keywords=["one", "two", "three", "four", "five"],
     )) is not None
+
+
+@pytest.mark.parametrize("needs_repair", [False, True])
+def test_actual_gemini_adapter_renders_registered_combined_and_repair_prompts(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, needs_repair: bool,
+) -> None:
+    """Exercise production prompt lookup while the SDK transport stays offline.
+
+    MockProvider does not render prompts, so it cannot catch a missing registry
+    entry. Both normal combined generation and the repair use the real adapter.
+    """
+    from app.ai import gemini
+    from app.ai.research import ResearchResult
+    from app.ai.schemas import ResearchSummary
+
+    calls: list[dict] = []
+
+    def generate_content(**kwargs):
+        calls.append(kwargs)
+        schema = kwargs["config"].response_schema
+        if schema is GeneratedArticleWithSeo:
+            candidate = MockProvider().generate(
+                "article_generation", "v3", {"topic": "Container gardening"}, schema,
+            ).data
+            if needs_repair:
+                candidate = candidate.model_copy(update={"seo": None})
+        else:
+            assert schema is SeoCandidate
+            candidate = SeoCandidate(
+                title="Container gardening with careful watering",
+                description="Container gardening needs careful watering and suitable soil.",
+                keywords=["container gardening", "watering", "soil", "herbs", "plants"],
+            )
+        return SimpleNamespace(text=candidate.model_dump_json(), usage_metadata=None)
+
+    monkeypatch.setattr(gemini, "_get_client", lambda: SimpleNamespace(
+        models=SimpleNamespace(generate_content=generate_content),
+    ))
+    monkeypatch.setattr(
+        "app.services.generation_service.get_provider", lambda: gemini.GeminiProvider(),
+    )
+    monkeypatch.setattr("app.services.generation_service.retrieve_sources", lambda _: (
+        ResearchResult(ResearchSummary(), "Offline unresearched test.")
+    ))
+    token = register_user(client)["access_token"]
+    detail = generate_article(client, token, "Container gardening")
+    assert detail["seo"]["review_status"] == "generated"
+    assert len(calls) == (2 if needs_repair else 1)
+    assert "SEO requirements (the seo object" in calls[0]["contents"][0]
+    if needs_repair:
+        assert "Generate fresh metadata" in calls[1]["contents"][0]
+        assert "Container gardening" in calls[1]["contents"][0]
