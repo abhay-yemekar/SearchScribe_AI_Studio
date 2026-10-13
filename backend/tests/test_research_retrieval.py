@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator, Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -13,11 +14,22 @@ from pydantic import ValidationError
 
 from app.ai import research
 from app.ai.schemas import GeneratedArticle, ResearchSource
+from app.core.config import Settings
 
 EXCERPT = (
     "The report describes the post and its context, identifies the author and provides "
     "a dated account of the statements with links to supporting source material."
 )
+
+
+@pytest.fixture(autouse=True)
+def _query_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    class QueryClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 10, 13, 8, 30, tzinfo=UTC)
+
+    monkeypatch.setattr(research, "datetime", QueryClock)
 
 
 def _result(**updates: object) -> dict[str, object]:
@@ -184,3 +196,97 @@ def test_untrusted_source_title_cannot_inject_markdown_links() -> None:
     markdown = article.to_markdown()
     assert "\\] \\(javascript:alert\\(1\\)\\) \\[malicious" in markdown
     assert "https://news.example.com/post_%28context%29" in markdown
+
+
+@pytest.mark.parametrize("query,start,end", [
+    ("Elon Musk latest tweet", "2026-09-13", "2026-10-14"),
+    ("current gardening methods", "2026-09-13", "2026-10-14"),
+    ("Recent earthquakes", "2026-09-13", "2026-10-14"),
+    ("Today's reports", "2026-10-12", "2026-10-14"),
+    ("आज की खबर", "2026-10-12", "2026-10-14"),
+    ("Space discoveries this year", "2025-12-31", "2026-10-14"),
+])
+def test_relative_time_payload_and_context_preserve_actual_query(
+    monkeypatch: pytest.MonkeyPatch, query: str, start: str, end: str,
+) -> None:
+    payloads = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payloads.append(json.loads(request.content))
+        return _response([_result()])
+
+    _client(monkeypatch, handler)
+    found = research.retrieve_sources(query)
+    assert len(payloads) == 1 and payloads[0]["query"] == query
+    assert payloads[0]["start_date"] == start and payloads[0]["end_date"] == end
+    assert payloads[0]["filter_by_published_date"] is True
+    assert payloads[0]["search_depth"] == "basic" and payloads[0]["auto_parameters"] is False
+    assert "Query UTC date: 2026-10-13" in found.context
+    assert "Requested publication/update window:" in found.context
+    assert "The retrieval timestamp is not a publication date" in found.context
+    assert found.summary.retrieved_at == "2026-10-13T08:30:00+00:00"
+
+
+@pytest.mark.parametrize("query", [
+    "Latest tweets from 2024", "Current technology in 1995", "Recent discoveries of 2020",
+    "Latest posts on 2026-01-01", "Forecasts for 2030", "Urban gardening basics",
+    "New York history",
+])
+def test_historical_dates_and_general_queries_are_not_limited_to_today(
+    monkeypatch: pytest.MonkeyPatch, query: str,
+) -> None:
+    payloads = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payloads.append(json.loads(request.content))
+        return _response([_result(published_date="2024-05-01")])
+
+    _client(monkeypatch, handler)
+    found = research.retrieve_sources(query)
+    assert len(payloads) == 1 and payloads[0]["query"] == query
+    assert "start_date" not in payloads[0] and "end_date" not in payloads[0]
+    assert "filter_by_published_date" not in payloads[0]
+    assert found.summary.sources[0].published_at == "2024-05-01"
+
+
+def test_configured_window_filters_stale_future_and_undated_sources_locally(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payloads.append(json.loads(request.content))
+        return _response([
+            _result(url="https://news.example.com/stale", published_date="2026-09-29"),
+            _result(url="https://news.example.com/future", published_date="2026-10-14"),
+            _result(url="https://news.example.com/undated", published_date=None),
+            _result(url="https://news.example.com/boundary", published_date="2026-09-30"),
+            _result(url="https://news.example.com/today", published_date="2026-10-13"),
+        ])
+
+    _client(monkeypatch, handler)
+    monkeypatch.setattr(research.settings, "research_recent_days", 14)
+    found = research.retrieve_sources("latest posts")
+    assert payloads[0]["start_date"] == "2026-09-29"
+    assert [s.url for s in found.summary.sources] == [
+        "https://news.example.com/boundary", "https://news.example.com/today",
+    ]
+    assert "2026-09-30 through 2026-10-13" in found.context
+    assert "stale" not in found.context and "future" not in found.context
+
+
+@pytest.mark.parametrize("reported_date", [None, "bad date", "2026-09-13", "2026-10-14"])
+def test_relative_query_without_date_evidence_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, reported_date: str | None,
+) -> None:
+    _client(monkeypatch, lambda _: _response([_result(published_date=reported_date)]))
+    found = research.retrieve_sources("latest tweet")
+    assert found.failure == "no_evidence" and found.summary.sources == []
+    assert "2026-09-14 through 2026-10-13 (UTC)" in (found.failure_message or "")
+    assert "Undated sources were excluded" in (found.failure_message or "")
+
+
+@pytest.mark.parametrize("days", [0, 91])
+def test_recent_window_setting_is_bounded(days: int) -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, research_recent_days=days)

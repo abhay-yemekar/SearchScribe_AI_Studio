@@ -13,6 +13,10 @@ const available = [
     "Create a sectioned draft from a topic, then review it before publication.",
   ],
   [
+    "Web research",
+    "Search for relevant source excerpts with visible links and dates. Current-topic drafts require usable evidence; review claims before publishing.",
+  ],
+  [
     "Structured editing",
     "Edit article content and SEO fields, with visible unsaved changes and keep/discard protection.",
   ],
@@ -34,10 +38,6 @@ const available = [
   ],
 ];
 const planned = [
-  [
-    "Verifiable research",
-    "Bounded retrieval, visible citations, preserved source links, and an explicit unresearched state.",
-  ],
   [
     "Relevant photos",
     "Choose hero and section images with photographer credit, source links, and alt text.",

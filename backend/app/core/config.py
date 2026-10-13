@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     research_max_context_chars: int = Field(default=24_000, ge=2_000, le=24_000)
     research_max_excerpt_chars: int = Field(default=4_000, ge=200, le=6_000)
     research_min_score: float = Field(default=0.3, ge=0, le=1)
+    research_recent_days: int = Field(default=30, ge=1, le=90)
 
     # --- Request limits ---
     max_query_length: int = 500

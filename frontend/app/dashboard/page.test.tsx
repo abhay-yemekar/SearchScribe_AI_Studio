@@ -132,6 +132,18 @@ async function editArticle() {
   return user;
 }
 
+async function changeIntroduction(
+  user: ReturnType<typeof userEvent.setup>,
+  suffix: string,
+) {
+  const introduction = screen.getByLabelText("Introduction");
+  await user.clear(introduction);
+  await user.paste(`${original.content.introduction}${suffix}`);
+  // Draft state is mirrored through QueryClient; wait for that visible transition
+  // before triggering an action that consults the shared draft snapshot.
+  await screen.findByText("Unsaved changes");
+}
+
 describe("workspace unsaved edits", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -157,28 +169,33 @@ describe("workspace unsaved edits", () => {
     createView();
     const user = await editArticle();
     await user.click(screen.getByRole("tab", { name: "SEO Metadata" }));
+    await screen.findByRole("button", { name: "Edit SEO" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Article" }));
-    await user.click(screen.getByRole("button", { name: "Edit article" }));
-    await user.type(screen.getByLabelText("Introduction"), " unsaved");
+    await user.click(await screen.findByRole("button", { name: "Edit article" }));
+    await changeIntroduction(user, " unsaved");
     expect(screen.getByText("Unsaved changes")).toBeVisible();
-    await user.type(screen.getByLabelText("Topic / search query"), "New topic");
+    await user.click(screen.getByLabelText("Topic / search query"));
+    await user.paste("New topic");
     await user.click(screen.getByRole("button", { name: "Generate" }));
+    await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
     expect(mocks.generate).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByLabelText("Introduction")).toHaveValue(
       "Original introduction unsaved",
     );
     await user.click(screen.getByRole("link", { name: "Website" }));
+    await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
     expect(mocks.push).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Discard changes" }));
-    expect(mocks.push).toHaveBeenCalledWith("/");
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/"));
   });
 
   it("saves against the captured base version and retains a conflicted draft", async () => {
     const view = createView();
     const user = await editArticle();
-    await user.type(screen.getByLabelText("Introduction"), " local edit");
+    await changeIntroduction(user, " local edit");
     act(() =>
       view.client.setQueryData(["article", 1], {
         ...original,
@@ -207,7 +224,7 @@ describe("workspace unsaved edits", () => {
   it("retains drafts across route remounts and does not warn when deleting an unrelated article", async () => {
     const view = createView();
     const user = await editArticle();
-    await user.type(screen.getByLabelText("Introduction"), " keep me");
+    await changeIntroduction(user, " keep me");
     await user.click(screen.getByRole("button", { name: "Delete Other article" }));
     await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith(2));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -230,9 +247,9 @@ describe("workspace unsaved edits", () => {
     );
     createView();
     const user = await editArticle();
-    await user.type(screen.getByLabelText("Introduction"), " saved");
+    await changeIntroduction(user, " saved");
     await user.click(screen.getByRole("button", { name: "Save version" }));
-    expect(screen.getByText("Saving changes…")).toBeVisible();
+    expect(await screen.findByText("Saving changes…")).toBeVisible();
     expect(screen.getByLabelText("Introduction")).toBeDisabled();
     expect(screen.getByRole("button", { name: "New article" })).toBeDisabled();
     await user.click(screen.getByRole("link", { name: "Website" }));
@@ -256,7 +273,7 @@ describe("workspace unsaved edits", () => {
     );
     const view = createView();
     const user = await editArticle();
-    await user.type(screen.getByLabelText("Introduction"), " before back");
+    await changeIntroduction(user, " before back");
     await user.click(screen.getByRole("button", { name: "Save version" }));
     view.unmount();
     createView(view.client);
@@ -293,7 +310,7 @@ describe("workspace unsaved edits", () => {
     );
     const view = createView();
     const user = await editArticle();
-    await user.type(screen.getByLabelText("Introduction"), " local");
+    await changeIntroduction(user, " local");
     await user.click(screen.getByRole("button", { name: "Save version" }));
     view.unmount();
     view.client.clear();

@@ -7,7 +7,7 @@ import json
 import math
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
 import httpx
@@ -29,14 +29,70 @@ def needs_current_sources(query: str) -> bool:
     ))
 
 
+def _recent_window(query: str, query_date: date) -> tuple[date, date] | None:
+    """Recognize relative time, independent of topic; preserve explicit historical dates."""
+    years = {int(year) for year in re.findall(r"\b(?:19|20)\d{2}\b", query)}
+    if any(year != query_date.year for year in years):
+        return None
+    for raw_date in re.findall(r"\b\d{4}-\d{2}-\d{2}\b", query):
+        try:
+            if date.fromisoformat(raw_date) != query_date:
+                return None
+        except ValueError:
+            continue
+    if re.search(r"\b(today|aaj)\b|आज", query, re.IGNORECASE):
+        return query_date, query_date
+    if re.search(r"\bthis year\b", query, re.IGNORECASE):
+        return date(query_date.year, 1, 1), query_date
+    if re.search(
+        r"\b(latest|newest|current|currently|recent|recently|now|abhi)\b|"
+        r"अभी|नवीनतम|वर्तमान", query, re.IGNORECASE,
+    ):
+        return query_date - timedelta(days=settings.research_recent_days - 1), query_date
+    return None
+
+
+def _reported_date(source: ResearchSource) -> date | None:
+    if source.published_at is None:
+        return None
+    try:
+        return date.fromisoformat(source.published_at)
+    except ValueError:
+        return datetime.fromisoformat(source.published_at).astimezone(UTC).date()
+
+
 @dataclass(frozen=True)
 class ResearchResult:
     summary: ResearchSummary
     context: str
     failure: Literal["not_configured", "unavailable", "no_evidence"] | None = None
+    failure_message: str | None = None
 
 
-async def _search(query: str, api_key: str) -> dict[str, object]:
+def _no_evidence(window: tuple[date, date] | None) -> ResearchResult:
+    message = (
+        f"No usable dated source coverage was found for {window[0]} through {window[1]} (UTC). "
+        "Undated sources were excluded. Try a more specific topic or the post's title and date."
+        if window is not None else
+        "Search returned no usable relevant evidence for this topic. "
+        "Try a more specific topic or include the post's title and date."
+    )
+    return ResearchResult(ResearchSummary(), message, "no_evidence", message)
+
+
+async def _search(
+    query: str, api_key: str, window: tuple[date, date] | None,
+) -> dict[str, object]:
+    date_parameters: dict[str, object] = {}
+    if window is not None:
+        date_parameters = {
+            # API docs describe "after"/"before" dates without an inclusive-boundary
+            # guarantee. Include boundary days in transport, then enforce the exact
+            # UTC calendar window on normalized dates below.
+            "start_date": (window[0] - timedelta(days=1)).isoformat(),
+            "end_date": (window[1] + timedelta(days=1)).isoformat(),
+            "filter_by_published_date": True,
+        }
     # One basic request, no automatic cost expansion, no redirects and no URL tools.
     async with asyncio.timeout(settings.research_timeout_seconds):
         async with httpx.AsyncClient(
@@ -63,6 +119,7 @@ async def _search(query: str, api_key: str) -> dict[str, object]:
                     "include_images": False,
                     "include_favicon": False,
                     "auto_parameters": False,
+                    **date_parameters,
                 },
             ) as response:
                 response.raise_for_status()
@@ -90,6 +147,8 @@ def _text(value: object, limit: int) -> str:
 
 
 def retrieve_sources(query: str) -> ResearchResult:
+    queried_at = datetime.now(UTC)
+    window = _recent_window(query, queried_at.date())
     api_key = settings.tavily_api_key.strip()
     if not api_key:
         return ResearchResult(
@@ -97,7 +156,7 @@ def retrieve_sources(query: str) -> ResearchResult:
         )
     try:
         # Synchronous generation runs in a FastAPI worker thread.
-        payload = asyncio.run(_search(query, api_key))
+        payload = asyncio.run(_search(query, api_key, window))
     except (httpx.HTTPError, TimeoutError, ValueError):
         # Never expose provider response bodies, API keys or recipient/topic data.
         return ResearchResult(
@@ -135,18 +194,24 @@ def retrieve_sources(query: str) -> ResearchResult:
             )
         except ValidationError:
             continue
+        if window is not None:
+            reported_date = _reported_date(source)
+            if reported_date is None or not window[0] <= reported_date <= window[1]:
+                continue
         seen_urls.add(url)
         sources.append(source)
         excerpts.append(excerpt)
 
     if not sources:
-        return ResearchResult(
-            ResearchSummary(),
-            "Search returned no usable relevant source excerpts. Do not invent current facts.",
-            "no_evidence",
-        )
+        return _no_evidence(window)
 
+    date_coverage = (
+        f"Requested publication/update window: {window[0]} through {window[1]} (UTC). "
+        "Undated and out-of-window results were excluded. "
+        if window is not None else "No relative recent-date filter was requested. "
+    )
     notice = (
+        f"Query UTC date: {queried_at.date()}. " + date_coverage +
         "Coverage: relevant web search excerpts, not complete pages or verified facts. "
         "Search rankings do not guarantee accuracy, primary authorship or completeness. "
         "The retrieval timestamp is not a publication date. Reported publication/update dates "
@@ -167,12 +232,10 @@ def retrieve_sources(query: str) -> ResearchResult:
         usable_sources.append(source)
         remaining -= len(record) + 1
     if not usable_sources:
-        return ResearchResult(
-            ResearchSummary(), "No usable sources fit the research context budget.", "no_evidence"
-        )
+        return _no_evidence(window)
     summary = ResearchSummary(
         status="sources_retrieved",
-        retrieved_at=datetime.now(UTC).isoformat(),
+        retrieved_at=queried_at.isoformat(),
         sources=usable_sources,
     )
     return ResearchResult(summary, notice + "\n".join(records))

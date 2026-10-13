@@ -94,8 +94,10 @@ class GenerationService:
                 )
             if research.failure == "no_evidence":
                 raise ExternalServiceError(
-                    "Search returned no usable relevant evidence for this topic. "
-                    "Try a more specific topic or include the post's title and date.",
+                    research.failure_message or (
+                        "Search returned no usable relevant evidence for this topic. "
+                        "Try a more specific topic or include the post's title and date."
+                    ),
                     code="CURRENT_SOURCES_NOT_FOUND",
                 )
             raise ExternalServiceError(
