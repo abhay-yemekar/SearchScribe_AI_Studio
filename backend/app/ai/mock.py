@@ -8,7 +8,13 @@ from typing import TypeVar, cast
 from pydantic import BaseModel
 
 from .base import PermanentLLMError, ProviderResponse, TransientLLMError
-from .schemas import ArticleSection, GeneratedArticle, SeoResult
+from .schemas import (
+    ArticleSection,
+    GeneratedArticle,
+    GeneratedArticleWithSeo,
+    SeoCandidate,
+    SeoResult,
+)
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -36,13 +42,23 @@ class MockProvider:
             raise TransientLLMError("mock: transient failure")
 
         started = time.perf_counter()
-        if schema is GeneratedArticle:
+        if schema is GeneratedArticleWithSeo:
+            article = self._generate_article(variables)
+            seo = self._generate_seo(
+                {"title": article.title, "introduction": article.introduction}
+            )
+            data: object = GeneratedArticleWithSeo.model_validate(
+                {**article.model_dump(), "seo": seo.model_dump()}
+            )
+        elif schema is GeneratedArticle:
             if prompt_name == "rewrite":
-                data: object = self._rewrite_article(variables)
+                data = self._rewrite_article(variables)
             else:
                 data = self._generate_article(variables)
         elif schema is SeoResult:
             data = self._generate_seo(variables)
+        elif schema is SeoCandidate:
+            data = SeoCandidate.model_validate(self._generate_seo(variables).model_dump())
         else:
             raise PermanentLLMError(f"mock: unsupported schema {schema.__name__}")
 
@@ -101,7 +117,7 @@ class MockProvider:
                 f"A practical mock overview of {title[:60]}. Generated offline "
                 "for development and testing."
             )[:160],
-            keywords=[title.lower()[:40], "mock", "searchscribe", "guide"],
+            keywords=[title.lower()[:40], "mock", "searchscribe", "guide", "offline writing"],
             og_title=f"{title[:50]} — Mock",
             og_description=f"Offline mock article about {title[:70]}."[:160],
         )

@@ -43,6 +43,7 @@ async function createDraft(page: Page, suffix: string): Promise<ArticleDetail> {
 }
 
 async function selectArticle(page: Page, query: string) {
+  await expect(page.getByRole("heading", { name: "Article workspace" })).toBeVisible();
   const opener = page.getByRole("button", { name: "Open article navigation" });
   if (await opener.isVisible()) await opener.click();
   await page
@@ -102,6 +103,7 @@ for (const viewport of [
   }) => {
     await page.setViewportSize(viewport);
     const original = await createDraft(page, String(viewport.width));
+    expect(original.seo?.review_status).toBe("generated");
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "Article workspace" })).toBeVisible();
 
@@ -206,6 +208,7 @@ for (const viewport of [
     await expect(
       page.getByRole("button", { name: "Edit SEO", exact: true }),
     ).toBeVisible();
+    await expect(page.getByText("Needs review", { exact: true })).toBeVisible();
     await expect(
       page.getByRole("dialog", { name: "Discard unsaved changes?" }),
     ).toHaveCount(0);
@@ -221,6 +224,22 @@ for (const viewport of [
     await page.getByRole("tab", { name: "SEO Metadata", exact: true }).click();
     await expect(page.getByText("A temporary SEO title", { exact: true })).toHaveCount(0);
 
+    // A deliberate SEO edit is persisted separately from AI-generated quality.
+    await page.getByRole("button", { name: "Edit SEO", exact: true }).click();
+    const editedSeoTitle = "Balcony herbs: soil, light and watering";
+    await page.getByLabel(/SEO Title/i).fill(editedSeoTitle);
+    await page.getByRole("button", { name: "Save version", exact: true }).click();
+    await expect(page.getByText("Edited by you", { exact: true })).toBeVisible();
+    await page.reload();
+    await selectArticle(page, original.query);
+    await page.getByRole("tab", { name: "SEO Metadata", exact: true }).click();
+    await expect(page.getByText("Edited by you", { exact: true })).toBeVisible();
+    await expect(page.getByText(editedSeoTitle, { exact: true })).toBeVisible();
+    await page.screenshot({
+      path: path.join(screenshots, `seo-review-status-${viewport.width}.png`),
+      fullPage: true,
+    });
+
     // Restored snapshots, rather than stale editor text, are exported.
     await page.getByRole("tab", { name: "Versions", exact: true }).click();
     await page
@@ -232,7 +251,7 @@ for (const viewport of [
       page
         .getByRole("tabpanel", { name: "Versions", exact: true })
         .getByRole("listitem")
-        .filter({ hasText: "Version 3" })
+        .filter({ hasText: "Version 4" })
         .getByText("Current", { exact: true }),
     ).toBeVisible();
     await page.getByRole("tab", { name: "Article", exact: true }).click();
@@ -243,6 +262,11 @@ for (const viewport of [
     expect(restoredMarkdown).toContain(original.content.introduction);
     expect(restoredMarkdown).not.toContain(changedIntroduction);
     expect(restoredMarkdown).toContain("Unresearched draft");
+
+    await page.getByRole("tab", { name: "SEO Metadata", exact: true }).click();
+    await expect(
+      page.getByText("AI draft — review before publishing", { exact: true }),
+    ).toBeVisible();
 
     await page.getByRole("tab", { name: "Article", exact: true }).click();
     await page.getByRole("button", { name: "Edit article", exact: true }).click();

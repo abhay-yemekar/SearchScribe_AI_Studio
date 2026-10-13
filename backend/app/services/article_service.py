@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ..ai.renderer import render_article_html
 from ..ai.sanitizer import sanitize_document
-from ..ai.schemas import GeneratedArticle, SeoResult
+from ..ai.schemas import GeneratedArticle, SeoResult, SeoReviewStatus
 from ..core.exceptions import BadRequestError, ConflictError, NotFoundError
 from ..db.models import Article, User
 from ..repositories.article_repo import ArticleRepository
@@ -28,7 +28,12 @@ logger = logging.getLogger(__name__)
 
 
 def _seo_values(seo: SeoResult) -> dict[str, object]:
-    return seo.model_dump()
+    # Quality lives in version snapshots, not the SEO ORM table.
+    return seo.model_dump(exclude={"review_status"})
+
+
+def _snapshot_status(snapshot: str | None) -> SeoReviewStatus:
+    return SeoResult.model_validate_json(snapshot).review_status if snapshot else "unknown"
 
 
 class ArticleService:
@@ -69,6 +74,7 @@ class ArticleService:
                 og_description=seo_row.og_description,
                 canonical_url=seo_row.canonical_url,
                 robots=seo_row.robots,
+                review_status=_snapshot_status(latest.seo_snapshot),
             )
             seo_model = SeoResult(
                 title=seo_row.title,
@@ -226,9 +232,22 @@ class ArticleService:
             )
 
         seo = SeoResult.model_validate(payload.seo.model_dump())
+        current_content = GeneratedArticle.model_validate_json(latest.content)
+        current_seo = self.articles.get_seo(article.id)
+        current_values = {
+            field: getattr(current_seo, field) for field in _seo_values(seo)
+        } if current_seo is not None else None
+        seo_changed = _seo_values(seo) != current_values
         # Source provenance is server-owned. An edit keeps its original source
         # snapshot; it cannot manufacture a research badge or replace citations.
-        payload.content.research = GeneratedArticle.model_validate_json(latest.content).research
+        payload.content.research = current_content.research
+        content_changed = payload.content.model_dump() != current_content.model_dump()
+        # SeoInput ignores client quality fields. Only real editor changes alter
+        # status; article edits make retained metadata stale until reviewed.
+        seo.review_status = (
+            "edited" if seo_changed else "needs_review" if content_changed
+            else _snapshot_status(latest.seo_snapshot)
+        )
         next_version = latest.version + 1
         self.articles.add_version(
             article,

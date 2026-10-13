@@ -38,7 +38,7 @@ test.describe("SearchScribe happy path (mock AI provider)", () => {
     // --- SEO tab ---
     await page.getByRole("tab", { name: /seo metadata/i }).click();
     await expect(page.getByText(/SEO Title/i)).toBeVisible();
-    await expect(page.getByText(/Keywords/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Keywords", exact: true })).toBeVisible();
     await page.getByRole("button", { name: /edit seo/i }).click();
     await page.getByLabel(/seo title/i).fill("Weekend trips from Pune: editor pick");
     await page.getByRole("button", { name: /save version/i }).click();

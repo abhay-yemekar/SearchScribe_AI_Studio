@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { seoSchema, type Seo } from "@/lib/api/schemas";
 import SeoPanel from "./SeoPanel";
 
 const seo = {
@@ -31,6 +32,67 @@ describe("SeoPanel", () => {
       },
     });
   });
+
+  it("accepts legacy metadata and asks for review without inventing a quality status", () => {
+    const legacy = seoSchema.parse(seo);
+    expect(legacy.review_status).toBeUndefined();
+    render(<SeoPanel seo={legacy} saving={false} onSave={vi.fn()} />);
+    const status = screen.getByRole("region", { name: "SEO review status" });
+    expect(within(status).getByText("Review SEO before publishing")).toBeVisible();
+    expect(
+      within(status).getByText(/source of this metadata is not recorded/i),
+    ).toBeVisible();
+  });
+
+  it.each([
+    ["generated", "AI draft — review before publishing"],
+    ["edited", "Edited by you"],
+    ["unknown", "Review SEO before publishing"],
+  ] as const)(
+    "shows the server's %s status without claiming verification",
+    (status, label) => {
+      const metadata = seoSchema.parse({ ...seo, review_status: status });
+      render(<SeoPanel seo={metadata} saving={false} onSave={vi.fn()} />);
+      const notice = screen.getByRole("region", { name: "SEO review status" });
+      expect(within(notice).getByText(label)).toBeVisible();
+      expect(notice).toHaveTextContent(/check/i);
+      expect(notice).not.toHaveTextContent(/verified|perfect|fact.?checked/i);
+    },
+  );
+
+  it("keeps fallback metadata marked for review until the server returns an edited snapshot", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const fallback: Seo = { ...seo, review_status: "needs_review" };
+    const view = render(<SeoPanel seo={fallback} saving={false} onSave={onSave} />);
+    expect(screen.getByText("Needs review")).toBeVisible();
+    expect(
+      screen.getByText(/article may have changed, or SEO generation/i),
+    ).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Edit SEO" }));
+    await user.clear(screen.getByLabelText(/seo title/i));
+    await user.paste("An edited Kerala guide");
+    expect(screen.getByText("Needs review")).toBeVisible();
+    expect(screen.getByText(/status applies to the saved version/i)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Save version" }));
+    await screen.findByRole("button", { name: "Edit SEO" });
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ review_status: "needs_review" }),
+    );
+    expect(screen.getByText("Needs review")).toBeVisible();
+
+    view.rerender(
+      <SeoPanel
+        seo={{ ...fallback, title: "An edited Kerala guide", review_status: "edited" }}
+        saving={false}
+        onSave={onSave}
+      />,
+    );
+    expect(screen.getByText("Edited by you")).toBeVisible();
+    expect(screen.queryByText("Needs review")).not.toBeInTheDocument();
+  });
+
   it("saves trimmed editable metadata without mutating the loaded snapshot", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();

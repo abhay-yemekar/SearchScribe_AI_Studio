@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ..ai.schemas import GeneratedArticle
+from ..ai.schemas import GeneratedArticle, SeoReviewStatus
 from ..core.config import settings
 
 
@@ -72,6 +72,7 @@ class SeoOut(BaseModel):
     og_description: str | None = None
     canonical_url: str | None = None
     robots: str = "index, follow"
+    review_status: SeoReviewStatus = "unknown"
 
 
 class ArticleListItem(BaseModel):

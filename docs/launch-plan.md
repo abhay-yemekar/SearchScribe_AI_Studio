@@ -39,7 +39,7 @@ must be designed alongside the successful flow.
 - [x] Writing workflow: visible unsaved-edit status, keep/discard protection,
       in-memory draft retention across workspace navigation, and Markdown export
       from saved versions with source links and provenance.
-- [ ] Research: bounded search, traceable source IDs, citations, and an explicit
+- [x] Research: bounded search, traceable source IDs, citations, and an explicit
       unresearched mode when search fails. Treat retrieved text as untrusted input.
       Dynamic Tavily search replaces the topic-specific source catalog. It uses
       the actual query, one bounded basic search and saved source excerpts.
@@ -47,20 +47,28 @@ must be designed alongside the successful flow.
       undated and out-of-window results are excluded. Missing configuration,
       unavailable search and insufficient evidence have distinct errors.
       Source links and estimated dates survive versions, HTML and Markdown.
-      Live provider acceptance remains required; source retrieval does not prove
-      every claim or establish that a social post is the absolute latest.
+      Live provider acceptance verified in PR #22: the reported latest-tweet
+      query generated a saved draft with five dated sources, including two
+      direct X links. Reload and actual HTML preview retained the source snapshot.
+      Source retrieval does not prove every claim or establish that a social post
+      is the absolute latest. Broader factual evaluation remains a release gate.
 - [ ] Photos: suggestions for a hero and relevant sections, user selection,
       photographer credits, source links, and editable alt text.
 - [ ] AI routing: one combined article/SEO response, bounded fallback and
       deadline, persistent daily quotas, and idempotent generation requests.
+      Combined generation and one targeted SEO repair are implemented. Saved
+      review status distinguishes AI metadata, degraded/stale metadata, manual
+      edits and legacy records. Deadline, quotas, provider routing and the broader
+      prompt evaluation remain open.
 - [ ] Production deployment, backup/restore rehearsal, accessibility and
       mobile verification, and release notes.
 
 ## QA priorities after the 9 October review
 
 1. **P0 — Current facts and complete SEO.** Retrieve relevant current sources or
-   decline unsupported timely drafts. Repair generated descriptions once, then
-   use a complete sentence or topic-based fallback. Existing saved articles are
+   decline unsupported timely drafts. Generate article and SEO together; attempt
+   one repair if SEO is unsuitable. Preserve valid articles with editable text
+   from the article and an explicit review status if repair fails. Saved articles are
    retained; these changes do not rewrite the user's previous drafts.
 2. **P1 — Reliable navigation.** Preserve theme choices across public pages,
    provide distinct Account and Open workspace destinations, make interactive
