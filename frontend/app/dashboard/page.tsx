@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   useInfiniteQuery,
+  skipToken,
+  useIsMutating,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { ArrowUpRight, CopyPlus, Download, Menu, Sparkles } from "lucide-react";
+import { ArrowUpRight, CopyPlus, Menu, Sparkles } from "lucide-react";
 
 import Tabs from "@/components/shared/Tabs";
 import { ArticleSkeleton, ErrorBanner, Spinner } from "@/components/shared/States";
@@ -18,6 +20,10 @@ import ArticleEditor from "@/features/articles/ArticleEditor";
 import SeoPanel from "@/features/articles/SeoPanel";
 import HtmlPreview from "@/features/articles/HtmlPreview";
 import VersionsPanel from "@/features/articles/VersionsPanel";
+import ArticleExport from "@/features/articles/ArticleExport";
+import DiscardChangesDialog from "@/features/articles/DiscardChangesDialog";
+import { draftIsDirty, type EditorDraft } from "@/features/articles/useEditorDraft";
+import { downloadArticleFile } from "@/lib/article-export";
 import { useSession } from "@/features/auth/useSession";
 import {
   deleteArticle,
@@ -31,38 +37,111 @@ import {
   rewriteArticle,
   saveArticle,
 } from "@/lib/api/articles";
-import type { ArticleContent, Seo } from "@/lib/api/schemas";
+import type { ArticleContent, ArticleDetail, Seo } from "@/lib/api/schemas";
+
+type DraftSession =
+  | {
+      id: string;
+      revision: number;
+      kind: "article";
+      base: ArticleDetail;
+      editor: EditorDraft<ArticleContent>;
+    }
+  | {
+      id: string;
+      revision: number;
+      kind: "seo";
+      base: ArticleDetail;
+      editor: EditorDraft<Seo | null>;
+    };
+type WorkspaceMemory = {
+  selectedId: number | null;
+  activeTab: string;
+  draft: DraftSession | null;
+  editorEpoch: number;
+  actionError: string | null;
+};
 
 export default function DashboardPage() {
   const router = useRouter();
+  const session = useSession();
+  const { token, user, bootstrapping } = session;
+  useEffect(() => {
+    if (!bootstrapping && !token) router.replace("/login");
+  }, [bootstrapping, token, router]);
+  if (bootstrapping) {
+    return (
+      <div className="studio-shell flex h-screen items-center justify-center gap-3 bg-stone-50 text-slate-600">
+        <Spinner className="h-6 w-6" /> Restoring session…
+      </div>
+    );
+  }
+  return token && user ? <WritingWorkspace key={user.id} session={session} /> : null;
+}
+
+function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
-  const { token, user, bootstrapping, logout } = useSession();
+  const { token, user, logout } = session;
+  const memoryKey = ["workspace-draft", user!.id];
+  const memoryQuery = useQuery<WorkspaceMemory>({
+    queryKey: memoryKey,
+    queryFn: skipToken,
+    enabled: false,
+    gcTime: Infinity,
+    initialData: {
+      selectedId: null,
+      activeTab: "article",
+      draft: null,
+      editorEpoch: 0,
+      actionError: null,
+    },
+  });
+  const memory = memoryQuery.data!;
+  const remember = (
+    patch:
+      Partial<WorkspaceMemory> | ((current: WorkspaceMemory) => Partial<WorkspaceMemory>),
+  ) => {
+    queryClient.setQueryData<WorkspaceMemory>(memoryKey, (current) =>
+      current
+        ? { ...current, ...(typeof patch === "function" ? patch(current) : patch) }
+        : current,
+    );
+  };
+  // A route remount can restore drafts in this tab; logout/password changes clear QueryClient.
+  const sharedPending =
+    useIsMutating({ mutationKey: ["workspace-action", user!.id] }) > 0;
 
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState("article");
+  const { selectedId, activeTab, draft: draftSession, editorEpoch, actionError } = memory;
+  const setActionError = (error: string | null) => remember({ actionError: error });
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const pendingAction = useRef<(() => void) | null>(null);
+  const dirty =
+    draftSession?.kind === "article"
+      ? draftIsDirty(draftSession.editor)
+      : draftIsDirty(draftSession?.editor);
+  const setSelectedId = (id: number | null) => remember({ selectedId: id });
+  const setActiveTab = (tab: string) => remember({ activeTab: tab });
+  const clearDraft = () => {
+    remember((current) => ({ draft: null, editorEpoch: current.editorEpoch + 1 }));
+  };
   const [style, setStyle] = useState("genz");
-  const [actionError, setActionError] = useState<string | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const queryInputRef = useRef<HTMLInputElement>(null);
   const navButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Redirect if the session bootstrap comes back empty-handed.
-  useEffect(() => {
-    if (!bootstrapping && !token) router.replace("/login");
-  }, [bootstrapping, token, router]);
-
   useEffect(() => {
     if (!mobileNavOpen) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !confirmDiscard) {
         setMobileNavOpen(false);
         navButtonRef.current?.focus();
       }
     };
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [mobileNavOpen]);
+  }, [mobileNavOpen, confirmDiscard]);
 
   const articlesQuery = useInfiniteQuery({
     queryKey: ["articles"],
@@ -102,6 +181,7 @@ export default function DashboardPage() {
   }, [queryClient, selectedId]);
 
   const generate = useMutation({
+    mutationKey: ["workspace-action", user!.id, "generate"],
     mutationFn: (topic: string) => generateArticle(topic),
     onSuccess: (detail) => {
       setActionError(null);
@@ -114,12 +194,14 @@ export default function DashboardPage() {
   });
 
   const rewrite = useMutation({
+    mutationKey: ["workspace-action", user!.id, "rewrite"],
     mutationFn: () => rewriteArticle(selectedId as number, style),
     onSuccess: invalidateSelected,
     onError: (error) => setActionError((error as Error).message),
   });
 
   const remove = useMutation({
+    mutationKey: ["workspace-action", user!.id, "delete"],
     mutationFn: (id: number) => deleteArticle(id),
     onSuccess: (_data, id) => {
       if (id === selectedId) setSelectedId(null);
@@ -129,6 +211,7 @@ export default function DashboardPage() {
   });
 
   const duplicate = useMutation({
+    mutationKey: ["workspace-action", user!.id, "duplicate"],
     mutationFn: (id: number) => duplicateArticle(id),
     onSuccess: (detail) => {
       setSelectedId(detail.id);
@@ -138,36 +221,107 @@ export default function DashboardPage() {
   });
 
   const restore = useMutation({
+    mutationKey: ["workspace-action", user!.id, "restore"],
     mutationFn: (version: number) => restoreVersion(selectedId as number, version),
     onSuccess: invalidateSelected,
     onError: (error) => setActionError((error as Error).message),
   });
 
   const save = useMutation({
-    mutationFn: ({ content, seo }: { content: ArticleContent; seo: Seo }) => {
-      if (!detail) throw new Error("Article is not loaded.");
-      return saveArticle(detail.id, detail.current_version, content, seo);
+    mutationKey: ["workspace-action", user!.id, "save"],
+    mutationFn: ({
+      base,
+      content,
+      seo,
+    }: {
+      base: ArticleDetail;
+      content: ArticleContent;
+      seo: Seo;
+      owner: { id: string; revision: number };
+    }) => {
+      return saveArticle(base.id, base.current_version, content, seo);
     },
-    onSuccess: (updated) => {
+    onSuccess: (updated, variables) => {
+      const current = queryClient.getQueryData<WorkspaceMemory>(memoryKey);
+      if (!current) return; // A logout/password change cleared the private cache.
       setActionError(null);
       queryClient.setQueryData(["article", updated.id], updated);
+      if (
+        current.draft?.id === variables.owner.id &&
+        current.draft.revision === variables.owner.revision
+      )
+        clearDraft();
       invalidateSelected();
     },
     onError: (error) => setActionError((error as Error).message),
   });
 
   const detail = selectedQuery.data;
+  const busy = sharedPending;
+  const saving =
+    useIsMutating({ mutationKey: ["workspace-action", user!.id, "save"] }) > 0;
+  const requestAction = (action: () => void) => {
+    if (queryClient.isMutating({ mutationKey: ["workspace-action", user!.id] })) return;
+    const currentDraft = queryClient.getQueryData<WorkspaceMemory>(memoryKey)?.draft;
+    const currentDirty =
+      currentDraft?.kind === "article"
+        ? draftIsDirty(currentDraft.editor)
+        : draftIsDirty(currentDraft?.editor);
+    if (currentDirty) {
+      pendingAction.current = action;
+      setConfirmDiscard(true);
+    } else {
+      clearDraft();
+      action();
+    }
+  };
+  const updateArticleDraft = (editor: EditorDraft<ArticleContent>) => {
+    remember((current) => {
+      const previous = current.draft?.kind === "article" ? current.draft : null;
+      const next: DraftSession | null =
+        editor.editing && detail
+          ? {
+              id: previous?.id ?? crypto.randomUUID(),
+              revision: (previous?.revision ?? 0) + 1,
+              kind: "article",
+              base: previous?.base ?? structuredClone(detail),
+              editor,
+            }
+          : null;
+      return { draft: next };
+    });
+  };
+  const updateSeoDraft = (editor: EditorDraft<Seo | null>) => {
+    remember((current) => {
+      const previous = current.draft?.kind === "seo" ? current.draft : null;
+      const next: DraftSession | null =
+        editor.editing && detail
+          ? {
+              id: previous?.id ?? crypto.randomUUID(),
+              revision: (previous?.revision ?? 0) + 1,
+              kind: "seo",
+              base: previous?.base ?? structuredClone(detail),
+              editor,
+            }
+          : null;
+      return { draft: next };
+    });
+  };
 
   const downloadHtml = useCallback(() => {
     if (!detail) return;
-    const blob = new Blob([detail.html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${detail.title.replace(/[^\w\- ]+/g, "").slice(0, 60) || "article"}.html`;
-    anchor.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, [detail]);
+    if (!dirty && !busy) downloadArticleFile(detail.title, detail.html, "html");
+  }, [detail, dirty, busy]);
+
+  useEffect(() => {
+    if (!dirty && !saving) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, saving]);
 
   const handleGenerate = () => {
     const topic = query.trim();
@@ -175,20 +329,29 @@ export default function DashboardPage() {
       setActionError("Enter a topic (at least 3 characters).");
       return;
     }
-    setActionError(null);
-    generate.mutate(topic);
+    requestAction(() => {
+      setActionError(null);
+      generate.mutate(topic);
+    });
   };
-
-  if (bootstrapping) {
-    return (
-      <div className="studio-shell flex h-screen items-center justify-center gap-3 bg-stone-50 text-slate-600">
-        <Spinner className="h-6 w-6" /> Restoring session…
-      </div>
-    );
-  }
 
   return (
     <div className="studio-shell relative flex h-dvh overflow-hidden bg-[#f4f5f1] text-[#17252b]">
+      {confirmDiscard ? (
+        <DiscardChangesDialog
+          onKeep={() => {
+            pendingAction.current = null;
+            setConfirmDiscard(false);
+          }}
+          onDiscard={() => {
+            const action = pendingAction.current;
+            pendingAction.current = null;
+            setConfirmDiscard(false);
+            clearDraft();
+            action?.();
+          }}
+        />
+      ) : null}
       {mobileNavOpen ? (
         <button
           type="button"
@@ -206,22 +369,38 @@ export default function DashboardPage() {
         loadingMore={articlesQuery.isFetchingNextPage}
         hasMore={articlesQuery.hasNextPage}
         selectedId={selectedId}
-        deletingId={remove.isPending ? selectedId : null}
+        deletingId={remove.isPending ? remove.variables : null}
+        disabled={busy}
+        onHomeNavigate={(event) => {
+          event.preventDefault();
+          requestAction(() => router.push("/"));
+        }}
         onSelect={(id) => {
-          setSelectedId(id);
-          setActiveTab("article");
-          setMobileNavOpen(false);
+          if (id === selectedId) {
+            setMobileNavOpen(false);
+            return;
+          }
+          requestAction(() => {
+            setSelectedId(id);
+            setActiveTab("article");
+            setMobileNavOpen(false);
+          });
         }}
         onNewArticle={() => {
-          setSelectedId(null);
-          setActionError(null);
-          setMobileNavOpen(false);
-          queryInputRef.current?.focus();
+          requestAction(() => {
+            setSelectedId(null);
+            setActionError(null);
+            setMobileNavOpen(false);
+            queryInputRef.current?.focus();
+          });
         }}
         onLoadMore={() => {
           void articlesQuery.fetchNextPage();
         }}
-        onDelete={(id) => remove.mutate(id)}
+        onDelete={(id) => {
+          if (id === selectedId) requestAction(() => remove.mutate(id));
+          else if (!busy) remove.mutate(id);
+        }}
         mobileOpen={mobileNavOpen}
         onClose={() => {
           setMobileNavOpen(false);
@@ -254,15 +433,32 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-3 text-sm text-slate-600">
             {user ? <span className="hidden sm:inline">Hi, {user.name}</span> : null}
-            <Link href="/" className="inline-flex items-center gap-1 hover:underline">
+            <Link
+              href="/"
+              onNavigate={(event) => {
+                event.preventDefault();
+                requestAction(() => router.push("/"));
+              }}
+              aria-disabled={busy}
+              className="inline-flex items-center gap-1 hover:underline"
+            >
               Website <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
             </Link>
-            <Link href="/account" className="hover:underline">
+            <Link
+              href="/account"
+              onNavigate={(event) => {
+                event.preventDefault();
+                requestAction(() => router.push("/account"));
+              }}
+              aria-disabled={busy}
+              className="hover:underline"
+            >
               Account
             </Link>
             <button
               type="button"
-              onClick={() => void logout()}
+              onClick={() => requestAction(() => void logout())}
+              disabled={busy}
               className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 transition-colors hover:border-[#17252b]"
             >
               Logout
@@ -298,7 +494,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={generate.isPending}
+              disabled={busy}
               className="studio-primary-action flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#e0f06b] px-5 py-3 text-sm font-semibold text-[#17252b] transition-colors hover:bg-[#d3e458] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {generate.isPending ? (
@@ -316,6 +512,11 @@ export default function DashboardPage() {
         </div>
 
         {actionError ? <ErrorBanner message={actionError} /> : null}
+        {dirty || saving ? (
+          <p role="status" className="text-sm font-semibold text-teal-800">
+            {saving ? "Saving changes…" : "Unsaved changes"}
+          </p>
+        ) : null}
 
         {/* Workspace */}
         {selectedId === null ? (
@@ -362,7 +563,7 @@ export default function DashboardPage() {
                       Export your article
                     </p>
                     <p className="mt-1 leading-relaxed">
-                      Download HTML when you are ready.
+                      Download HTML or Markdown when you are ready.
                     </p>
                   </li>
                 </ol>
@@ -384,27 +585,25 @@ export default function DashboardPage() {
             </p>
             {/* Title + actions */}
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="w-full min-w-0 px-1 py-1 font-serif text-2xl font-semibold leading-tight sm:flex-1 sm:text-3xl">
+              <h2 className="w-full min-w-0 px-1 py-1 font-serif text-2xl font-semibold leading-tight sm:text-3xl">
                 {detail.title}
               </h2>
               <button
                 type="button"
-                onClick={() => duplicate.mutate(detail.id)}
+                onClick={() => requestAction(() => duplicate.mutate(detail.id))}
+                disabled={busy}
                 aria-label="Duplicate article"
                 title="Duplicate article"
                 className="rounded-lg border border-stone-300 bg-white p-2 text-slate-600 transition-colors hover:border-[#17252b] hover:text-[#17252b]"
               >
                 <CopyPlus aria-hidden className="h-4 w-4" />
               </button>
-              <button
-                type="button"
-                onClick={downloadHtml}
-                aria-label="Download HTML"
-                title="Download HTML"
-                className="rounded-lg border border-stone-300 bg-white p-2 text-slate-600 transition-colors hover:border-[#17252b] hover:text-[#17252b]"
-              >
-                <Download aria-hidden className="h-4 w-4" />
-              </button>
+              <ArticleExport
+                title={detail.title}
+                html={detail.html}
+                markdown={detail.markdown}
+                disabled={dirty || busy}
+              />
 
               {/* Rewrite controls */}
               <div className="flex max-w-full flex-wrap items-center gap-2 rounded-lg border border-stone-300 bg-white px-2 py-1">
@@ -427,8 +626,8 @@ export default function DashboardPage() {
                 </select>
                 <button
                   type="button"
-                  onClick={() => rewrite.mutate()}
-                  disabled={rewrite.isPending}
+                  onClick={() => requestAction(() => rewrite.mutate())}
+                  disabled={busy}
                   className="flex items-center gap-1.5 rounded bg-[#17252b] px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-[#293f48] disabled:opacity-60"
                 >
                   {rewrite.isPending ? <Spinner className="h-3.5 w-3.5" /> : null}
@@ -439,22 +638,42 @@ export default function DashboardPage() {
 
             <Tabs
               active={activeTab}
-              onChange={setActiveTab}
+              onChange={(tab) => {
+                if (tab !== activeTab) requestAction(() => setActiveTab(tab));
+              }}
               tabs={[
                 {
                   key: "article",
                   label: "Article",
                   content: (
                     <ArticleEditor
-                      key={`article-${detail.id}-${detail.current_version}`}
+                      key={`article-${detail.id}-${editorEpoch}`}
                       content={detail.content}
-                      saving={save.isPending}
-                      onSave={(content) => {
-                        if (!detail.seo) {
-                          setActionError("SEO metadata is required before saving.");
-                          return;
-                        }
-                        save.mutate({ content, seo: detail.seo });
+                      initialDraft={
+                        draftSession?.kind === "article" ? draftSession.editor : undefined
+                      }
+                      onDraftChange={updateArticleDraft}
+                      requestDiscard={requestAction}
+                      saving={busy}
+                      onSave={async (content) => {
+                        const currentDraft =
+                          queryClient.getQueryData<WorkspaceMemory>(memoryKey)?.draft;
+                        if (
+                          currentDraft?.kind !== "article" ||
+                          queryClient.isMutating({
+                            mutationKey: ["workspace-action", user!.id],
+                          })
+                        )
+                          throw new Error("An article edit is required before saving.");
+                        const base = currentDraft.base;
+                        if (!base.seo)
+                          throw new Error("SEO metadata is required before saving.");
+                        await save.mutateAsync({
+                          base,
+                          content,
+                          seo: base.seo,
+                          owner: { id: currentDraft.id, revision: currentDraft.revision },
+                        });
                       }}
                     />
                   ),
@@ -464,10 +683,32 @@ export default function DashboardPage() {
                   label: "SEO Metadata",
                   content: (
                     <SeoPanel
-                      key={`seo-${detail.id}-${detail.current_version}`}
+                      key={`seo-${detail.id}-${editorEpoch}`}
                       seo={detail.seo}
-                      saving={save.isPending}
-                      onSave={(seo) => save.mutate({ content: detail.content, seo })}
+                      initialDraft={
+                        draftSession?.kind === "seo" ? draftSession.editor : undefined
+                      }
+                      onDraftChange={updateSeoDraft}
+                      requestDiscard={requestAction}
+                      saving={busy}
+                      onSave={async (seo) => {
+                        const currentDraft =
+                          queryClient.getQueryData<WorkspaceMemory>(memoryKey)?.draft;
+                        if (
+                          currentDraft?.kind !== "seo" ||
+                          queryClient.isMutating({
+                            mutationKey: ["workspace-action", user!.id],
+                          })
+                        )
+                          throw new Error("An SEO edit is required before saving.");
+                        const base = currentDraft.base;
+                        await save.mutateAsync({
+                          base,
+                          content: base.content,
+                          seo,
+                          owner: { id: currentDraft.id, revision: currentDraft.revision },
+                        });
+                      }}
                     />
                   ),
                 },
@@ -478,7 +719,7 @@ export default function DashboardPage() {
                     <HtmlPreview
                       html={detail.html}
                       title={detail.title}
-                      onDownload={downloadHtml}
+                      onDownload={dirty || busy ? undefined : downloadHtml}
                     />
                   ),
                 },
@@ -489,8 +730,10 @@ export default function DashboardPage() {
                     <VersionsPanel
                       versions={versionsQuery.data?.items ?? []}
                       currentVersion={detail.current_version}
-                      restoring={restore.isPending}
-                      onRestore={(version) => restore.mutate(version)}
+                      restoring={busy}
+                      onRestore={(version) =>
+                        requestAction(() => restore.mutate(version))
+                      }
                     />
                   ),
                 },

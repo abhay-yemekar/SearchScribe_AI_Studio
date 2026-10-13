@@ -44,7 +44,7 @@ export default function ExamplePage() {
           </p>
           <div className="mt-8 border-t border-stone-200 pt-5 text-sm text-slate-600">
             <strong className="text-slate-900">Next in the workspace:</strong> edit the
-            copy, review SEO fields, save a version, and export HTML.
+            copy, review SEO fields, save a version, and export HTML or Markdown.
           </div>
         </div>
       </article>

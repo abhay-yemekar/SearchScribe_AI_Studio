@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ArticleEditor from "./ArticleEditor";
 
@@ -14,6 +14,22 @@ const content = {
 };
 
 describe("ArticleEditor", () => {
+  beforeEach(() => {
+    Object.defineProperties(HTMLDialogElement.prototype, {
+      showModal: {
+        configurable: true,
+        value: vi.fn(function (this: HTMLDialogElement) {
+          this.setAttribute("open", "");
+        }),
+      },
+      close: {
+        configurable: true,
+        value: vi.fn(function (this: HTMLDialogElement) {
+          this.removeAttribute("open");
+        }),
+      },
+    });
+  });
   it("saves a structured edit without mutating the loaded version", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
@@ -29,5 +45,69 @@ describe("ArticleEditor", () => {
       expect.objectContaining({ title: "A better title" }),
     );
     expect(content.title).toBe("Original title");
+  });
+
+  it("does not discard dirty edits until confirmed and keeps focus on the safe choice", async () => {
+    const user = userEvent.setup();
+    render(<ArticleEditor content={content} saving={false} onSave={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: /edit article/i }));
+    await user.type(screen.getByLabelText("Title"), " changed");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(
+      screen.getByRole("dialog", { name: "Discard unsaved changes?" }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Keep editing" })).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByLabelText("Title")).toHaveValue("Original title changed");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(screen.getByRole("button", { name: /edit article/i })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: /edit article/i }));
+    expect(screen.getByLabelText("Title")).toHaveValue("Original title");
+  });
+
+  it("allows unchanged cancellation without a warning, including reverted edits", async () => {
+    const user = userEvent.setup();
+    render(<ArticleEditor content={content} saving={false} onSave={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: /edit article/i }));
+    expect(screen.getByRole("button", { name: /save version/i })).toBeDisabled();
+    await user.type(screen.getByLabelText("Title"), "x");
+    await user.keyboard("{Backspace}");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /edit article/i })).toBeVisible();
+  });
+
+  it("retains an edited draft on external refresh and failed save", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockRejectedValue(new Error("Newer version exists"));
+    const view = render(
+      <ArticleEditor content={content} saving={false} onSave={onSave} />,
+    );
+    await user.click(screen.getByRole("button", { name: /edit article/i }));
+    await user.type(screen.getByLabelText("Title"), " changed");
+    view.rerender(
+      <ArticleEditor
+        content={{ ...content, introduction: "New server introduction" }}
+        saving={false}
+        onSave={onSave}
+      />,
+    );
+    expect(screen.getByLabelText("Introduction")).toHaveValue(content.introduction);
+    await user.click(screen.getByRole("button", { name: /save version/i }));
+    expect(screen.getByLabelText("Title")).toHaveValue("Original title changed");
+    expect(screen.getByLabelText("Introduction")).toHaveValue(content.introduction);
+  });
+
+  it("disables all editing controls while saving", async () => {
+    const user = userEvent.setup();
+    const view = render(
+      <ArticleEditor content={content} saving={false} onSave={vi.fn()} />,
+    );
+    await user.click(screen.getByRole("button", { name: /edit article/i }));
+    view.rerender(<ArticleEditor content={content} saving onSave={vi.fn()} />);
+    expect(screen.getByLabelText("Title")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /add section/i })).toBeDisabled();
   });
 });

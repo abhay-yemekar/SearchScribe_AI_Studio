@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { Save } from "lucide-react";
 
 import { Spinner } from "@/components/shared/States";
 import { SEO_LIMITS, type Seo } from "@/lib/api/schemas";
+import DiscardChangesDialog from "./DiscardChangesDialog";
+import { useEditorDraft, type EditorDraft } from "./useEditorDraft";
 
 const field =
   "mt-1 w-full rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
@@ -25,13 +26,36 @@ export default function SeoPanel({
   seo,
   saving,
   onSave,
+  initialDraft,
+  onDraftChange,
+  requestDiscard,
 }: {
   seo: Seo | null;
   saving: boolean;
-  onSave: (seo: Seo) => void;
+  onSave: (seo: Seo) => void | Promise<void>;
+  initialDraft?: EditorDraft<Seo | null>;
+  onDraftChange?: (draft: EditorDraft<Seo | null>) => void;
+  requestDiscard?: (action: () => void) => void;
 }) {
-  const [draft, setDraft] = useState<Seo | null>(seo ? structuredClone(seo) : null);
-  const [editing, setEditing] = useState(false);
+  const {
+    draft,
+    editing,
+    dirty,
+    change: setDraft,
+    start,
+    cancel,
+    submit,
+    confirmCancel,
+    keep,
+    discard,
+  } = useEditorDraft<Seo | null>({
+    source: seo,
+    saving,
+    initialDraft,
+    onDraftChange,
+    requestDiscard,
+    onSave: (value) => (value ? onSave(value) : undefined),
+  });
 
   if (!seo || !draft) {
     return (
@@ -47,133 +71,142 @@ export default function SeoPanel({
         className="mx-auto max-w-3xl space-y-5 text-sm"
         onSubmit={(event) => {
           event.preventDefault();
-          onSave({
+          void submit({
             ...draft,
             keywords: draft.keywords.map((keyword) => keyword.trim()).filter(Boolean),
             canonical_url: draft.canonical_url?.trim() || null,
           });
         }}
       >
-        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-          <span className="flex items-center justify-between">
-            SEO Title
-            <LengthMeter value={draft.title.length} limit={SEO_LIMITS.title} />
-          </span>
-          <input
-            className={field}
-            value={draft.title}
-            maxLength={200}
-            required
-            onChange={(event) => setDraft({ ...draft, title: event.target.value })}
-          />
-        </label>
-
-        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-          <span className="flex items-center justify-between">
-            Meta Description
-            <LengthMeter
-              value={draft.description.length}
-              limit={SEO_LIMITS.description}
-            />
-          </span>
-          <textarea
-            className={`${field} min-h-24`}
-            value={draft.description}
-            maxLength={400}
-            required
-            onChange={(event) => setDraft({ ...draft, description: event.target.value })}
-          />
-        </label>
-
-        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-          Keywords
-          <input
-            className={field}
-            value={draft.keywords.join(", ")}
-            required
-            placeholder="travel, kerala, backwaters"
-            onChange={(event) =>
-              setDraft({ ...draft, keywords: event.target.value.split(",").slice(0, 15) })
-            }
-          />
-          <span className="mt-1 block font-normal normal-case text-slate-500">
-            Separate up to 15 keywords with commas.
-          </span>
-        </label>
-
-        <div className="grid gap-4 sm:grid-cols-2">
+        <fieldset disabled={saving} className="space-y-5">
           <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-            Open Graph Title
+            <span className="flex items-center justify-between">
+              SEO Title
+              <LengthMeter value={draft.title.length} limit={SEO_LIMITS.title} />
+            </span>
             <input
               className={field}
-              value={draft.og_title ?? ""}
+              value={draft.title}
               maxLength={200}
+              required
+              onChange={(event) => setDraft({ ...draft, title: event.target.value })}
+            />
+          </label>
+
+          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <span className="flex items-center justify-between">
+              Meta Description
+              <LengthMeter
+                value={draft.description.length}
+                limit={SEO_LIMITS.description}
+              />
+            </span>
+            <textarea
+              className={`${field} min-h-24`}
+              value={draft.description}
+              maxLength={400}
+              required
               onChange={(event) =>
-                setDraft({ ...draft, og_title: event.target.value || null })
+                setDraft({ ...draft, description: event.target.value })
               }
             />
           </label>
+
           <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-            Robots
-            <select
+            Keywords
+            <input
               className={field}
-              value={draft.robots}
+              value={draft.keywords.join(", ")}
+              required
+              placeholder="travel, kerala, backwaters"
               onChange={(event) =>
-                setDraft({ ...draft, robots: event.target.value as Seo["robots"] })
+                setDraft({
+                  ...draft,
+                  keywords: event.target.value.split(",").slice(0, 15),
+                })
               }
-            >
-              <option value="index, follow">Index and follow</option>
-              <option value="noindex, follow">Do not index</option>
-            </select>
+            />
+            <span className="mt-1 block font-normal normal-case text-slate-500">
+              Separate up to 15 keywords with commas.
+            </span>
           </label>
-        </div>
 
-        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-          Open Graph Description
-          <textarea
-            className={`${field} min-h-20`}
-            value={draft.og_description ?? ""}
-            maxLength={400}
-            onChange={(event) =>
-              setDraft({ ...draft, og_description: event.target.value || null })
-            }
-          />
-        </label>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              Open Graph Title
+              <input
+                className={field}
+                value={draft.og_title ?? ""}
+                maxLength={200}
+                onChange={(event) =>
+                  setDraft({ ...draft, og_title: event.target.value || null })
+                }
+              />
+            </label>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              Robots
+              <select
+                className={field}
+                value={draft.robots}
+                onChange={(event) =>
+                  setDraft({ ...draft, robots: event.target.value as Seo["robots"] })
+                }
+              >
+                <option value="index, follow">Index and follow</option>
+                <option value="noindex, follow">Do not index</option>
+              </select>
+            </label>
+          </div>
 
-        <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-          Canonical URL
-          <input
-            className={field}
-            value={draft.canonical_url ?? ""}
-            type="url"
-            maxLength={500}
-            placeholder="https://example.com/article"
-            onChange={(event) =>
-              setDraft({ ...draft, canonical_url: event.target.value || null })
-            }
-          />
-        </label>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+            Open Graph Description
+            <textarea
+              className={`${field} min-h-20`}
+              value={draft.og_description ?? ""}
+              maxLength={400}
+              onChange={(event) =>
+                setDraft({ ...draft, og_description: event.target.value || null })
+              }
+            />
+          </label>
 
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setDraft(structuredClone(seo));
-              setEditing(false);
-            }}
-            className="rounded-lg border border-stone-300 px-4 py-2 text-slate-700 hover:bg-stone-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={saving || draft.keywords.every((keyword) => !keyword.trim())}
-            className="flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 font-medium text-white hover:bg-teal-800 disabled:opacity-60"
-          >
-            {saving ? <Spinner /> : <Save className="h-4 w-4" />}
-            {saving ? "Saving…" : "Save version"}
-          </button>
-        </div>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+            Canonical URL
+            <input
+              className={field}
+              value={draft.canonical_url ?? ""}
+              type="url"
+              maxLength={500}
+              placeholder="https://example.com/article"
+              onChange={(event) =>
+                setDraft({ ...draft, canonical_url: event.target.value || null })
+              }
+            />
+          </label>
+
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={cancel}
+              className="rounded-lg border border-stone-300 px-4 py-2 text-slate-700 hover:bg-stone-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={
+                saving || !dirty || draft.keywords.every((keyword) => !keyword.trim())
+              }
+              className="flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 font-medium text-white hover:bg-teal-800 disabled:opacity-60"
+            >
+              {saving ? <Spinner /> : <Save className="h-4 w-4" />}
+              {saving ? "Saving…" : "Save version"}
+            </button>
+          </div>
+        </fieldset>
+        {confirmCancel ? (
+          <DiscardChangesDialog onKeep={keep} onDiscard={discard} />
+        ) : null}
       </form>
     );
   }
@@ -183,7 +216,8 @@ export default function SeoPanel({
       <div className="flex justify-end">
         <button
           type="button"
-          onClick={() => setEditing(true)}
+          onClick={start}
+          disabled={saving}
           className="rounded-lg bg-teal-700 px-3 py-1.5 font-medium text-white hover:bg-teal-800"
         >
           Edit SEO
