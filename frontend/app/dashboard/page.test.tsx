@@ -165,14 +165,20 @@ describe("workspace unsaved edits", () => {
     });
   });
 
-  it("only warns for changed drafts, keeping blocked actions from spending generation calls", async () => {
+  it("switches views without warning when the open editor is unchanged", async () => {
     createView();
     const user = await editArticle();
     await user.click(screen.getByRole("tab", { name: "SEO Metadata" }));
     await screen.findByRole("button", { name: "Edit SEO" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await user.click(screen.getByRole("tab", { name: "Article" }));
-    await user.click(await screen.findByRole("button", { name: "Edit article" }));
+    await screen.findByRole("button", { name: "Edit article" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps blocked generation from spending a call and retains the changed draft", async () => {
+    createView();
+    const user = await editArticle();
     await changeIntroduction(user, " unsaved");
     expect(screen.getByText("Unsaved changes")).toBeVisible();
     await user.click(screen.getByLabelText("Topic / search query"));
@@ -185,6 +191,12 @@ describe("workspace unsaved edits", () => {
     expect(screen.getByLabelText("Introduction")).toHaveValue(
       "Original introduction unsaved",
     );
+  });
+
+  it("navigates away from a changed draft only after explicit discard", async () => {
+    createView();
+    const user = await editArticle();
+    await changeIntroduction(user, " unsaved");
     await user.click(screen.getByRole("link", { name: "Website" }));
     await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
     expect(mocks.push).not.toHaveBeenCalled();

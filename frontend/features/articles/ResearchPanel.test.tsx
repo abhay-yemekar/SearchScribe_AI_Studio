@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { articleContentSchema, type ArticleContent } from "@/lib/api/schemas";
 import ResearchPanel from "./ResearchPanel";
@@ -17,13 +18,21 @@ const sourced: NonNullable<ArticleContent["research"]> = {
 };
 
 describe("ResearchPanel", () => {
-  it("shows sources and separates retrieval from estimated publication without claiming verification", () => {
+  it("keeps sources collapsed until requested while retrieval and its limits remain visible", async () => {
+    const user = userEvent.setup();
     render(<ResearchPanel research={sourced} />);
     const panel = screen.getByRole("region", { name: "Article sources" });
     expect(within(panel).getByRole("status")).toHaveTextContent("Sources retrieved.");
     expect(within(panel).getByRole("status")).toHaveTextContent(
       "does not guarantee complete coverage or confirm the latest social post",
     );
+    const disclosure = within(panel).getByText("View 1 source", { exact: true });
+    const details = disclosure.closest("details");
+    expect(details).not.toHaveAttribute("open");
+    expect(within(panel).getByText("Growing herbs", { exact: true })).not.toBeVisible();
+    expect(within(panel).getByText("13 Oct 2026, 09:00 UTC")).toBeVisible();
+    await user.click(disclosure);
+    expect(details).toHaveAttribute("open");
     const link = within(panel).getByRole("link", { name: "Growing herbs" });
     expect(within(panel).getByText("[source-1]", { exact: true })).toBeVisible();
     expect(link).toHaveAttribute("href", sourced.sources[0].url);
@@ -36,6 +45,9 @@ describe("ResearchPanel", () => {
     expect(times[1]).toHaveTextContent("12 Oct 2026");
     expect(times[1]).not.toHaveTextContent("00:00");
     expect(panel).toHaveTextContent("Reported publication/update (estimated)");
+    await user.click(disclosure);
+    expect(details).not.toHaveAttribute("open");
+    expect(link).not.toBeVisible();
   });
 
   it.each([
@@ -50,9 +62,11 @@ describe("ResearchPanel", () => {
     );
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(document.querySelector("time")).toBeNull();
+    expect(document.querySelector("details")).toBeNull();
   });
 
-  it("does not turn unsafe, insecure, or credential-bearing source URLs into links", () => {
+  it("does not turn unsafe, insecure, or credential-bearing source URLs into links", async () => {
+    const user = userEvent.setup();
     const urls = [
       "javascript:alert(1)",
       "http://example.com",
@@ -71,12 +85,14 @@ describe("ResearchPanel", () => {
         }}
       />,
     );
+    await user.click(screen.getByText("View 4 sources", { exact: true }));
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(screen.getAllByText(/link unavailable/)).toHaveLength(urls.length);
     expect(document.body.innerHTML).not.toContain("user:secret");
   });
 
-  it("omits missing or invalid dates without inventing publication information", () => {
+  it("omits missing or invalid dates without inventing publication information", async () => {
+    const user = userEvent.setup();
     render(
       <ResearchPanel
         research={{
@@ -89,6 +105,7 @@ describe("ResearchPanel", () => {
     expect(document.querySelector("time")).toBeNull();
     expect(screen.queryByText(/Reported publication/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Retrieved:/)).not.toBeInTheDocument();
+    await user.click(screen.getByText("View 1 source", { exact: true }));
     expect(screen.getByRole("link", { name: "Growing herbs" })).toBeInTheDocument();
   });
 

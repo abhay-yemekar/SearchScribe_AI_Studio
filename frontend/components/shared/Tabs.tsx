@@ -18,7 +18,7 @@ export default function Tabs({
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+    <div className="flex min-h-[24rem] flex-1 shrink-0 flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
       <div
         role="tablist"
         aria-label="Article views"

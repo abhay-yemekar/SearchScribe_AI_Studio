@@ -118,6 +118,11 @@ for (const viewport of [
       timeout: 30_000,
     });
     await selectArticle(page, original.query);
+    expect(
+      await page.getByRole("tabpanel", { name: "Article", exact: true }).evaluate(
+        (element) => element.getBoundingClientRect().height,
+      ),
+    ).toBeGreaterThan(280);
     await page.getByRole("button", { name: "Edit article", exact: true }).click();
 
     const changedIntroduction =
@@ -355,6 +360,16 @@ test("Markdown download preserves the persisted source citations", async ({ page
   await expect(
     page.getByRole("status").filter({ hasText: /Sources retrieved/ }),
   ).toBeVisible();
+  const sources = page.getByRole("region", { name: "Article sources" });
+  const sourceLink = sources.getByRole("link", { name: "Growing herbs" });
+  await expect(sourceLink).toBeHidden();
+  await sources.getByText("View 1 source", { exact: true }).press("Enter");
+  await expect(sourceLink).toBeVisible();
+  expect(
+    await page.getByRole("tabpanel", { name: "Article", exact: true }).evaluate(
+      (element) => element.getBoundingClientRect().height,
+    ),
+  ).toBeGreaterThan(280);
   await expect(
     page
       .getByRole("region", { name: "Article sources" })
