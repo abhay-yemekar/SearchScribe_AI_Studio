@@ -307,10 +307,17 @@ test("Markdown download preserves the persisted source citations", async ({ page
       research: {
         status: "sources_retrieved",
         retrieved_at: "2026-10-13T00:00:00Z",
-        sources: [{ id: "source-1", title: "Growing herbs", url: sourceUrl }],
+        sources: [
+          {
+            id: "source-1",
+            title: "Growing herbs",
+            url: sourceUrl,
+            published_at: "2026-10-12",
+          },
+        ],
       },
     },
-    markdown: `# ${original.title}\n\n${original.content.introduction}\n\n## Sources\n\n[Growing herbs](${sourceUrl})\n\nDocumentation retrieved: 2026-10-13T00:00:00Z. Review claims before publishing.\n`,
+    markdown: `# ${original.title}\n\n${original.content.introduction}\n\n## Sources\n\n[Growing herbs](${sourceUrl})\n\nSources retrieved: 2026-10-13T00:00:00Z. Reported publication/update: 2026-10-12 (estimated). Review claims before publishing.\n`,
   };
   await page.route(`**/api/v1/articles/${original.id}`, async (route) => {
     if (route.request().method() !== "GET") {
@@ -322,7 +329,12 @@ test("Markdown download preserves the persisted source citations", async ({ page
   await page.goto("/dashboard");
   await selectArticle(page, original.query);
   await expect(
-    page.getByRole("status").filter({ hasText: /Primary documentation retrieved/ }),
+    page.getByRole("status").filter({ hasText: /Sources retrieved/ }),
   ).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "Article sources" })
+      .getByRole("link", { name: "Growing herbs" }),
+  ).toHaveAttribute("href", sourceUrl);
   expect(await markdownDownload(page)).toBe(persisted.markdown);
 });

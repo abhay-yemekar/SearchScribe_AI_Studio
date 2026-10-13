@@ -21,6 +21,7 @@ import SeoPanel from "@/features/articles/SeoPanel";
 import HtmlPreview from "@/features/articles/HtmlPreview";
 import VersionsPanel from "@/features/articles/VersionsPanel";
 import ArticleExport from "@/features/articles/ArticleExport";
+import ResearchPanel from "@/features/articles/ResearchPanel";
 import DiscardChangesDialog from "@/features/articles/DiscardChangesDialog";
 import { draftIsDirty, type EditorDraft } from "@/features/articles/useEditorDraft";
 import { downloadArticleFile } from "@/lib/article-export";
@@ -578,11 +579,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
           <ErrorBanner message={(selectedQuery.error as Error).message} />
         ) : detail ? (
           <div className="flex min-h-[32rem] flex-1 flex-col gap-4">
-            <p className="text-sm leading-relaxed text-slate-600" role="status">
-              {detail.content.research?.status === "sources_retrieved"
-                ? "Primary documentation retrieved. Review claims and source links before publishing; edits are not automatically fact-checked."
-                : "Unresearched draft. No live sources were retrieved; verify factual and time-sensitive claims before publishing."}
-            </p>
+            <ResearchPanel research={detail.content.research} />
             {/* Title + actions */}
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="w-full min-w-0 px-1 py-1 font-serif text-2xl font-semibold leading-tight sm:text-3xl">

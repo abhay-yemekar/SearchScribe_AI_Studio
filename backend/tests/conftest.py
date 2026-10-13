@@ -16,6 +16,7 @@ os.environ["DATABASE_URL"] = _TEST_DATABASE_URL
 os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
 os.environ["AI_PROVIDER"] = "mock"
 os.environ["GEMINI_API_KEY"] = ""
+os.environ["TAVILY_API_KEY"] = ""
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

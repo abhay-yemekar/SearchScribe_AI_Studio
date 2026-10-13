@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import ipaddress
+import re
+from datetime import date, datetime
+from email.utils import parsedate_to_datetime
 from typing import Literal
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
@@ -13,24 +17,57 @@ class ResearchSource(BaseModel):
     id: str = Field(pattern=r"^S[1-6]$")
     title: str = Field(min_length=1, max_length=300)
     url: str = Field(max_length=1000)
+    published_at: str | None = None
 
     @field_validator("url")
     @classmethod
     def safe_url(cls, value: str) -> str:
+        if any(ord(c) <= 32 or ord(c) == 127 for c in value) or "\\" in value:
+            raise ValueError("Source URL contains unsafe characters")
         parsed = urlsplit(value)
+        host = (parsed.hostname or "").rstrip(".").lower()
+        try:
+            port = parsed.port
+            ipaddress.ip_address(host)
+        except ValueError:
+            pass
+        else:
+            raise ValueError("Source URL must use a public DNS hostname")
+        try:
+            port = parsed.port
+        except ValueError:
+            raise ValueError("Source URL has an invalid port") from None
         if (
             parsed.scheme != "https"
-            or parsed.hostname
-            not in {
-                "platform.claude.com",
-                "ai.google.dev",
-                "developers.openai.com",
-            }
-            or parsed.username
-            or parsed.password
+            or port not in {None, 443}
+            or parsed.username is not None
+            or parsed.password is not None
+            or "." not in host
+            or host.endswith((".localhost", ".local", ".internal", ".lan", ".home", ".test"))
+            or not re.fullmatch(r"[a-z0-9-]+(?:\.[a-z0-9-]+)+", host)
+            or host.rsplit(".", 1)[-1].isdigit()
+            or any(label.startswith("-") or label.endswith("-") for label in host.split("."))
         ):
-            raise ValueError("Source must be an approved primary documentation HTTPS URL")
+            raise ValueError("Source must be a public HTTPS URL without credentials")
         return value
+
+    @field_validator("published_at", mode="before")
+    @classmethod
+    def normalize_reported_date(cls, value: object) -> str | None:
+        if not isinstance(value, str) or len(value) > 100:
+            return None
+        try:
+            return date.fromisoformat(value).isoformat()
+        except ValueError:
+            pass
+        try:
+            moment = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            try:
+                moment = parsedate_to_datetime(value)
+            except (ValueError, TypeError, OverflowError):
+                return None
+        return moment.isoformat() if moment.tzinfo else moment.date().isoformat()
 
 
 class ResearchSummary(BaseModel):
@@ -90,12 +127,18 @@ class GeneratedArticle(BaseModel):
                 "",
                 "## Sources",
                 "",
-                f"Documentation retrieved: {self.research.retrieved_at}. "
+                f"Sources retrieved: {self.research.retrieved_at}. "
                 "Review claims before publishing; retrieved sources "
                 "are not a fact-check guarantee.",
             ]
             for source in self.research.sources:
-                lines.append(f"- [{source.id}] [{source.title}]({source.url})")
+                label = re.sub(r"([\\`*{}\[\]()<>!_])", r"\\\1", source.title)
+                target = quote(source.url, safe="/:?#[]@!$&'+,;=%~_-.")
+                reported_date = (
+                    f" — reported publication/update: {source.published_at} (provider estimate)"
+                    if source.published_at else ""
+                )
+                lines.append(f"- [{source.id}] [{label}]({target}){reported_date}")
         else:
             lines += [
                 "",

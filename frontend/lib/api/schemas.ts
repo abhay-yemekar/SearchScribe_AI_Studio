@@ -46,7 +46,12 @@ export const articleContentSchema = z.object({
       status: z.enum(["unresearched", "sources_retrieved"]),
       retrieved_at: z.string().nullable(),
       sources: z.array(
-        z.object({ id: z.string(), title: z.string(), url: z.string().url() }),
+        z.object({
+          id: z.string(),
+          title: z.string(),
+          url: z.string().url(),
+          published_at: z.string().nullable().optional(),
+        }),
       ),
     })
     .optional(),

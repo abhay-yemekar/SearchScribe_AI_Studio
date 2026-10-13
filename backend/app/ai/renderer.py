@@ -62,10 +62,12 @@ ARTICLE_PAGE_TEMPLATE = _env.from_string(
     <section>
       {% if article.research.status == "sources_retrieved" %}
       <h2>Sources</h2>
-      <p>Documentation retrieved: {{ article.research.retrieved_at }}.
+      <p>Sources retrieved: {{ article.research.retrieved_at }}.
          Review claims before publishing; retrieved sources are not a fact-check guarantee.</p>
       <ul>{% for source in article.research.sources %}
-        <li>[{{ source.id }}] <a href="{{ source.url }}">{{ source.title }}</a></li>
+        <li>[{{ source.id }}] <a href="{{ source.url }}">{{ source.title }}</a>
+          {% if source.published_at %} — reported publication/update:
+          {{ source.published_at }} (provider estimate){% endif %}</li>
       {% endfor %}</ul>
       {% else %}
       <p>Unresearched draft: no live sources were retrieved.

@@ -65,6 +65,15 @@ class Settings(BaseSettings):
     ai_max_retries: int = 2
     ai_max_output_tokens: int = 8192
 
+    # --- Bounded web research (a key enables search; mock AI remains offline) ---
+    tavily_api_key: str = Field(default="", repr=False)
+    research_timeout_seconds: float = Field(default=12, ge=1, le=30)
+    research_max_results: int = Field(default=5, ge=1, le=5)
+    research_max_response_bytes: int = Field(default=512_000, ge=16_384, le=512_000)
+    research_max_context_chars: int = Field(default=24_000, ge=2_000, le=24_000)
+    research_max_excerpt_chars: int = Field(default=4_000, ge=200, le=6_000)
+    research_min_score: float = Field(default=0.3, ge=0, le=1)
+
     # --- Request limits ---
     max_query_length: int = 500
     max_rewrite_input_length: int = 20000
