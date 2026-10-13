@@ -9,7 +9,13 @@ from fastapi.testclient import TestClient
 from app.ai.base import PermanentLLMError
 from app.ai.mock import MockProvider
 from app.ai.research import ResearchResult
-from app.ai.schemas import GeneratedArticle, ResearchSource, ResearchSummary, SeoResult
+from app.ai.schemas import (
+    GeneratedArticle,
+    GeneratedArticleWithSeo,
+    ResearchSource,
+    ResearchSummary,
+    SeoCandidate,
+)
 
 SOURCE_URL = "https://platform.claude.com/docs/en/models/overview"
 
@@ -78,7 +84,7 @@ def test_sources_survive_edit_rewrite_restore_and_export(
     )
     assert response.status_code == 201, response.text
     article = response.json()
-    assert provider.calls[0][1] == "v2"
+    assert provider.calls[0][1] == "v3"
     assert "Source S1" in provider.calls[0][2]["research_context"]
     assert article["content"]["research"] == _sources().summary.model_dump()
     assert SOURCE_URL in article["markdown"] and SOURCE_URL in article["html"]
@@ -251,7 +257,7 @@ def test_seo_repair_is_bounded_and_never_returns_clipped_description(
 
         def generate(self, prompt_name, prompt_version, variables, schema):
             response = super().generate(prompt_name, prompt_version, variables, schema)
-            if schema is SeoResult:
+            if schema in {GeneratedArticleWithSeo, SeoCandidate}:
                 self.seo_calls += 1
                 if self.seo_calls == 2 and repair_fails:
                     raise PermanentLLMError("Repair unavailable")
@@ -260,15 +266,15 @@ def test_seo_repair_is_bounded_and_never_returns_clipped_description(
                     if self.seo_calls == 1
                     else ("Explore the model's capabilities and practical uses.")
                 )
-                response = replace(
-                    response,
-                    data=SeoResult(
-                        title="Model capabilities",
-                        description=description,
-                        keywords=["models"],
-                        og_description=description,
-                    ),
+                candidate = SeoCandidate(
+                    title="Model capabilities", description=description,
+                    keywords=["models", "capabilities", "writing", "tools", "comparison"],
+                    og_description=description,
                 )
+                response = replace(response, data=(
+                    response.data.model_copy(update={"seo": candidate})
+                    if schema is GeneratedArticleWithSeo else candidate
+                ))
             return response
 
     provider = RepairProvider()

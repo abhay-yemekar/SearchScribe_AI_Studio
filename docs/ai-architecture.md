@@ -26,14 +26,21 @@ Selection is config-driven (`AI_PROVIDER`), resolved through `get_provider()`. A
 - `PermanentLLMError` — auth failures, bad requests, blocked content. Never retried.
 - `SchemaValidationError` — provider answered but the payload failed Pydantic validation. Never retried blindly.
 
-**No silent fallbacks.** The original codebase returned fabricated placeholder articles when Gemini failed while reporting success. That is gone: a failed generation returns `502 GENERATION_FAILED` and records the failure. The only degradation is SEO → deterministic fallback metadata, which is clearly derived from real article content, not fabricated.
+An article provider failure returns `502 GENERATION_FAILED`; it never creates a
+placeholder article. A valid article is retained if its SEO cannot be completed.
+That degradation uses text from the article and carries a visible `needs_review`
+status. It does not claim the fallback is optimized or verified.
 
 ## Prompts
 
 Prompts are versioned files in `app/ai/prompts/` rendered with Jinja2 (strict undefined):
 
-- `article_generation_v1.md`
-- `seo_generation_v1.md`
+- Versioned article prompts include the actual query, current UTC date and
+  bounded untrusted research context. Normal generation returns article and SEO
+  together in one structured response.
+- A separate SEO prompt is used only for one targeted repair when the combined
+  response has missing, malformed or unsuitable metadata. This repair has no
+  retry loop; the valid article survives an unsuccessful repair.
 - `rewrite_v1.md` (style guidance injected from `app/ai/styles.py`)
 
 Every generation row records `prompt_name` + `prompt_version`, so AI behavior is reproducible and debuggable.
@@ -43,7 +50,9 @@ Every generation row records `prompt_name` + `prompt_version`, so AI behavior is
 The LLM returns structured JSON validated into Pydantic models:
 
 - `GeneratedArticle` — title, introduction, sections (heading/paragraphs/bullets), conclusion
-- `SeoResult` — title, description, keywords, OG fields
+- `SeoCandidate` — provider-written title, description, keywords and OG fields;
+  malformed SEO does not invalidate an otherwise valid article.
+- `SeoResult` — accepted or article-derived metadata with server-owned review status.
 
 Markdown (`to_markdown()`) and HTML are **derived deterministically** from the structure. The LLM never produces HTML.
 
@@ -60,7 +69,17 @@ GeneratedArticle + SeoResult
 
 ## SEO normalization
 
-`app/ai/validation.py` clamps LLM output into deterministic bounds: title ≤ 60 chars (word-boundary truncation), description ≤ 160, keywords lower-cased, deduplicated, capped at 12. Identical rules are surfaced in the frontend's length meters.
+Generated SEO is checked against product targets: titles at most 60 characters,
+descriptions at most 160 with a complete ending, and specific keywords. These
+are display targets, not search-engine hard limits or proof of semantic quality.
+Manual edits retain their separate validation bounds and visible length meters.
+
+Review state is stored in the existing version SEO snapshot, so no database
+migration is needed. `generated` means AI metadata passed structural checks,
+`needs_review` means generation degraded or article content changed, `edited`
+means the user changed SEO fields, and `unknown` covers legacy snapshots without
+recorded provenance. Restore and duplicate preserve the snapshot state. Clients
+and models cannot assign a trusted review state, and no state means fact-checked.
 
 ## Cost & observability
 

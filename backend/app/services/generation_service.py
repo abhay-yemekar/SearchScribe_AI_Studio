@@ -1,9 +1,9 @@
-"""Generation pipeline: query -> structured article -> SEO -> safe HTML -> persistence.
+"""Generation pipeline: query -> combined article/SEO -> safe HTML -> persistence.
 
 Failure policy: provider failures NEVER produce fake content. A failed article
 generation records a failed Generation row and raises ExternalServiceError.
-A failed SEO generation degrades to deterministic fallback metadata (status
-"partial" semantics live in the Generation rows, not the article).
+Missing or invalid SEO gets one repair. Repair failure keeps the valid article
+and derives editable metadata from its wording, visibly marked needs_review.
 """
 
 from __future__ import annotations
@@ -20,9 +20,15 @@ from ..ai.factory import get_provider
 from ..ai.renderer import _fallback_seo, render_article_html
 from ..ai.research import ResearchResult, needs_current_sources, retrieve_sources
 from ..ai.sanitizer import sanitize_document
-from ..ai.schemas import GeneratedArticle, ResearchSummary, SeoResult
+from ..ai.schemas import (
+    GeneratedArticle,
+    GeneratedArticleWithSeo,
+    ResearchSummary,
+    SeoCandidate,
+    SeoResult,
+)
 from ..ai.styles import get_style
-from ..ai.validation import normalize_seo, seo_descriptions_need_repair
+from ..ai.validation import validate_generated_seo
 from ..core.config import settings
 from ..core.exceptions import BadRequestError, ExternalServiceError
 from ..db.models import Article, User
@@ -110,14 +116,14 @@ class GenerationService:
             article_response = call_with_retry(
                 lambda: provider.generate(
                     "article_generation",
-                    "v2",
+                    "v3",
                     {
                         "topic": query,
                         "current_date": datetime.now(UTC).date().isoformat(),
                         "research_status": research.summary.status,
                         "research_context": research.context,
                     },
-                    GeneratedArticle,
+                    GeneratedArticleWithSeo,
                 ),
                 max_retries=settings.ai_max_retries,
             )
@@ -134,7 +140,7 @@ class GenerationService:
                 provider=getattr(provider, "name", "unknown"),
                 model=getattr(provider, "model", "unknown"),
                 prompt_name="article_generation",
-                prompt_version="v2",
+                prompt_version="v3",
                 status="failed",
                 error_code=type(exc).__name__,
             )
@@ -144,7 +150,9 @@ class GenerationService:
                 code="GENERATION_FAILED",
             ) from exc
 
-        generated: GeneratedArticle = article_response.data
+        generated = GeneratedArticle.model_validate(
+            article_response.data.model_dump(exclude={"seo"})
+        )
         self.generations.record(
             user_id=user.id,
             kind="article",
@@ -158,8 +166,10 @@ class GenerationService:
             latency_ms=article_response.latency_ms,
         )
 
-        # --- SEO (separate concern; degrades deterministically) ---
-        seo, seo_fallback_used = self._generate_seo(user, provider, generated)
+        # The normal path is one call. A valid article survives an invalid SEO answer.
+        seo, seo_fallback_used = self._resolve_seo(
+            user, provider, generated, article_response.data.seo
+        )
 
         # --- deterministic rendering + sanitization ---
         markdown = generated.to_markdown()
@@ -204,36 +214,26 @@ class GenerationService:
             seo_fallback_used=seo_fallback_used,
         )
 
-    def _generate_seo(
-        self, user: User, provider: LLMProvider, article: GeneratedArticle
+    def _resolve_seo(
+        self, user: User, provider: LLMProvider, article: GeneratedArticle,
+        candidate: SeoCandidate | None,
     ) -> tuple[SeoResult, bool]:
+        seo = validate_generated_seo(candidate)
+        if seo is not None:
+            return seo, False
         try:
-            seo_response = call_with_retry(
-                lambda: provider.generate(
-                    "seo_generation",
-                    "v2",
-                    {"title": article.title, "introduction": article.introduction},
-                    SeoResult,
-                ),
-                max_retries=settings.ai_max_retries,
+            # Exactly one targeted repair, including on transient errors; do not
+            # discard a good article or multiply requests to fix its metadata.
+            seo_response = provider.generate(
+                "seo_generation", "v3",
+                {"article_json": article.model_dump_json().replace(
+                    "<", "\\u003c"
+                ).replace(">", "\\u003e")},
+                SeoCandidate,
             )
-            repair_failed = False
-            if seo_descriptions_need_repair(seo_response.data):
-                try:
-                    seo_response = provider.generate(
-                        "seo_generation",
-                        "v2",
-                        {
-                            "title": article.title,
-                            "introduction": article.introduction,
-                            "repair": "The previous description was too long or incomplete. "
-                            "Write one complete sentence within 160 characters.",
-                        },
-                        SeoResult,
-                    )
-                except LLMError:
-                    # The original answer remains available for safe normalization.
-                    repair_failed = True
+            seo = validate_generated_seo(seo_response.data)
+            if seo is None:
+                raise SchemaValidationError("Repaired SEO did not meet product bounds")
         except LLMError as exc:
             self.generations.record(
                 user_id=user.id,
@@ -241,12 +241,12 @@ class GenerationService:
                 provider=getattr(provider, "name", "unknown"),
                 model=getattr(provider, "model", "unknown"),
                 prompt_name="seo_generation",
-                prompt_version="v2",
+                prompt_version="v3",
                 status="failed",
                 error_code=type(exc).__name__,
             )
             logger.warning("generation.seo_fallback", extra={"user_id": user.id})
-            return normalize_seo(_fallback_seo(article)), True
+            return _fallback_seo(article), True
 
         self.generations.record(
             user_id=user.id,
@@ -260,8 +260,7 @@ class GenerationService:
             output_tokens=seo_response.output_tokens,
             latency_ms=seo_response.latency_ms,
         )
-        fallback_used = repair_failed or seo_descriptions_need_repair(seo_response.data)
-        return normalize_seo(seo_response.data, fallback_title=article.title), fallback_used
+        return seo, False
 
     # ------------------------------------------------------------------
     # rewrite
@@ -349,6 +348,8 @@ class GenerationService:
 
         next_version = (latest.version or 0) + 1
         current_seo = self._seo_for(article)
+        if current_seo is not None:
+            current_seo.review_status = "needs_review"
         self.articles.add_version(
             article,
             version=next_version,

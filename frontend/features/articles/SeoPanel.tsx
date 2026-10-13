@@ -22,6 +22,48 @@ function LengthMeter({ value, limit }: { value: number; limit: number }) {
   );
 }
 
+function SeoReviewStatus({ seo, editing = false }: { seo: Seo; editing?: boolean }) {
+  const status = seo.review_status ?? "unknown";
+  const messages = {
+    generated: {
+      title: "AI draft — review before publishing",
+      description:
+        "Check the title, description, and keywords against the article before publishing.",
+    },
+    needs_review: {
+      title: "Needs review",
+      description:
+        "These details need another review: the article may have changed, or SEO generation could not complete. Edit the title, description, and keywords before publishing.",
+    },
+    edited: {
+      title: "Edited by you",
+      description:
+        "Your edits are saved. Check accuracy and search display before publishing.",
+    },
+    unknown: {
+      title: "Review SEO before publishing",
+      description:
+        "The source of this metadata is not recorded. Check the title, description, and keywords before publishing.",
+    },
+  };
+  const message = messages[status];
+
+  return (
+    <section
+      aria-label="SEO review status"
+      className="rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-slate-800"
+    >
+      <h3 className="font-semibold text-slate-900">{message.title}</h3>
+      <p className="mt-1 text-sm leading-relaxed">{message.description}</p>
+      {editing ? (
+        <p className="mt-2 text-xs text-slate-600">
+          This status applies to the saved version. Your changes have not been saved.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export default function SeoPanel({
   seo,
   saving,
@@ -78,6 +120,7 @@ export default function SeoPanel({
           });
         }}
       >
+        <SeoReviewStatus seo={seo} editing />
         <fieldset disabled={saving} className="space-y-5">
           <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
             <span className="flex items-center justify-between">
@@ -213,6 +256,7 @@ export default function SeoPanel({
 
   return (
     <div className="mx-auto max-w-3xl space-y-5 text-sm">
+      <SeoReviewStatus seo={seo} />
       <div className="flex justify-end">
         <button
           type="button"

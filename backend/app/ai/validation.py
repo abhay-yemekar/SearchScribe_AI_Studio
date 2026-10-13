@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from .schemas import SeoResult
+from .schemas import SeoCandidate, SeoResult
 
 TITLE_MAX = 60
 DESCRIPTION_MAX = 160
@@ -82,6 +82,55 @@ def seo_descriptions_need_repair(seo: SeoResult) -> bool:
     )
 
 
+def validate_generated_seo(candidate: SeoCandidate | None) -> SeoResult | None:
+    """Accept complete generated text without clipping or silently inventing it.
+
+    These deterministic checks cannot establish factual accuracy or good prose.
+    A rejected answer gets one provider repair, then a visible review state.
+    """
+    if candidate is None:
+        return None
+    title = " ".join((candidate.title or "").split())
+    description = " ".join((candidate.description or "").split())
+    og_title = " ".join((candidate.og_title or title).split())
+    og_description = " ".join((candidate.og_description or description).split())
+    keywords = list(dict.fromkeys(" ".join(k.split()).lower() for k in candidate.keywords))
+    if (
+        not title or len(title) > TITLE_MAX
+        or not og_title or len(og_title) > TITLE_MAX
+        or not description or len(description) > DESCRIPTION_MAX
+        or not _has_complete_ending(description)
+        or not og_description or len(og_description) > DESCRIPTION_MAX
+        or not _has_complete_ending(og_description)
+        or not 5 <= len(keywords) <= KEYWORDS_MAX
+        or any(not keyword or len(keyword) > 80 for keyword in keywords)
+    ):
+        return None
+    return SeoResult(
+        title=title, description=description, keywords=keywords,
+        og_title=og_title, og_description=og_description, review_status="generated",
+    )
+
+
+def fitting_first_sentence(text: str) -> str | None:
+    """Return an exact complete first sentence, or nothing; never manufacture prose."""
+    cleaned = " ".join(text.split())
+    if len(cleaned) <= DESCRIPTION_MAX and _has_complete_ending(cleaned):
+        return cleaned
+    for match in re.finditer(r'[.!?。！？।॥]+["\'”’)\]}]*', cleaned):  # noqa: RUF001
+        end = match.end()
+        punctuation = match.group().rstrip(_CLOSING_PUNCTUATION)
+        if punctuation[0] in ".!?" and end < len(cleaned) and not cleaned[end].isspace():
+            continue
+        candidate = cleaned[:end]
+        if _ends_with_abbreviation(candidate):
+            continue
+        return candidate if len(candidate) <= DESCRIPTION_MAX and _has_complete_ending(
+            candidate
+        ) else None
+    return None
+
+
 def complete_description(text: str, *, fallback_title: str) -> str:
     """Keep a fitting sentence, take its first complete sentence, or use a fallback.
 
@@ -137,4 +186,5 @@ def normalize_seo(seo: SeoResult, *, fallback_title: str | None = None) -> SeoRe
         ),
         canonical_url=seo.canonical_url,
         robots=seo.robots,
+        review_status=seo.review_status,
     )

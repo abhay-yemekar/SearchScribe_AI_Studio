@@ -15,7 +15,8 @@ changes the language, and decides what to publish.
 ## The writing journey
 
 1. **Start with a topic.** Generate a title, introduction, sections, conclusion,
-   and SEO metadata through the configured Gemini provider.
+   and SEO metadata together through the configured Gemini provider. Review
+   status identifies AI drafts, metadata needing review, and your saved SEO edits.
 2. **Shape the article.** Edit the structured content and SEO fields. Save a new
    version; stale edits are rejected rather than silently overwriting newer work.
    Unsaved changes are marked, with keep/discard prompts before leaving the draft.

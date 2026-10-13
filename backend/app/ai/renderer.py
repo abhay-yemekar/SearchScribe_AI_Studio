@@ -7,10 +7,12 @@ construction (sanitizer runs afterwards as defense in depth).
 
 from __future__ import annotations
 
+import re
+
 from jinja2 import Environment, StrictUndefined, select_autoescape
 
 from .schemas import GeneratedArticle, SeoResult
-from .validation import complete_description, normalize_seo
+from .validation import DESCRIPTION_MAX, TITLE_MAX, _truncate, fitting_first_sentence
 
 _env = Environment(
     autoescape=select_autoescape(default=True), trim_blocks=True, undefined=StrictUndefined
@@ -82,12 +84,26 @@ ARTICLE_PAGE_TEMPLATE = _env.from_string(
 
 
 def _fallback_seo(article: GeneratedArticle) -> SeoResult:
-    """Use a complete introduction sentence or honest topic-based metadata."""
-    description = complete_description(article.introduction, fallback_title=article.title)
-    first_word = article.title.split()[0] if article.title.split() else "article"
-    return normalize_seo(
-        SeoResult(title=article.title, description=description, keywords=[first_word]),
-        fallback_title=article.title,
+    """Keep existing article wording, visibly pending review; never canned copy."""
+    passages = [article.introduction]
+    for section in article.sections:
+        passages.extend(section.paragraphs)
+    passages.append(article.conclusion)
+    description = next(
+        (sentence for passage in passages if (sentence := fitting_first_sentence(
+            re.sub(r"\[S\d+(?:,\s*S\d+)*\]", "", passage)
+        )) is not None),
+        _truncate(article.title, DESCRIPTION_MAX),
+    )
+    # Titles/headings are useful editable seeds; extraction is not keyword research.
+    keywords = list(dict.fromkeys(
+        _truncate(text, 80).lower()
+        for text in [article.title, *[section.heading for section in article.sections]]
+    ))[:5]
+    return SeoResult(
+        title=_truncate(article.title, TITLE_MAX), description=description,
+        keywords=keywords, og_title=_truncate(article.title, TITLE_MAX),
+        og_description=description, review_status="needs_review",
     )
 
 

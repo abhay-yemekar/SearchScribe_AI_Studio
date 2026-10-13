@@ -170,8 +170,8 @@ def test_open_graph_description_is_checked_and_repaired_separately() -> None:
 def test_renderer_fallback_handles_intro_over_schema_limit_without_clipping() -> None:
     result = _fallback_seo(article("Explore " + "practical model capabilities " * 25 + "today."))
     assert len(result.description) <= 160
-    assert "Claude 3.5 guide" in result.description
-    assert result.description.endswith("key points.")
+    assert result.description == "An overview."
+    assert result.review_status == "needs_review"
 
 
 def test_manual_seo_export_retains_a_description_above_generation_target() -> None:

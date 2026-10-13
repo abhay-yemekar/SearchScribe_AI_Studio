@@ -56,6 +56,12 @@ return a password or automatically issue a new session.
 
 `ArticleDetailOut`:
 
+`seo.review_status` is server-owned: `generated`, `needs_review`, `edited`, or
+`unknown` for legacy snapshots. It records provenance/review needs, not factual
+verification. It survives reload, duplication and version restoration. Changing
+article content marks retained SEO for review; changing SEO fields records an
+editorial edit. Sending a status in a save request cannot promote it.
+
 ```json
 {
   "id": 1,
@@ -80,7 +86,8 @@ return a password or automatically issue a new session.
     "og_title": "...",
     "og_description": "...",
     "canonical_url": null,
-    "robots": "index, follow"
+    "robots": "index, follow",
+    "review_status": "generated"
   },
   "created_at": "2026-08-21T10:00:00",
   "updated_at": "2026-08-21T10:05:00"

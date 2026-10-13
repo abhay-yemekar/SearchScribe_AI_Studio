@@ -10,7 +10,9 @@ from typing import Literal
 from urllib.parse import quote, urlsplit
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
+
+SeoReviewStatus = Literal["generated", "needs_review", "edited", "unknown"]
 
 
 class ResearchSource(BaseModel):
@@ -167,6 +169,8 @@ class SeoResult(BaseModel):
     og_description: str | None = None
     canonical_url: str | None = None
     robots: str = "index, follow"
+    # Server-owned quality state, stored in an immutable version snapshot.
+    review_status: SeoReviewStatus = "unknown"
 
     @field_validator("keywords")
     @classmethod
@@ -175,3 +179,33 @@ class SeoResult(BaseModel):
         if not cleaned:
             raise ValueError("at least one keyword required")
         return cleaned
+
+
+class SeoCandidate(BaseModel):
+    """Permissive provider text; product bounds are checked before acceptance.
+
+    A malformed SEO answer must not invalidate a useful, valid article. Status
+    and publication controls are deliberately absent from the provider schema.
+    """
+
+    title: str | None = None
+    description: str | None = None
+    keywords: list[str] = Field(default_factory=list)
+    og_title: str | None = None
+    og_description: str | None = None
+
+
+class GeneratedArticleWithSeo(GeneratedArticle):
+    """One structured response, with article validation independent of SEO."""
+
+    seo: SeoCandidate | None = None
+
+    @field_validator("seo", mode="before")
+    @classmethod
+    def retain_article_when_seo_is_malformed(cls, value: object) -> SeoCandidate | None:
+        if value is None:
+            return None
+        try:
+            return SeoCandidate.model_validate(value)
+        except ValidationError:
+            return None
