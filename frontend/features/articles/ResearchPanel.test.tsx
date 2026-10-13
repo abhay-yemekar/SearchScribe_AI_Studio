@@ -25,6 +25,7 @@ describe("ResearchPanel", () => {
       "does not guarantee complete coverage or confirm the latest social post",
     );
     const link = within(panel).getByRole("link", { name: "Growing herbs" });
+    expect(within(panel).getByText("[source-1]", { exact: true })).toBeVisible();
     expect(link).toHaveAttribute("href", sourced.sources[0].url);
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");

@@ -62,6 +62,9 @@ export default function ResearchPanel({
             const published = displayDate(source.published_at);
             return (
               <li key={source.id} className="min-w-0 break-words">
+                <span className="mr-2 font-mono text-xs text-slate-500">
+                  [{source.id}]
+                </span>
                 {href ? (
                   <a
                     href={href}
