@@ -2,7 +2,7 @@
 
 ![SearchScribe AI — Start with a thought. Leave with a draft.](frontend/public/brand/open-graph.png)
 
-**An open-source writing studio. Turn a topic into a structured draft, make it your own, and export HTML.**
+**An open-source writing studio. Turn a topic into a structured draft, make it your own, and export HTML or Markdown.**
 
 [Try the website](https://searchscribe-ai.vercel.app/) · [How it works](https://searchscribe-ai.vercel.app/how-it-works) · [Contribute](CONTRIBUTING.md) · [MIT license](LICENSE)
 
@@ -18,11 +18,13 @@ changes the language, and decides what to publish.
    and SEO metadata through the configured Gemini provider.
 2. **Shape the article.** Edit the structured content and SEO fields. Save a new
    version; stale edits are rejected rather than silently overwriting newer work.
+   Unsaved changes are marked, with keep/discard prompts before leaving the draft.
 3. **Try another voice.** Rewrite in Professional, Casual, Gen Z, Technical,
    Marketing, or Minimal style.
 4. **Keep your history.** Inspect and restore saved versions. Restoration creates
    another version instead of erasing the intervening work.
-5. **Take the result with you.** Preview and download standalone, sanitized HTML.
+5. **Take the result with you.** Download standalone, sanitized HTML or editable
+   Markdown from the saved version, with its research status and source links.
 
 The public website explains the product before login. `/dashboard` is the writing
 workspace; `/account` manages sign-in connections. Password signup and login remain
@@ -50,15 +52,19 @@ and [workspace](screenshots/redesign-workspace.png).
 
 This is a **free, noncommercial beta in progress**, not a completed public release.
 The deployed password journey has been checked through real generation, editing,
-version restoration, and HTML export. Google sign-in is deployed; real-identity
-login and explicit account-linking acceptance checks remain pending. Matching
-emails do not silently merge accounts.
+version restoration, and HTML export. Real Google login, adding a password to the
+same Google account, article retention, email verification, and notification
+delivery have been verified. Explicit password-to-Google linking and the complete
+live password-reset journey remain acceptance gates. Matching emails do not
+silently merge accounts.
 
-The following are **not shipped**: password-reset emails, email verification,
-research citations, photo suggestions, Markdown download, persistent daily AI
-quotas, and provider fallback. Backup restore and deployment rollback rehearsals
-also remain release gates. Follow the [launch plan](docs/launch-plan.md) for scope
-and acceptance criteria. AI drafts need human review before publication.
+Recovery emails and password management are implemented and deployed; direct
+token-bearing email links remain disabled pending complete tracking opt-out.
+Research currently retrieves bounded official model documentation; general web
+research, photo suggestions, persistent daily AI quotas, and provider fallback
+remain unfinished. Backup restore and deployment rollback rehearsals also remain
+release gates. Follow the [launch plan](docs/launch-plan.md) for scope and acceptance
+criteria. AI drafts need human review before publication.
 
 ## Run it locally
 

@@ -4,7 +4,7 @@ import PageHeading from "@/components/marketing/PageHeading";
 
 export const metadata: Metadata = {
   title: "How it works | SearchScribe",
-  description: "From your topic to an editable article and HTML export.",
+  description: "From your topic to an editable article and HTML or Markdown export.",
 };
 
 const steps = [
@@ -26,7 +26,7 @@ const steps = [
   [
     "04",
     "Review and export",
-    "Restore an earlier version if you need to. Preview and download sanitized HTML for publication elsewhere.",
+    "Restore an earlier version if you need to. Download saved HTML or Markdown with its source links for publication elsewhere.",
   ],
 ];
 

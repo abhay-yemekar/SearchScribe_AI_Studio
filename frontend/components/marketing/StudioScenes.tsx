@@ -86,7 +86,8 @@ const steps = [
   {
     name: "Export",
     title: "Take it with you.",
-    detail: "Preview and download sanitized HTML. Publish through your own workflow.",
+    detail:
+      "Export HTML or Markdown with source links. Publish through your own workflow.",
   },
 ];
 

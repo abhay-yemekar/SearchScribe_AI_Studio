@@ -33,8 +33,18 @@ must be designed alongside the successful flow.
 - [ ] Account recovery and email: forgot/reset password, verified email, safe
       transactional delivery, persistent send limits, and inbox verification.
       Setup instructions and sender constraints: [auth-setup.md](auth-setup.md).
+      Recovery and password management shipped in PRs #16–20; real verification,
+      Google-to-password addition and notice delivery are verified. Untracked
+      direct links, full reset acceptance and mobile email rendering remain open.
+- [x] Writing workflow: visible unsaved-edit status, keep/discard protection,
+      in-memory draft retention across workspace navigation, and Markdown export
+      from saved versions with source links and provenance.
 - [ ] Research: bounded search, traceable source IDs, citations, and an explicit
       unresearched mode when search fails. Treat retrieved text as untrusted input.
+      Next priority: replace topic-specific source catalogs with dynamic retrieval
+      for any topic, including dated news. Show missing configuration, unavailable
+      search and insufficient evidence distinctly; do not claim a post is the
+      latest without evidence of its original timestamp and search coverage.
       PR #14 implements the first increment: bounded official Claude, Gemini and
       OpenAI model documentation, source snapshots preserved in versions/HTML,
       and failure for timely queries without sources. General web search remains

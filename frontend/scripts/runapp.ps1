@@ -22,7 +22,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $taskBackend 'app/main.py'))) {
 }
 if ($DryRun) {
     Write-Output "Website: $taskWebUrl | API: $taskApiUrl"
-    Write-Output 'Fresh start: mock AI, local auth, Google disabled, backend/codex_runapp_preview.db.'
+    Write-Output 'Fresh start: mock AI, local auth, Google and email disabled, backend/codex_runapp_preview.db.'
     Write-Output 'Dry run: no processes, files, port inspection, or browser actions.'
     return
 }
@@ -112,6 +112,8 @@ if (-not $taskApiOwner) {
         AI_PROVIDER = 'mock'
         GOOGLE_CLIENT_ID = ''
         GEMINI_API_KEY = ''
+        MAIL_PROVIDER = 'disabled'
+        BREVO_API_KEY = ''
         DATABASE_URL = 'sqlite:///' + (Join-Path $taskBackend 'codex_runapp_preview.db').Replace('\', '/')
         SECRET_KEY = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
         CORS_ORIGINS = "$taskWebUrl,http://127.0.0.1:$WebPort"

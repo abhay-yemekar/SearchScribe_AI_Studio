@@ -20,6 +20,8 @@ export default function ArticleSidebar({
   onDelete,
   mobileOpen = false,
   onClose,
+  disabled = false,
+  onHomeNavigate,
 }: {
   articles: ArticleListItem[];
   loading: boolean;
@@ -33,6 +35,8 @@ export default function ArticleSidebar({
   onDelete: (id: number) => void;
   mobileOpen?: boolean;
   onClose?: () => void;
+  disabled?: boolean;
+  onHomeNavigate?: (event: { preventDefault: () => void }) => void;
 }) {
   const sidebarRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -69,7 +73,13 @@ export default function ArticleSidebar({
       className={`studio-sidebar ${mobileOpen ? "fixed inset-y-0 left-0 z-40 flex" : "hidden"} w-72 max-w-[85vw] shrink-0 flex-col border-r border-stone-200 bg-[#e9eced] p-5 text-[#17252b] shadow-2xl md:static md:z-auto md:flex md:max-w-none md:shadow-none`}
     >
       <div className="mb-4 flex items-center justify-between gap-2">
-        <Link href="/" aria-label="SearchScribe home" className="rounded-sm">
+        <Link
+          href="/"
+          onNavigate={onHomeNavigate}
+          aria-disabled={disabled}
+          aria-label="SearchScribe home"
+          className="rounded-sm"
+        >
           <BrandLogo className="text-[#17252b]" />
         </Link>
         <button
@@ -86,6 +96,7 @@ export default function ArticleSidebar({
       <button
         type="button"
         onClick={onNewArticle}
+        disabled={disabled}
         className="studio-primary-action mb-2 flex w-full items-center justify-center gap-2 rounded-lg bg-[#e0f06b] py-3 text-sm font-semibold text-[#17252b] transition-colors hover:bg-[#d3e458]"
       >
         <FilePlus2 aria-hidden className="h-4 w-4" /> New article
@@ -114,6 +125,7 @@ export default function ArticleSidebar({
                   <button
                     type="button"
                     onClick={() => onSelect(article.id)}
+                    disabled={disabled}
                     aria-current={isSelected ? "true" : undefined}
                     className={`w-full rounded-md px-2 py-2 text-left transition-colors ${
                       isSelected
@@ -141,7 +153,7 @@ export default function ArticleSidebar({
                   <button
                     type="button"
                     aria-label={`Delete ${article.title}`}
-                    disabled={deletingId === article.id}
+                    disabled={disabled || deletingId === article.id}
                     onClick={() => onDelete(article.id)}
                     className="absolute right-1.5 top-1.5 block rounded p-1 text-slate-500 transition-colors hover:bg-rose-100 hover:text-rose-700 md:hidden md:group-hover:block md:focus-visible:block"
                   >

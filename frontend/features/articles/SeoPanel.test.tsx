@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SeoPanel from "./SeoPanel";
 
@@ -15,6 +15,22 @@ const seo = {
 };
 
 describe("SeoPanel", () => {
+  beforeEach(() => {
+    Object.defineProperties(HTMLDialogElement.prototype, {
+      showModal: {
+        configurable: true,
+        value: vi.fn(function (this: HTMLDialogElement) {
+          this.setAttribute("open", "");
+        }),
+      },
+      close: {
+        configurable: true,
+        value: vi.fn(function (this: HTMLDialogElement) {
+          this.removeAttribute("open");
+        }),
+      },
+    });
+  });
   it("saves trimmed editable metadata without mutating the loaded snapshot", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
@@ -23,12 +39,13 @@ describe("SeoPanel", () => {
     await user.click(screen.getByRole("button", { name: /edit seo/i }));
     const title = screen.getByLabelText(/seo title/i);
     await user.clear(title);
-    await user.type(title, "A better Kerala guide");
+    await user.paste("A better Kerala guide");
     const keywords = screen.getByLabelText(/keywords/i);
     await user.clear(keywords);
-    await user.type(keywords, " kerala, backwaters ");
+    await user.paste(" kerala, backwaters ");
     const canonical = screen.getByLabelText(/canonical url/i);
-    await user.type(canonical, "https://example.com/kerala ");
+    await user.click(canonical);
+    await user.paste("https://example.com/kerala ");
     await user.click(screen.getByRole("button", { name: /save version/i }));
 
     expect(onSave).toHaveBeenCalledWith(
@@ -47,9 +64,34 @@ describe("SeoPanel", () => {
 
     await user.click(screen.getByRole("button", { name: /edit seo/i }));
     await user.clear(screen.getByLabelText(/seo title/i));
-    await user.type(screen.getByLabelText(/seo title/i), "Discard this");
+    await user.paste("Discard this");
     await user.click(screen.getByRole("button", { name: /cancel/i }));
-
+    expect(
+      screen.getByRole("dialog", { name: "Discard unsaved changes?" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    await screen.findByRole("button", { name: "Edit SEO" });
     expect(screen.getAllByText("Kerala travel guide")).toHaveLength(2);
+  });
+
+  it("retains SEO edits and original snapshot when a failed save races a query refresh", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockRejectedValue(new Error("Version conflict"));
+    const view = render(<SeoPanel seo={seo} saving={false} onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: /edit seo/i }));
+    await user.click(screen.getByLabelText(/seo title/i));
+    await user.paste(" changed");
+    view.rerender(
+      <SeoPanel
+        seo={{ ...seo, description: "New server SEO" }}
+        saving={false}
+        onSave={onSave}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /save version/i }));
+    expect(screen.getByLabelText(/seo title/i)).toHaveValue(
+      "Kerala travel guide changed",
+    );
+    expect(screen.getByLabelText(/meta description/i)).toHaveValue(seo.description);
   });
 });

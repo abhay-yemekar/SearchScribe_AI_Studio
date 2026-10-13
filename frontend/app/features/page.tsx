@@ -14,16 +14,23 @@ const available = [
   ],
   [
     "Structured editing",
-    "Edit article content and SEO title, description, and keywords.",
+    "Edit article content and SEO fields, with visible unsaved changes and keep/discard protection.",
   ],
   [
     "Rewrites and history",
     "Apply a rewrite style, save versions, and restore an earlier draft.",
   ],
-  ["HTML export", "Preview and download sanitized HTML to publish in your own workflow."],
+  [
+    "HTML and Markdown export",
+    "Download the saved article with its research status and source links.",
+  ],
   [
     "Password and Google sign-in",
     "Enter your workspace using a password or Google. Existing password accounts link Google explicitly from Account.",
+  ],
+  [
+    "Account security",
+    "Verify your email, request password recovery, or add and change a password from Account.",
   ],
 ];
 const planned = [
@@ -36,12 +43,8 @@ const planned = [
     "Choose hero and section images with photographer credit, source links, and alt text.",
   ],
   [
-    "Account recovery",
-    "Password resets, email verification, and tested transactional delivery.",
-  ],
-  [
     "Reliability controls",
-    "Daily quotas, idempotent generation, provider fallback, and Markdown export.",
+    "Daily quotas, idempotent generation, and bounded provider fallback.",
   ],
 ];
 
