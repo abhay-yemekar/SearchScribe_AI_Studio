@@ -58,12 +58,22 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     # --- AI provider ---
-    ai_provider: Literal["gemini", "mock"] = "gemini"
-    ai_model: str = "gemini-2.5-flash"
-    gemini_api_key: str = ""
-    ai_timeout_seconds: int = 60
-    ai_max_retries: int = 2
-    ai_max_output_tokens: int = 8192
+    ai_provider: Literal["gemini", "groq", "mock"] = "gemini"
+    ai_model: str = Field(default="gemini-2.5-flash", min_length=1, max_length=60)
+    gemini_api_key: str = Field(default="", repr=False)
+    ai_timeout_seconds: int = Field(default=60, ge=1, le=120)
+    ai_operation_timeout_seconds: int = Field(default=100, ge=10, le=180)
+    ai_max_retries: int = Field(default=2, ge=0, le=2)
+    ai_max_output_tokens: int = Field(default=8192, ge=128, le=16384)
+    # Both fields are blank by default. A fallback never enables itself.
+    ai_fallback_provider: Literal["", "gemini", "groq"] = ""
+    ai_fallback_model: str = Field(default="", max_length=60)
+    groq_api_key: str = Field(default="", repr=False)
+    groq_max_output_tokens: int = Field(default=2048, ge=128, le=8192)
+    groq_max_input_chars: int = Field(default=20000, ge=2000, le=32000)
+    groq_max_response_bytes: int = Field(default=512000, ge=16384, le=512000)
+    groq_reasoning_effort: Literal["", "none", "low", "medium", "high"] = ""
+    groq_json_mode: Literal["json_schema", "json_object"] = "json_schema"
 
     # --- Bounded web research (a key enables search; mock AI remains offline) ---
     tavily_api_key: str = Field(default="", repr=False)
@@ -88,6 +98,35 @@ class Settings(BaseSettings):
     @classmethod
     def _normalize_database_url(cls, value: str) -> str:
         return normalize_database_url(value)
+
+    @field_validator("ai_model", "ai_fallback_model")
+    @classmethod
+    def _validate_model_id(cls, value: str) -> str:
+        value = value.strip()
+        if any(character.isspace() or ord(character) < 32 for character in value):
+            raise ValueError("AI model IDs must not contain whitespace or control characters")
+        return value
+
+    @model_validator(mode="after")
+    def _validate_fallback(self) -> Settings:
+        if not self.ai_model:
+            raise ValueError("AI_MODEL must not be blank")
+        self.gemini_api_key = self.gemini_api_key.strip()
+        self.groq_api_key = self.groq_api_key.strip()
+        if bool(self.ai_fallback_provider) != bool(self.ai_fallback_model):
+            raise ValueError("AI_FALLBACK_PROVIDER and AI_FALLBACK_MODEL must be set together")
+        if self.ai_fallback_provider:
+            if self.ai_provider == "mock":
+                raise ValueError("Mock AI must remain offline; fallback cannot be configured")
+            if (
+                self.ai_fallback_provider == self.ai_provider
+                and self.ai_fallback_model == self.ai_model
+            ):
+                raise ValueError("AI fallback must select a different provider or model")
+            key = self.groq_api_key if self.ai_fallback_provider == "groq" else self.gemini_api_key
+            if not key.strip():
+                raise ValueError("The configured AI fallback requires its provider API key")
+        return self
 
     @field_validator("public_site_url")
     @classmethod

@@ -17,6 +17,9 @@ logger = logging.getLogger(__name__)
 class LLMError(Exception):
     """Base class for provider failures."""
 
+    provider: str | None = None
+    model: str | None = None
+
 
 class TransientLLMError(LLMError):
     """Retryable failure (timeout, 429, 5xx)."""
@@ -28,6 +31,10 @@ class PermanentLLMError(LLMError):
 
 class SchemaValidationError(LLMError):
     """Provider answered but the payload failed schema validation."""
+
+
+class DeadlineExceededLLMError(TransientLLMError):
+    """The operation or reserved primary-provider budget has been spent."""
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -72,6 +79,9 @@ def call_with_retry[R](
     """
     last_error: Exception | None = None
     for attempt in range(max_retries + 1):
+        from .budget import effective_timeout_seconds
+
+        effective_timeout_seconds()
         try:
             return fn()
         except TransientLLMError as exc:
@@ -79,6 +89,8 @@ def call_with_retry[R](
             if attempt >= max_retries:
                 break
             delay = base_delay_seconds * (2**attempt) + random.uniform(0, 0.25)  # noqa: S311 - jitter only, not crypto
+            if delay >= effective_timeout_seconds():
+                raise DeadlineExceededLLMError("AI operation deadline exhausted") from None
             logger.warning(
                 "llm.transient_retry",
                 extra={"attempt": attempt + 1, "delay_s": round(delay, 2)},

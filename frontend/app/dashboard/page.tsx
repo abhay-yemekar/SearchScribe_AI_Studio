@@ -409,8 +409,8 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
         }}
       />
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-6 overflow-y-auto px-4 py-5 sm:px-8 sm:py-8 lg:px-12">
-        <header className="flex flex-col gap-4 border-b border-stone-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
+        <header className="flex flex-col gap-3 border-b border-stone-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <button
               ref={navButtonRef}
@@ -424,10 +424,10 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
               <Menu aria-hidden className="h-5 w-5" />
             </button>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+              <p className={`${selectedId !== null ? "sr-only" : ""} text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500`}>
                 Your writing desk
               </p>
-              <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
+              <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
                 Article workspace
               </h1>
             </div>
@@ -468,10 +468,10 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
         </header>
 
         {/* Query + generate */}
-        <div className="studio-panel rounded-xl border border-stone-200 bg-white p-4 sm:p-6">
+        <div className={`studio-panel rounded-xl border border-stone-200 bg-white ${selectedId !== null ? "p-3" : "p-4 sm:p-6"}`}>
           <label
             htmlFor="topic"
-            className="mb-2 block text-sm font-semibold text-slate-800"
+            className={selectedId !== null ? "sr-only" : "mb-2 block text-sm font-semibold text-slate-800"}
           >
             What would you like to write about?
           </label>
@@ -506,7 +506,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
               {generate.isPending ? "Generating…" : "Generate"}
             </button>
           </div>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className={`${selectedId !== null ? "sr-only" : "mt-2"} text-xs text-slate-500`}>
             Tip: press <kbd className="rounded bg-stone-100 px-1">Ctrl</kbd>+
             <kbd className="rounded bg-stone-100 px-1">Enter</kbd> to generate.
           </p>
@@ -578,11 +578,10 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
         ) : selectedQuery.isError ? (
           <ErrorBanner message={(selectedQuery.error as Error).message} />
         ) : detail ? (
-          <div className="flex min-h-[32rem] flex-auto shrink-0 flex-col gap-4">
-            <ResearchPanel key={detail.id} research={detail.content.research} />
+          <div className="flex min-h-[32rem] flex-auto shrink-0 flex-col gap-3">
             {/* Title + actions */}
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="w-full min-w-0 px-1 py-1 font-serif text-2xl font-semibold leading-tight sm:text-3xl">
+              <h2 className="w-full min-w-0 py-1 text-xl font-semibold leading-tight tracking-tight sm:text-2xl">
                 {detail.title}
               </h2>
               <button
@@ -631,6 +630,15 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
                   {rewrite.isPending ? "Rewriting…" : "Rewrite"}
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={() => requestAction(() => setActiveTab("sources"))}
+                className="ml-auto rounded-full border border-stone-200 px-3 py-1 text-xs text-slate-600 hover:border-teal-600 hover:text-teal-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-700"
+              >
+                {detail.content.research?.status === "sources_retrieved"
+                  ? `${detail.content.research.sources.length} sources`
+                  : "Unresearched draft"}
+              </button>
             </div>
 
             <Tabs
@@ -719,6 +727,11 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
                       onDownload={dirty || busy ? undefined : downloadHtml}
                     />
                   ),
+                },
+                {
+                  key: "sources",
+                  label: "Sources",
+                  content: <ResearchPanel key={detail.id} research={detail.content.research} expanded />,
                 },
                 {
                   key: "versions",

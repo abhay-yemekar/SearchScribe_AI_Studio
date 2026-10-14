@@ -14,6 +14,7 @@ import httpx
 from pydantic import ValidationError
 
 from ..core.config import settings
+from .budget import remaining_operation_seconds
 from .schemas import ResearchSource, ResearchSummary
 
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
@@ -94,9 +95,12 @@ async def _search(
             "filter_by_published_date": True,
         }
     # One basic request, no automatic cost expansion, no redirects and no URL tools.
-    async with asyncio.timeout(settings.research_timeout_seconds):
+    timeout_seconds = min(settings.research_timeout_seconds, remaining_operation_seconds())
+    if timeout_seconds <= 0:
+        raise TimeoutError("Research operation deadline exhausted")
+    async with asyncio.timeout(timeout_seconds):
         async with httpx.AsyncClient(
-            timeout=httpx.Timeout(settings.research_timeout_seconds, connect=3.0),
+            timeout=httpx.Timeout(timeout_seconds, connect=min(3.0, timeout_seconds)),
             follow_redirects=False,
             trust_env=False,
         ) as client:

@@ -236,13 +236,11 @@ def test_gemini_structured_generation_disables_unused_function_calling(monkeypat
         title="A complete title", description="A complete description.", keywords=["writing"],
     )
 
-    def generate_content(**kwargs):
+    async def generate_content(**kwargs):
         configs.append(kwargs["config"])
         return SimpleNamespace(text=payload.model_dump_json(), usage_metadata=None)
 
-    monkeypatch.setattr(gemini, "_get_client", lambda: SimpleNamespace(
-        models=SimpleNamespace(generate_content=generate_content),
-    ))
+    monkeypatch.setattr(gemini, "_generate_content", generate_content)
     result = gemini.GeminiProvider().generate(
         "seo_generation", "v1", {"title": "T", "introduction": "I"}, SeoResult,
     )

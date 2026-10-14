@@ -39,12 +39,14 @@ export default function PrivacyPage() {
           <p className="mt-3 leading-8 text-slate-600">
             A short-lived access token and an HttpOnly refresh cookie keep you signed in.
             When you request generation or a rewrite, your topic or article content is
-            sent to Google Gemini, the configured AI provider. Avoid entering sensitive
-            personal or confidential information.
+            sent to the configured AI provider. Google Gemini is the primary service;
+            Groq can process the same request if an optional fallback is enabled and the
+            primary service is unavailable. Avoid entering sensitive personal or
+            confidential information.
           </p>
           <p className="mt-3 leading-8 text-slate-600">
             For web research, Tavily receives your search topic. Source excerpts are
-            passed to Gemini to help write the draft; source links and research dates are
+            passed to the selected AI provider to help write the draft; source links and research dates are
             saved with your article versions and exports. Search results do not establish
             that every claim is correct or that coverage is complete.
           </p>

@@ -126,3 +126,25 @@ test("login fits a short desktop and validation remains reachable by scrolling",
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBe(true);
 });
+
+
+
+test("shows the login form while a slow session check is pending", async ({ page }) => {
+  let releaseRefresh!: () => void;
+  const pendingRefresh = new Promise<void>((resolve) => { releaseRefresh = resolve; });
+  await page.route("**/api/v1/auth/refresh", async (route) => {
+    await pendingRefresh;
+    await route.fulfill({ status: 401, json: { error: { code: "AUTHENTICATION_REQUIRED" } } });
+  });
+  try {
+    await page.goto("/login");
+    await expect(page.getByLabel("Email", { exact: true })).toBeVisible();
+    await page.getByLabel("Email", { exact: true }).fill("reader@example.com");
+    await expect(page.getByRole("status")).toContainText("Checking your session");
+    await expect(page.getByRole("button", { name: "Login", exact: true })).toBeDisabled();
+  } finally {
+    releaseRefresh();
+  }
+  await expect(page.getByRole("button", { name: "Login", exact: true })).toBeEnabled();
+  await expect(page.getByLabel("Email", { exact: true })).toHaveValue("reader@example.com");
+});

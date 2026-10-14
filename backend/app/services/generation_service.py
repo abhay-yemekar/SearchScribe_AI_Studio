@@ -15,10 +15,12 @@ from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
-from ..ai.base import LLMError, LLMProvider, SchemaValidationError, call_with_retry
+from ..ai.base import LLMError, LLMProvider, SchemaValidationError
+from ..ai.budget import effective_timeout_seconds, within_operation_budget
 from ..ai.factory import get_provider
 from ..ai.renderer import _fallback_seo, render_article_html
 from ..ai.research import ResearchResult, needs_current_sources, retrieve_sources
+from ..ai.routing import call_with_fallback
 from ..ai.sanitizer import sanitize_document
 from ..ai.schemas import (
     GeneratedArticle,
@@ -39,7 +41,9 @@ logger = logging.getLogger(__name__)
 
 
 def _claimed_source_ids(article: GeneratedArticle) -> set[str]:
-    brackets = re.findall(r"\[[^\]\n]*\]", article.to_markdown())
+    # A generated Sources appendix is not evidence that the body attributes claims.
+    body = article.model_copy(update={"research": ResearchSummary()}).to_markdown()
+    brackets = re.findall(r"\[[^\]\n]*\]", body)
     return {source_id for bracket in brackets for source_id in re.findall(r"\bS\d+\b", bracket)}
 
 
@@ -61,6 +65,7 @@ class GenerationService:
     # ------------------------------------------------------------------
     # article + SEO generation
     # ------------------------------------------------------------------
+    @within_operation_budget
     def generate_article(self, user: User, query: str) -> GenerationOutcome:
         query = query.strip()
         if not query:
@@ -112,33 +117,36 @@ class GenerationService:
             )
 
         # --- article ---
+        generation_variables = {
+            "topic": query,
+            "current_date": datetime.now(UTC).date().isoformat(),
+            "research_status": research.summary.status,
+            "research_context": research.context,
+        }
         try:
-            article_response = call_with_retry(
-                lambda: provider.generate(
+            article_response, selected_provider = call_with_fallback(
+                provider, lambda selected: (selected.generate(
                     "article_generation",
                     "v3",
-                    {
-                        "topic": query,
-                        "current_date": datetime.now(UTC).date().isoformat(),
-                        "research_status": research.summary.status,
-                        "research_context": research.context,
-                    },
+                    generation_variables,
                     GeneratedArticleWithSeo,
-                ),
-                max_retries=settings.ai_max_retries,
+                ), selected),
             )
             # Discard model-provided metadata before inspecting the actual draft.
             article_response.data.research = research.summary
             source_ids = {source.id for source in research.summary.sources}
             claimed_ids = _claimed_source_ids(article_response.data)
-            if not claimed_ids.issubset(source_ids):
-                raise SchemaValidationError("Article contains an unsupported citation")
+            if not claimed_ids.issubset(source_ids) or (source_ids and not claimed_ids):
+                failure = SchemaValidationError("Article citations are missing or unsupported")
+                failure.provider = article_response.provider
+                failure.model = article_response.model
+                raise failure
         except LLMError as exc:
             self.generations.record(
                 user_id=user.id,
                 kind="article",
-                provider=getattr(provider, "name", "unknown"),
-                model=getattr(provider, "model", "unknown"),
+                provider=exc.provider or provider.name,
+                model=exc.model or provider.model,
                 prompt_name="article_generation",
                 prompt_version="v3",
                 status="failed",
@@ -168,7 +176,7 @@ class GenerationService:
 
         # The normal path is one call. A valid article survives an invalid SEO answer.
         seo, seo_fallback_used = self._resolve_seo(
-            user, provider, generated, article_response.data.seo
+            user, selected_provider, generated, article_response.data.seo
         )
 
         # --- deterministic rendering + sanitization ---
@@ -224,6 +232,7 @@ class GenerationService:
         try:
             # Exactly one targeted repair, including on transient errors; do not
             # discard a good article or multiply requests to fix its metadata.
+            effective_timeout_seconds()
             seo_response = provider.generate(
                 "seo_generation", "v3",
                 {"article_json": article.model_dump_json().replace(
@@ -265,6 +274,7 @@ class GenerationService:
     # ------------------------------------------------------------------
     # rewrite
     # ------------------------------------------------------------------
+    @within_operation_budget
     def rewrite_article(self, user: User, article: Article, style_key: str) -> dict:
         try:
             style = get_style(style_key)
@@ -295,8 +305,8 @@ class GenerationService:
             ) from exc
 
         try:
-            response = call_with_retry(
-                lambda: provider.generate(
+            response = call_with_fallback(
+                provider, lambda selected: selected.generate(
                     "rewrite",
                     "v1",
                     {
@@ -307,20 +317,22 @@ class GenerationService:
                     },
                     GeneratedArticle,
                 ),
-                max_retries=settings.ai_max_retries,
             )
             response.data.research = current.research
             source_ids = {source.id for source in current.research.sources}
             claimed_ids = _claimed_source_ids(response.data)
             if not claimed_ids.issubset(source_ids):
-                raise SchemaValidationError("Rewrite contains an unsupported citation")
+                failure = SchemaValidationError("Rewrite contains an unsupported citation")
+                failure.provider = response.provider
+                failure.model = response.model
+                raise failure
         except LLMError as exc:
             self.generations.record(
                 user_id=user.id,
                 article_id=article.id,
                 kind="rewrite",
-                provider=getattr(provider, "name", "unknown"),
-                model=getattr(provider, "model", "unknown"),
+                provider=exc.provider or provider.name,
+                model=exc.model or provider.model,
                 prompt_name="rewrite",
                 prompt_version="v1",
                 status="failed",

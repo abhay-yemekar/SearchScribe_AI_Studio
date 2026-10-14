@@ -357,16 +357,25 @@ test("Markdown download preserves the persisted source citations", async ({ page
   });
   await page.goto("/dashboard");
   await selectArticle(page, original.query);
+  // The primary article is visible before opening the supporting evidence.
+  const articlePanel = page.getByRole("tabpanel", { name: "Article", exact: true });
+  await expect(articlePanel).toBeVisible();
+  expect(await articlePanel.evaluate((element) => element.getBoundingClientRect().top))
+    .toBeLessThan(450);
+  await expect(page.getByRole("region", { name: "Article sources" })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Sources", exact: true }).click();
   await expect(
     page.getByRole("status").filter({ hasText: /Sources retrieved/ }),
   ).toBeVisible();
   const sources = page.getByRole("region", { name: "Article sources" });
   const sourceLink = sources.getByRole("link", { name: "Growing herbs" });
+  await expect(sourceLink).toBeVisible();
+  await sources.getByText("View 1 source", { exact: true }).press("Enter");
   await expect(sourceLink).toBeHidden();
   await sources.getByText("View 1 source", { exact: true }).press("Enter");
   await expect(sourceLink).toBeVisible();
   expect(
-    await page.getByRole("tabpanel", { name: "Article", exact: true }).evaluate(
+    await page.getByRole("tabpanel", { name: "Sources", exact: true }).evaluate(
       (element) => element.getBoundingClientRect().height,
     ),
   ).toBeGreaterThan(280);

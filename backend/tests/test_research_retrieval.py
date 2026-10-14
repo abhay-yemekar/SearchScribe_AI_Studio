@@ -183,6 +183,30 @@ def test_outer_deadline_closes_slow_stream(monkeypatch: pytest.MonkeyPatch) -> N
     assert stream.closed
 
 
+def test_research_uses_remaining_shared_operation_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.ai.budget import within_operation_budget
+
+    class SlowStream(httpx.AsyncByteStream):
+        closed = False
+
+        async def __aiter__(self) -> AsyncIterator[bytes]:
+            await asyncio.sleep(0.1)
+            yield b'{"results": []}'
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    stream = SlowStream()
+    _client(monkeypatch, lambda _: httpx.Response(
+        200, headers={"content-type": "application/json"}, stream=stream,
+    ))
+    monkeypatch.setattr(research.settings, "ai_operation_timeout_seconds", 0.01)
+    # The research-specific timeout remains 12 seconds, but the shared budget wins.
+    result = within_operation_budget(research.retrieve_sources)("latest news")
+    assert result.failure == "unavailable"
+    assert stream.closed
+
+
 def test_untrusted_source_title_cannot_inject_markdown_links() -> None:
     article = GeneratedArticle(
         title="A report", introduction="A useful introduction.",

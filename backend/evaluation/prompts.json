@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "purpose": "Public-topic generation evaluation. Schema and source counts do not establish factual accuracy; reviewers must assess claims against the saved references.",
+  "cases": [
+    {"id": "evergreen-gardening", "category": "evergreen", "query": "Write a practical beginner guide to growing herbs on a small apartment balcony."},
+    {"id": "evergreen-remote-writing", "category": "evergreen", "query": "Explain how a remote writing team can review drafts and maintain a consistent editorial voice."},
+    {"id": "evergreen-accessibility", "category": "evergreen", "query": "Explain the basics of accessible website navigation for a small nonprofit."},
+    {"id": "evergreen-kerala-travel", "category": "evergreen", "query": "Describe a thoughtful Kerala travel itinerary, distinguishing general suggestions from details that need local confirmation."},
+    {"id": "historical-internet", "category": "historical", "query": "Explain the origins of the World Wide Web and how it differed from the internet in 1991."},
+    {"id": "historical-moon-landing", "category": "historical", "query": "Explain Apollo 11's 1969 Moon landing, its key participants, and why it mattered."},
+    {"id": "latest-claude-models", "category": "current-models", "query": "Explain Claude's latest models and capabilities using current official evidence."},
+    {"id": "latest-openai-models", "category": "current-models", "query": "Explain OpenAI's current models and their capabilities, using available official sources."},
+    {"id": "gemini-38-capabilities", "category": "specific-model", "query": "Explain Gemini 3.8 Flash capabilities, context limits, and supported outputs."},
+    {"id": "groq-free-quotas", "category": "service-limits", "query": "Explain Groq's free API quotas for openai/gpt-oss-120b and how request and token limits differ."},
+    {"id": "latest-elon-post", "category": "social-current", "query": "Write about Elon Musk's latest tweet, distinguishing verified post details from news coverage."},
+    {"id": "latest-nasa-news", "category": "current-news", "query": "Summarize NASA's latest mission announcement, with dates and sources for the specific event."},
+    {"id": "today-india-tech", "category": "today-news", "query": "Explain today's major India technology announcement, but only if dated relevant evidence is available."},
+    {"id": "historical-model-release", "category": "historical-models", "query": "Explain the Claude 3.5 Sonnet announcement in June 2024 without describing it as the current latest model."},
+    {"id": "latest-fictional-service", "category": "insufficient-evidence", "query": "Report the latest release of the fictional ZephyrPaper Z991 service; do not invent an announcement."},
+    {"id": "ambiguous-abc-trek", "category": "ambiguity", "query": "Things to do on ABC Trek: clarify the uncertain location rather than assuming a destination."},
+    {"id": "hindi-herb-garden", "category": "multilingual", "query": "छोटी बालकनी में तुलसी और पुदीना उगाने पर सरल हिंदी में एक उपयोगी लेख लिखें।"},
+    {"id": "hinglish-editorial-team", "category": "multilingual", "query": "Hinglish mein samjhao ki chhoti content team article drafts ko review karke apni original voice kaise maintain kar sakti hai."},
+    {"id": "long-name-seo", "category": "seo-specificity", "query": "Explain the relationship between community-led documentation and sustainable maintenance in open-source software projects; keep SEO concise and specific."},
+    {"id": "seo-complete-description", "category": "seo-completeness", "query": "Write a guide to planning an article before publishing: researching evidence, outlining sections, revising wording, and reviewing metadata."}
+  ]
+}
