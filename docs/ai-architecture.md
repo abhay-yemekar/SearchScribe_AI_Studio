@@ -16,7 +16,7 @@ Implementations:
 | Provider | File | Notes |
 | --- | --- | --- |
 | `GeminiProvider` | `app/ai/gemini.py` | google-genai SDK, structured JSON output (`response_schema` = Pydantic model), timeouts, token usage captured |
-| `GroqProvider` | `app/ai/groq.py` | optional JSON-object output, bounded HTTP response, local Pydantic validation, separate input/output limits |
+| `GroqProvider` | `app/ai/groq.py` | strict JSON schema by default, explicit JSON-object compatibility mode, bounded HTTP response and local Pydantic validation |
 | `MockProvider` | `app/ai/mock.py` | deterministic, offline; test hooks for transient/permanent failure simulation |
 
 Selection is config-driven (`AI_PROVIDER` + exact `AI_MODEL`), resolved through
@@ -40,7 +40,7 @@ Async transports cancel and close on expiry; there is no background generation
 thread continuing after a timeout. A configured fallback reserves up to 20 seconds
 of the remaining budget. SDK retries are disabled so attempts cannot multiply.
 Database commits and deterministic rendering remain outside this network budget.
-An exhausted budget produces a specific timeout error; failed operations never
+An exhausted budget follows the generation/rewrite error path; failed operations never
 create a placeholder article or version.
 
 Fallback does not bypass missing current evidence, content refusals, bad keys,
@@ -127,5 +127,7 @@ official references: [Gemini models](https://ai.google.dev/gemini-api/docs/model
 [Groq models](https://console.groq.com/docs/models), and
 [Groq account limits](https://console.groq.com/docs/rate-limits). Keep accounts on
 Free with paid upgrades disabled; published allowances can differ from account
-limits. Groq support being implemented does not mean a production key or fallback
-has been activated.
+limits. The personal Render key is configured, but fallback remains disabled
+pending a broader factual quality gate. Live pilot responses exposed missing
+citations and unsupported extrapolation. Strict output and inline-citation guards
+improve structural reliability; they do not establish that each claim is true.
