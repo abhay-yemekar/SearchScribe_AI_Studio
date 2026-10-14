@@ -4,7 +4,12 @@ import pytest
 from conftest import auth_headers, register_user
 from pydantic import ValidationError
 
-from app.ai.base import ProviderResponse, TransientLLMError
+from app.ai.base import (
+    PermanentLLMError,
+    ProviderResponse,
+    SchemaValidationError,
+    TransientLLMError,
+)
 from app.ai.budget import effective_timeout_seconds
 from app.ai.mock import MockProvider
 from app.ai.research import ResearchResult
@@ -123,6 +128,18 @@ def test_mock_stays_offline_even_when_search_key_exists(client, monkeypatch):
     {"research_reviewer_provider": "groq"},
     {"research_reviewer_model": "some-model"},
     {"research_reviewer_provider": "groq", "research_reviewer_model": "some-model"},
+    {"draft_reviewer_provider": "groq"},
+    {"draft_reviewer_model": "some-model"},
+    {"draft_reviewer_provider": "groq", "draft_reviewer_model": "some-model"},
+    {"draft_reviewer_provider": "groq", "draft_reviewer_model": "bad model",
+     "groq_api_key": "fixture-key"},
+    {"research_planner_fallback_provider": "groq"},
+    {"research_planner_fallback_model": "fallback-model"},
+    {"research_planner_fallback_provider": "groq",
+     "research_planner_fallback_model": "fallback-model"},
+    {"research_planner_fallback_provider": "gemini",
+     "research_planner_fallback_model": "gemini-2.5-flash", "gemini_api_key": "fixture-key",
+     "ai_provider": "gemini"},
 ])
 def test_planner_configuration_requires_a_valid_pair_and_its_own_key(overrides):
     with pytest.raises(ValidationError):
@@ -140,3 +157,42 @@ def test_configured_planner_role_does_not_change_article_provider(monkeypatch):
     response = plan_research("Service capabilities", original)
     assert response.provider == "fixture-groq" and response.model == "planner-model"
     assert not original.calls and len(selected.calls) == 1
+
+
+@pytest.mark.parametrize("value", ["", "null", 0, 1024])
+def test_final_editor_thinking_budget_can_be_disabled_or_bounded(value):
+    configured = Settings(_env_file=None, draft_reviewer_thinking_budget=value)
+    assert configured.draft_reviewer_thinking_budget == (None if value in ("", "null") else value)
+
+
+@pytest.mark.parametrize("failure", [
+    None, TransientLLMError, PermanentLLMError, SchemaValidationError,
+])
+def test_planner_fallback_is_single_transient_only_and_keeps_exact_topic(monkeypatch, failure):
+    primary = PlannedProvider(_plan())
+    fallback = PlannedProvider(_plan())
+    fallback.name, fallback.model = "fixture-fallback", "fallback-model"
+    original = primary.generate
+
+    def failing(*args):
+        if failure:
+            primary.calls.append(args)
+            raise failure("Controlled fixture failure")
+        return original(*args)
+
+    monkeypatch.setattr(primary, "generate", failing)
+    monkeypatch.setattr(settings, "research_planner_fallback_provider", "groq")
+    monkeypatch.setattr(settings, "research_planner_fallback_model", fallback.model)
+    monkeypatch.setattr("app.ai.research_plan._build_provider", lambda *a: fallback)
+    if failure in {PermanentLLMError, SchemaValidationError}:
+        with pytest.raises(failure) as caught:
+            plan_research("The exact original topic", primary)
+        assert caught.value.provider == primary.name and not fallback.calls
+    else:
+        response = plan_research("The exact original topic", primary)
+        assert len(primary.calls) == 1
+        if failure:
+            assert response.model == fallback.model and len(fallback.calls) == 1
+            assert fallback.calls[0][1]["topic_json"] == '"The exact original topic"'
+        else:
+            assert response.model == primary.model and not fallback.calls

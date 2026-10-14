@@ -144,9 +144,15 @@ class GroqProvider:
     def __init__(
         self, model: str | None = None,
         *, json_mode: Literal["json_schema", "json_object"] | None = None,
+        reasoning_effort: Literal["", "none", "low", "medium", "high"] | None = None,
+        max_output_tokens: int | None = None,
     ) -> None:
         self.model = settings.ai_model if model is None else model
         self.json_mode = settings.groq_json_mode if json_mode is None else json_mode
+        self.reasoning_effort = (settings.groq_reasoning_effort if reasoning_effort is None
+                                 else reasoning_effort)
+        self.max_output_tokens = (settings.groq_max_output_tokens if max_output_tokens is None
+                                  else min(settings.groq_max_output_tokens, max_output_tokens))
 
     def generate(
         self,
@@ -196,11 +202,11 @@ class GroqProvider:
                     "schema": strict_schema,
                 }} if self.json_mode == "json_schema" else {"type": "json_object"}
             ),
-            "max_completion_tokens": settings.groq_max_output_tokens,
+            "max_completion_tokens": self.max_output_tokens,
             "stream": False,
         }
-        if settings.groq_reasoning_effort:
-            payload["reasoning_effort"] = settings.groq_reasoning_effort
+        if self.reasoning_effort:
+            payload["reasoning_effort"] = self.reasoning_effort
         started = time.perf_counter()
         response = asyncio.run(_complete(payload, settings.groq_api_key))
         text = _response_text(response)

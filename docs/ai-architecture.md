@@ -86,6 +86,11 @@ Prompts are versioned files in `app/ai/prompts/` rendered with Jinja2 (strict un
   separately validated planner role; blank fields reuse the article provider.
   These fields do not enable article fallback. Generation metadata records
   planning usage/provider separately. Mock never calls either external role.
+- `RESEARCH_PLANNER_FALLBACK_PROVIDER` / `RESEARCH_PLANNER_FALLBACK_MODEL` can
+  explicitly enable one 10-second fallback attempt after a transient planner
+  failure (timeout, 429, 5xx). Refusals, malformed output and clarification
+  decisions never trigger it. Both attempts share the operation deadline, and
+  metadata identifies the actual responding model. Default is disabled.
 - Before writing from live evidence, `evidence_review/v1` selects relevant
   original passages, publisher roles, conflicts and coverage gaps in a call capped
   at 20 seconds. The server assigns passage IDs and copies the original text;
@@ -100,6 +105,28 @@ Prompts are versioned files in `app/ai/prompts/` rendered with Jinja2 (strict un
   use JSON-object mode with local schema and passage-ownership validation. Article
   generation retains its configured strict schema. The original source records
   and selected records are saved separately in local evaluation reports.
+- When `DRAFT_REVIEW_ENABLED=true`, before saving a newly researched draft,
+  `draft_review/v1` checks every title,
+  paragraph, bullet, conclusion and final SEO field against the original selected
+  excerpts. Exact block coverage and passage ownership are enforced locally. The
+  editor can replace named text blocks once (30-second call cap); changed blocks
+  receive one compact `draft_recheck/v1` check using the evidence-selection role
+  (20-second cap). The recheck only returns remaining issues, not further edits.
+  Missing coverage, invalid corrections,
+  unavailable review or unresolved findings save no new article. The writer
+  reserves time for these calls within the same operation deadline; nested retry
+  budgets cannot extend it. Unresearched/mock drafts do not enter this stage.
+- `DRAFT_REVIEWER_PROVIDER` / `DRAFT_REVIEWER_MODEL` optionally select the final
+  editor, with `DRAFT_REVIEWER_REASONING_EFFORT` for Groq. Blank fields reuse the
+  evidence-selection role. Calls and revision findings are recorded separately;
+  role-specific reasoning/output caps do not mutate writer configuration. Review
+  remains a fallible AI excerpt-consistency check, not independent fact checking.
+  Manual edits and rewrites of stored articles are not rechecked against source
+  excerpts by this stage; current stored provenance contains URLs, not full text.
+  The feature defaults off for existing installations until the selected free
+  provider configuration has been validated. Gemini review uses a compact wire
+  schema with original local bounds intact and a separately configurable
+  `DRAFT_REVIEWER_THINKING_BUDGET`; it does not change the writer's settings.
 - A separate SEO prompt is used only for one targeted repair when the combined
   response has missing, malformed or unsuitable metadata. This repair has no
   retry loop; the valid article survives an unsuccessful repair.
@@ -164,6 +191,10 @@ let models receive identical evidence, but do not establish live retrieval quali
 Reports require manual factual review; a schema pass is not a fact-check.
 Live evaluation exercises planning as well as retrieval; frozen bundles skip
 planning and report that limitation, so identical-evidence comparisons stay fair.
+Frozen bundles must include the original excerpt for each source, so the final
+review cannot pretend to check evidence from URLs alone. Reports retain both
+review passes and excerpts for manual comparison; a clean model review is not an
+accuracy score.
 
 To compare models against actual search results, first run the same CLI with
 `--live --collect-sources --progress`. This performs public web search only,

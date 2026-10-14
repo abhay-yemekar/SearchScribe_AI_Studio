@@ -23,6 +23,8 @@ _REGISTRY: dict[tuple[str, str], str] = {
     ("article_generation", "v5"): "article_generation_v5.md",
     ("research_planning", "v1"): "research_planning_v1.md",
     ("evidence_review", "v1"): "evidence_review_v1.md",
+    ("draft_review", "v1"): "draft_review_v1.md",
+    ("draft_recheck", "v1"): "draft_recheck_v1.md",
     ("seo_generation", "v1"): "seo_generation_v1.md",
     ("seo_generation", "v2"): "seo_generation_v2.md",
     ("seo_generation", "v3"): "seo_generation_v3.md",

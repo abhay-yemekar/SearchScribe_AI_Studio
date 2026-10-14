@@ -3,7 +3,7 @@
 from dataclasses import replace
 
 import pytest
-from conftest import auth_headers, register_user
+from conftest import auth_headers, offline_review_response, register_user
 from fastapi.testclient import TestClient
 
 from app.ai.base import PermanentLLMError
@@ -29,6 +29,8 @@ class _Provider(MockProvider):
 
     def generate(self, prompt_name, prompt_version, variables, schema):
         self.calls.append((prompt_name, prompt_version, variables))
+        if prompt_name == "draft_review":
+            return offline_review_response(self, prompt_name, prompt_version, variables)
         response = super().generate(prompt_name, prompt_version, variables, schema)
         if variables.get("research_status") == "sources_retrieved":
             response.data.introduction += " A supported fixture claim [S1]."
@@ -43,6 +45,7 @@ def _sources() -> ResearchResult:
             sources=[ResearchSource(id="S1", title="Official model docs", url=SOURCE_URL)],
         ),
         "Source S1: current model documentation from the primary publisher.",
+        excerpts={"S1": "Current model documentation from the primary publisher."},
     )
 
 
