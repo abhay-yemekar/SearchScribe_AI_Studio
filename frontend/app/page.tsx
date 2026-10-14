@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowDown, ArrowRight, ArrowUpRight } from "lucide-react";
 import SiteChrome from "@/components/marketing/SiteChrome";
+import EditorialVisual from "@/components/marketing/EditorialVisual";
 import {
   HeroDraft,
   StudioStory,
@@ -89,6 +90,7 @@ export default function HomePage() {
           revise, and prepare an article for publication.
         </p>
       </section>
+      <EditorialVisual />
       <StudioStory />
       <section className="toolkit section-container" data-reveal>
         <div className="section-heading">
@@ -143,7 +145,7 @@ export default function HomePage() {
       <section className="roadmap section-container" data-reveal>
         <div className="section-heading">
           <p className="eyebrow">(05). / In development</p>
-          <h2>Still becoming.</h2>
+          <h2>Today, and what’s next.</h2>
           <p>
             Built in the open, with a clear line between what works today and what comes
             next.
@@ -151,25 +153,32 @@ export default function HomePage() {
         </div>
         <div className="roadmap-list">
           {[
-            ["01", "Research you can trace", "Visible citations and source links."],
+            [
+              "01",
+              "Research you can trace",
+              "Visible citations and source links, beside your draft.",
+              "Available",
+            ],
             [
               "02",
               "Photos you can credit",
               "Relevant images, credits, and editable alt text.",
+              "Planned",
             ],
             [
               "03",
-              "A more resilient studio",
-              "Account recovery, daily quotas, provider fallback, and Markdown export.",
+              "A writing workflow that stays yours",
+              "Version history, unsaved-edit protection, and HTML or Markdown export.",
+              "Available",
             ],
-          ].map(([n, title, detail]) => (
+          ].map(([n, title, detail, status]) => (
             <div className="roadmap-row" key={n}>
               <span className="eyebrow">[{n}]</span>
               <div>
                 <h3>{title}</h3>
                 <p>{detail}</p>
               </div>
-              <span className="roadmap-tag">In development</span>
+              <span className="roadmap-tag">{status}</span>
             </div>
           ))}
         </div>

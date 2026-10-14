@@ -1,7 +1,8 @@
 "use client";
 
 import { ApiError, type ApiErrorShape } from "./errors";
-import { tokenSchema } from "./schemas";
+import { tokenSchema, userSchema } from "./schemas";
+import { primeSessionUser } from "@/lib/auth/profile-store";
 import { clearAccessToken, getSnapshot, setAccessToken } from "@/lib/auth/token-store";
 
 /**
@@ -62,10 +63,11 @@ async function tryRefresh(): Promise<RefreshResult> {
   if (!response.ok) {
     return { refreshed: false, unauthorized: response.status === 401 };
   }
-  const data = tokenSchema
-    .pick({ access_token: true, expires_in: true })
-    .parse(await response.json());
+  const payload = await response.json();
+  const data = tokenSchema.pick({ access_token: true, expires_in: true }).parse(payload);
   setAccessToken(data.access_token, data.expires_in);
+  const user = userSchema.safeParse(payload.user);
+  if (user.success) primeSessionUser(user.data, data.access_token);
   return { refreshed: true, unauthorized: false };
 }
 

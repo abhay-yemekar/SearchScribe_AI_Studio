@@ -207,7 +207,7 @@ export default function SiteChrome({ children }: { children: React.ReactNode }) 
             <p>
               Free, noncommercial beta. AI drafts need human review.
               <br />
-              Research citations and photo suggestions are in development.
+              Review source links before publishing. Photo suggestions are in development.
             </p>
             <span className="eyebrow">SearchScribe AI / 2026</span>
           </div>
