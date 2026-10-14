@@ -77,6 +77,11 @@ class Settings(BaseSettings):
 
     # --- Bounded web research (a key enables search; mock AI remains offline) ---
     tavily_api_key: str = Field(default="", repr=False)
+    # Blank pair reuses the article provider. Explicit role selection is topic-independent.
+    research_planner_provider: Literal["", "gemini", "groq"] = ""
+    research_planner_model: str = Field(default="", max_length=60)
+    research_reviewer_provider: Literal["", "gemini", "groq"] = ""
+    research_reviewer_model: str = Field(default="", max_length=60)
     research_timeout_seconds: float = Field(default=12, ge=1, le=30)
     research_max_results: int = Field(default=5, ge=1, le=5)
     research_max_response_bytes: int = Field(default=512_000, ge=16_384, le=512_000)
@@ -99,7 +104,8 @@ class Settings(BaseSettings):
     def _normalize_database_url(cls, value: str) -> str:
         return normalize_database_url(value)
 
-    @field_validator("ai_model", "ai_fallback_model")
+    @field_validator("ai_model", "ai_fallback_model", "research_planner_model",
+                     "research_reviewer_model")
     @classmethod
     def _validate_model_id(cls, value: str) -> str:
         value = value.strip()
@@ -113,6 +119,25 @@ class Settings(BaseSettings):
             raise ValueError("AI_MODEL must not be blank")
         self.gemini_api_key = self.gemini_api_key.strip()
         self.groq_api_key = self.groq_api_key.strip()
+        self.research_planner_model = self.research_planner_model.strip()
+        if bool(self.research_planner_provider) != bool(self.research_planner_model):
+            raise ValueError(
+                "RESEARCH_PLANNER_PROVIDER and RESEARCH_PLANNER_MODEL must be set together"
+            )
+        if self.research_planner_provider:
+            key = (self.groq_api_key if self.research_planner_provider == "groq"
+                   else self.gemini_api_key)
+            if not key:
+                raise ValueError("The configured research planner requires its provider API key")
+        if bool(self.research_reviewer_provider) != bool(self.research_reviewer_model):
+            raise ValueError(
+                "RESEARCH_REVIEWER_PROVIDER and RESEARCH_REVIEWER_MODEL must be set together"
+            )
+        if self.research_reviewer_provider:
+            key = (self.groq_api_key if self.research_reviewer_provider == "groq"
+                   else self.gemini_api_key)
+            if not key:
+                raise ValueError("The configured evidence reviewer requires its provider API key")
         if bool(self.ai_fallback_provider) != bool(self.ai_fallback_model):
             raise ValueError("AI_FALLBACK_PROVIDER and AI_FALLBACK_MODEL must be set together")
         if self.ai_fallback_provider:

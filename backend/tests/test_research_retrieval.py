@@ -13,6 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.ai import research
+from app.ai.research_plan import ResearchPlan
 from app.ai.schemas import GeneratedArticle, ResearchSource
 from app.core.config import Settings
 
@@ -314,3 +315,74 @@ def test_relative_query_without_date_evidence_fails_closed(
 def test_recent_window_setting_is_bounded(days: int) -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, research_recent_days=days)
+
+
+def _plan(mode="reference", supplemental_query="Publisher current overview", **updates):
+    return ResearchPlan(
+        mode=mode, supplemental_query=supplemental_query,
+        requires_current_sources=True, primary_sources_only=True,
+        clarification_question="", **updates,
+    )
+
+
+def test_reference_discovery_keeps_undated_and_older_docs_without_claiming_authority(monkeypatch):
+    payloads = []
+
+    def handler(request):
+        payload = json.loads(request.content)
+        payloads.append(payload)
+        if payload["query"] == "Publisher current overview":
+            return _response([_result(
+                url="https://publisher.example.com/overview", published_date=None,
+            )])
+        return _response([_result(published_date="2024-06-01")])
+
+    _client(monkeypatch, handler)
+    found = research.retrieve_sources("Current service capabilities", plan=_plan())
+    assert len(payloads) == 2
+    assert {p["query"] for p in payloads} == {
+        "Current service capabilities", "Publisher current overview",
+    }
+    assert all("start_date" not in p and "include_domains" not in p for p in payloads)
+    assert [p["search_depth"] for p in payloads] == ["basic", "advanced"]
+    assert [s.published_at for s in found.summary.sources] == ["2024-06-01", None]
+    assert "official/first-party evidence only" in found.context
+    assert "does not verify currentness or primary authorship" in found.context
+
+
+def test_reporting_never_relaxes_date_requirements_in_complementary_search(monkeypatch):
+    payloads = []
+
+    def handler(request):
+        payloads.append(json.loads(request.content))
+        return _response([_result(published_date=None), _result(published_date="2026-10-12")])
+
+    _client(monkeypatch, handler)
+    found = research.retrieve_sources("Today's announcement", plan=_plan("reporting"))
+    assert len(payloads) == 2
+    assert all(p["filter_by_published_date"] is True for p in payloads)
+    assert found.failure == "no_evidence"
+
+
+def test_complementary_discovery_is_bounded_deduplicated_and_survives_one_failed_lane(monkeypatch):
+    calls = []
+
+    def handler(request):
+        query = json.loads(request.content)["query"]
+        calls.append(query)
+        return _response([_result()], 500) if query == "Current topic" else _response([
+            _result(), _result(), *[_result(url=f"https://publisher.example.com/{i}")
+                                   for i in range(7)],
+        ])
+
+    _client(monkeypatch, handler)
+    found = research.retrieve_sources("Current topic", plan=_plan())
+    assert len(calls) == 2
+    assert len(found.summary.sources) == 4  # At most five candidates per lane, one duplicate.
+    assert "Coverage is partial" in found.context
+    assert len({s.url for s in found.summary.sources}) == len(found.summary.sources)
+
+
+def test_future_docs_are_excluded_even_without_a_reporting_window(monkeypatch):
+    _client(monkeypatch, lambda _: _response([_result(published_date="2026-10-14")]))
+    assert research.retrieve_sources("Current docs", plan=_plan()).failure == "no_evidence"

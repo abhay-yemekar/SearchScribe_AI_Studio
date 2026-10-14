@@ -110,6 +110,18 @@ def test_configured_model_fixed_endpoint_and_bounded_json_request(monkeypatch: p
     assert response.latency_ms >= 0
 
 
+def test_review_adapter_mode_does_not_change_the_article_adapter(monkeypatch):
+    _, requests = _client(monkeypatch, lambda _: _response({**ARTICLE, "seo": SEO}))
+    monkeypatch.setattr(groq.settings, "groq_json_mode", "json_schema")
+    reviewer = groq.GroqProvider("review-model", json_mode="json_object")
+    writer = groq.GroqProvider("write-model")
+    _generate(reviewer)
+    _generate(writer)
+    assert json.loads(requests[0].content)["response_format"]["type"] == "json_object"
+    assert json.loads(requests[1].content)["response_format"]["type"] == "json_schema"
+    assert groq.settings.groq_json_mode == "json_schema"
+
+
 @pytest.mark.parametrize("name,version,variables,schema,data", [
     ("article_generation", "v3", VARIABLES, GeneratedArticleWithSeo, {**ARTICLE, "seo": SEO}),
     ("article_generation", "v4", VARIABLES, GeneratedArticleWithSeo, {**ARTICLE, "seo": SEO}),

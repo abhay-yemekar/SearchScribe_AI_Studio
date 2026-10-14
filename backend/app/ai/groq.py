@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -141,8 +141,12 @@ def _usage_count(value: object) -> int | None:
 class GroqProvider:
     name = "groq"
 
-    def __init__(self, model: str | None = None) -> None:
+    def __init__(
+        self, model: str | None = None,
+        *, json_mode: Literal["json_schema", "json_object"] | None = None,
+    ) -> None:
         self.model = settings.ai_model if model is None else model
+        self.json_mode = settings.groq_json_mode if json_mode is None else json_mode
 
     def generate(
         self,
@@ -176,7 +180,7 @@ class GroqProvider:
         # response_format alone is not a substitute for complete instructions.
         instruction += "\n" + schema_json
         if len(prompt) + len(instruction) + (
-            len(schema_json) if settings.groq_json_mode == "json_schema" else 0
+            len(schema_json) if self.json_mode == "json_schema" else 0
         ) > settings.groq_max_input_chars:
             # Preserve complete evidence: never silently truncate the research context.
             raise PermanentLLMError("groq request exceeded the configured input limit")
@@ -190,7 +194,7 @@ class GroqProvider:
                 {"type": "json_schema", "json_schema": {
                     "name": schema.__name__, "strict": True,
                     "schema": strict_schema,
-                }} if settings.groq_json_mode == "json_schema" else {"type": "json_object"}
+                }} if self.json_mode == "json_schema" else {"type": "json_object"}
             ),
             "max_completion_tokens": settings.groq_max_output_tokens,
             "stream": False,

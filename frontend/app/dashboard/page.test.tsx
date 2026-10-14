@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import type { ArticleDetail } from "@/lib/api/schemas";
+import { ApiError } from "@/lib/api/errors";
 import DashboardPage from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -145,6 +146,37 @@ async function changeIntroduction(
 }
 
 describe("workspace unsaved edits", () => {
+  it("keeps the topic and asks for clarification without replacing the selected article", async () => {
+    mocks.generate.mockRejectedValueOnce(
+      new ApiError(400, {
+        error: {
+          code: "TOPIC_CLARIFICATION_REQUIRED",
+          message: "Which location do you mean by ABC Trek?",
+          request_id: "fixture",
+        },
+      }),
+    );
+    createView();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /^original title/i }));
+    const topic = screen.getByRole("textbox", { name: "Topic / search query" });
+    await user.type(topic, "ABC Trek");
+    await user.click(screen.getByRole("button", { name: "Generate" }));
+    expect(
+      await screen.findByText("Which location do you mean by ABC Trek?"),
+    ).toBeVisible();
+    expect(topic).toHaveValue("ABC Trek");
+    expect(topic).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Edit article" })).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    mocks.generate.mockResolvedValueOnce({ ...original, id: 3 });
+    await user.type(topic, " in Nepal");
+    await user.click(screen.getByRole("button", { name: "Generate" }));
+    await waitFor(() =>
+      expect(screen.queryByText("One detail before we write")).not.toBeInTheDocument(),
+    );
+    expect(mocks.generate).toHaveBeenLastCalledWith("ABC Trek in Nepal");
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.remove.mockResolvedValue(undefined);
