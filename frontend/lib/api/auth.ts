@@ -3,6 +3,7 @@
 import { apiFetch } from "./client";
 import { tokenSchema, userSchema, type TokenPayload, type User } from "./schemas";
 import { setAccessToken, clearAccessToken } from "@/lib/auth/token-store";
+import { loadSessionUser, primeSessionUser } from "@/lib/auth/profile-store";
 import { z } from "zod";
 
 const authMessageSchema = z.object({ message: z.string() });
@@ -108,6 +109,7 @@ export async function signup(input: {
   });
   const parsed = tokenSchema.parse(payload);
   setAccessToken(parsed.access_token, parsed.expires_in);
+  primeSessionUser(parsed.user, parsed.access_token);
   return parsed;
 }
 
@@ -121,11 +123,18 @@ export async function login(input: {
   });
   const parsed = tokenSchema.parse(payload);
   setAccessToken(parsed.access_token, parsed.expires_in);
+  primeSessionUser(parsed.user, parsed.access_token);
   return parsed;
 }
 
-export async function fetchCurrentUser(): Promise<User> {
-  return userSchema.parse(await apiFetch<unknown>("/api/v1/auth/me"));
+export function fetchCurrentUser({
+  force = false,
+}: { force?: boolean } = {}): Promise<User> {
+  return loadSessionUser(
+    async () =>
+      userSchema.parse(await apiFetch<unknown>("/api/v1/auth/me", { cache: "no-store" })),
+    force,
+  );
 }
 
 export async function googleLogin(credential: string): Promise<TokenPayload> {
@@ -140,6 +149,7 @@ export async function googleLogin(credential: string): Promise<TokenPayload> {
     ),
   );
   setAccessToken(payload.access_token, payload.expires_in);
+  primeSessionUser(payload.user, payload.access_token);
   return payload;
 }
 

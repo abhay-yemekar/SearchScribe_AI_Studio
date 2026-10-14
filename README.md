@@ -1,8 +1,14 @@
 # SearchScribe AI
 
-![SearchScribe AI — Start with a thought. Leave with a draft.](frontend/public/brand/open-graph.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="frontend/public/brand/logo-wordmark-light.svg">
+  <img src="frontend/public/brand/logo-wordmark-dark.svg" width="260" alt="SearchScribe AI">
+</picture>
 
-**An open-source writing studio. Turn a topic into a structured draft, make it your own, and export HTML or Markdown.**
+**Start with a thought. Leave with a draft.**
+
+An open-source writing studio with web research, editable articles and SEO,
+version history, and HTML or Markdown export.
 
 [Try the website](https://searchscribe-ai.vercel.app/) · [How it works](https://searchscribe-ai.vercel.app/how-it-works) · [Contribute](CONTRIBUTING.md) · [MIT license](LICENSE)
 
@@ -33,42 +39,45 @@ available alongside the configured Google sign-in integration.
 
 ## A look inside
 
-![SearchScribe AI homepage with the topic-to-draft demonstration](screenshots/redesign-home-hero.png)
+![The current SearchScribe homepage](screenshots/studio-home-4k.png)
 
-The redesigned homepage, captured from the running local app. Its article scene
-uses clearly labeled sample copy.
+An editorial website that introduces the product before sign-in. Original artwork,
+responsive layouts, keyboard controls, and motion that respects reduced-motion settings.
 
-![Local SearchScribe workspace showing a mock article and the article, SEO, preview, and versions tabs](screenshots/redesign-workspace.png)
+![The current article workspace](screenshots/studio-workspace-4k.png)
 
-The working editor with a synthetic **Demo Writer** account and an offline mock
-article. This demonstrates the interface, not live AI output or researched advice.
+The article stays first. SEO, HTML preview, sources, and versions have their own
+tabs. Screenshots use a synthetic **Demo Writer** account and an offline mock
+article, with no real account information.
 
-![Six stages of the homepage's illustrative writing walkthrough](screenshots/writing-journey.gif)
+![A real walkthrough of the article, SEO, preview, sources and version tabs](screenshots/studio-workflow.gif)
 
-A short capture of the homepage's **prewritten walkthrough**, not a recording of
-AI generating content. Static alternatives: [homepage](screenshots/redesign-home-hero.png)
-and [workspace](screenshots/redesign-workspace.png).
+Recorded from the working local interface, using deterministic mock content.
+This is a product walkthrough, not a recording of live AI writing. Static
+alternatives: [homepage](screenshots/studio-home-4k.png),
+[workspace](screenshots/studio-workspace-4k.png), and
+[editorial artwork](screenshots/studio-editorial-4k.png).
 
 ## Beta status
 
-This is a **free, noncommercial beta in progress**, not a completed public release.
-The deployed password journey has been checked through real generation, editing,
-version restoration, and HTML export. Real Google login, adding a password to the
-same Google account, article retention, email verification, and notification
-delivery have been verified. Explicit password-to-Google linking and the complete
-live password-reset journey remain acceptance gates. Matching emails do not
-silently merge accounts.
+This is a **free, noncommercial beta**. AI drafts need editorial review before
+publication; a retrieved source or valid JSON response does not certify accuracy.
 
-Recovery emails and password management are implemented and deployed; direct
-token-bearing email links remain disabled pending complete tracking opt-out.
-Research uses Tavily to search the actual topic and passes bounded source excerpts
-to Gemini. Links and estimated source dates remain visible through versions and
-exports. Relative current-topic queries use a recent date window and fail when
-usable evidence is missing; retrieval does not guarantee factual accuracy or the
-absolute latest social post. Photo suggestions, persistent daily AI quotas, and
-provider fallback remain unfinished. Backup restore and deployment rollback rehearsals also remain
-release gates. Follow the [launch plan](docs/launch-plan.md) for scope and acceptance
-criteria. AI drafts need human review before publication.
+| Available            | Scope                                                                         |
+| -------------------- | ----------------------------------------------------------------------------- |
+| Topic-based research | Tavily search, bounded excerpts, visible links and estimated source dates     |
+| Article + SEO        | Structured drafts, complete metadata targets, editable review status          |
+| Editorial control    | Six rewrite styles, saved versions, conflict and unsaved-edit protection      |
+| Portable output      | Sanitized HTML and Markdown with source provenance                            |
+| Sign-in              | Password and configured Google sign-in, explicit linking, password management |
+| Resilience           | Bounded requests, useful quota errors, and configured research-role fallback  |
+
+Automatic article-provider fallback and draft evidence correction remain disabled
+in the deployed beta until their quality gates pass. Recovery email is deployed;
+direct token-bearing links remain disabled pending the email tracking acceptance
+gate. Photo suggestions, persistent daily user quotas, backup-restore rehearsals,
+and deployment rollback rehearsals remain planned or incomplete. See the
+[launch plan](docs/launch-plan.md) for the detailed acceptance checklist.
 
 ## Run it locally
 
@@ -113,6 +122,16 @@ Open [localhost:3000](http://localhost:3000). API documentation is at
 the API; `BACKEND_URL` changes its destination. If you change ports, update that
 setting and any configured Google authorized JavaScript origin together.
 
+On Windows, after installing the dependencies above and running `npm ci` in
+`frontend`, the project helper can start a safe mock preview and open it:
+
+```powershell
+pwsh -NoProfile -File frontend/scripts/runapp.ps1
+```
+
+The helper uses [localhost:3200](http://localhost:3200), a local API, and a preview
+database. It requires PowerShell 7.4+ and never deploys production.
+
 For real generation, select `AI_PROVIDER=gemini` and put your own `GEMINI_API_KEY`
 in the backend environment. `AI_MODEL` selects an available model. Provider
 accounts, limits, and data-use terms apply; the MIT license does not include API
@@ -121,13 +140,14 @@ matching site origin. See the [authentication setup guide](docs/auth-setup.md).
 
 ## Stack and deployment
 
-| Layer              | Implementation                                                                    |
-| ------------------ | --------------------------------------------------------------------------------- |
-| Website and studio | Next.js 16 App Router, React 19, TypeScript, Tailwind CSS, TanStack Query         |
-| API                | FastAPI, Pydantic, SQLAlchemy 2, Alembic                                          |
-| Generation         | Gemini through a provider protocol; mock provider for local development and tests |
-| Storage            | SQLite locally; persistent Postgres in production                                 |
-| Validation         | Ruff, mypy, pytest, ESLint, TypeScript, Vitest, Playwright, Docker builds         |
+| Layer              | Implementation                                                                 |
+| ------------------ | ------------------------------------------------------------------------------ |
+| Website and studio | Next.js 16 App Router, React 19, TypeScript, Tailwind CSS, TanStack Query      |
+| API                | FastAPI, Pydantic, SQLAlchemy 2, Alembic                                       |
+| Generation         | Gemini and optional Groq adapters; offline mock provider for local development |
+| Research           | Tavily search with bounded source excerpts, planning and evidence selection    |
+| Storage            | SQLite locally; persistent Postgres in production                              |
+| Validation         | Ruff, mypy, pytest, ESLint, TypeScript, Vitest, Playwright, Docker builds      |
 
 The current personal beta uses **Vercel → Render → Neon Postgres**. Vercel's
 server-side proxy keeps browser API requests on the website origin. Render runs

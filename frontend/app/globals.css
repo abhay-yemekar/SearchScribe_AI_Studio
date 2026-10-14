@@ -468,6 +468,87 @@ html {
   border-block: 1px solid var(--line);
   position: relative;
 }
+.editorial-section {
+  padding-bottom: 88px;
+}
+.editorial-visual {
+  position: relative;
+  min-height: 500px;
+  height: min(660px, 49vw);
+  overflow: hidden;
+  background: #172d30;
+}
+.editorial-image {
+  object-fit: cover;
+  object-position: center;
+  transition: transform 1.5s var(--ease);
+}
+.editorial-visual:hover .editorial-image {
+  transform: scale(1.035);
+}
+.editorial-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgb(9 27 28 / 72%), transparent 76%);
+}
+.editorial-caption {
+  position: absolute;
+  inset: auto auto 10% 6%;
+  color: #fffef9;
+}
+.editorial-caption h2 {
+  margin: 28px 0 20px;
+  font-size: clamp(48px, 6vw, 88px);
+  line-height: 1.02;
+  letter-spacing: -0.065em;
+}
+.editorial-caption p {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #f6f4ed;
+}
+.editorial-edition {
+  position: absolute;
+  top: 30px;
+  right: 30px;
+  color: #fffef9;
+}
+@media (min-width: 900px) and (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .editorial-image {
+      animation: editorial-drift linear both;
+      animation-timeline: view();
+      animation-range: entry 0% exit 100%;
+    }
+  }
+}
+@keyframes editorial-drift {
+  from {
+    transform: scale(1.12) translateY(-2%);
+  }
+  to {
+    transform: scale(1.02) translateY(2%);
+  }
+}
+@media (max-width: 700px) {
+  .editorial-section {
+    padding-bottom: 48px;
+  }
+  .editorial-visual {
+    min-height: 480px;
+  }
+  .editorial-image {
+    object-position: 60%;
+  }
+  .editorial-edition {
+    top: 22px;
+    left: 6%;
+    right: auto;
+  }
+  .editorial-shade {
+    background: linear-gradient(0deg, rgb(9 27 28 / 82%), rgb(9 27 28 / 8%) 90%);
+  }
+}
 .story-sticky {
   padding-block: 52px 70px;
 }

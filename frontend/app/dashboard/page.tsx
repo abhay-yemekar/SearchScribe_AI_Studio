@@ -26,6 +26,7 @@ import DiscardChangesDialog from "@/features/articles/DiscardChangesDialog";
 import { draftIsDirty, type EditorDraft } from "@/features/articles/useEditorDraft";
 import { downloadArticleFile } from "@/lib/article-export";
 import { useSession } from "@/features/auth/useSession";
+import SessionLoading from "@/features/auth/SessionLoading";
 import {
   deleteArticle,
   duplicateArticle,
@@ -74,11 +75,7 @@ export default function DashboardPage() {
     if (!bootstrapping && !token) router.replace("/login");
   }, [bootstrapping, token, router]);
   if (bootstrapping) {
-    return (
-      <div className="studio-shell flex h-screen items-center justify-center gap-3 bg-stone-50 text-slate-600">
-        <Spinner className="h-6 w-6" /> Restoring session…
-      </div>
-    );
+    return <SessionLoading />;
   }
   return token && user ? <WritingWorkspace key={user.id} session={session} /> : null;
 }

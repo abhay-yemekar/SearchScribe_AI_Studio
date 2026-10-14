@@ -82,7 +82,7 @@ export default function AccountPage() {
     setStatusBusy(true);
     setVerificationError(null);
     try {
-      setUser(await fetchCurrentUser());
+      setUser(await fetchCurrentUser({ force: true }));
     } catch {
       setVerificationError("Could not refresh your email status. Try again.");
     } finally {
