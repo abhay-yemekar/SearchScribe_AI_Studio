@@ -29,7 +29,10 @@ class _Provider(MockProvider):
 
     def generate(self, prompt_name, prompt_version, variables, schema):
         self.calls.append((prompt_name, prompt_version, variables))
-        return super().generate(prompt_name, prompt_version, variables, schema)
+        response = super().generate(prompt_name, prompt_version, variables, schema)
+        if variables.get("research_status") == "sources_retrieved":
+            response.data.introduction += " A supported fixture claim [S1]."
+        return response
 
 
 def _sources() -> ResearchResult:
@@ -50,6 +53,26 @@ def _install(
     monkeypatch.setattr(
         "app.services.generation_service.retrieve_sources", lambda _: research
     )
+
+
+def test_sources_appendix_cannot_replace_inline_claim_citations(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class UnattributedProvider(_Provider):
+        def generate(self, prompt_name, prompt_version, variables, schema):
+            response = super().generate(prompt_name, prompt_version, variables, schema)
+            response.data.introduction = "A draft with no attributed claims."
+            return response
+
+    provider = UnattributedProvider()
+    _install(monkeypatch, provider, _sources())
+    token = register_user(client)["access_token"]
+    response = client.post(
+        "/api/v1/articles", json={"query": "A sourced topic"}, headers=auth_headers(token),
+    )
+    assert response.status_code == 502
+    assert len(provider.calls) == 1  # No repair/retry conceals missing attribution.
+    assert client.get("/api/v1/articles", headers=auth_headers(token)).json()["items"] == []
 
 
 def test_latest_query_without_sources_fails_before_provider_or_persistence(

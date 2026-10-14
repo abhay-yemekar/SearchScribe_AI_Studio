@@ -26,8 +26,10 @@ function displayDate(value: string | null | undefined) {
 
 export default function ResearchPanel({
   research,
+  expanded = false,
 }: {
   research: ArticleContent["research"];
+  expanded?: boolean;
 }) {
   const hasSources =
     research?.status === "sources_retrieved" && research.sources.length > 0;
@@ -56,7 +58,7 @@ export default function ResearchPanel({
         </p>
       ) : null}
       {hasSources ? (
-        <details className="mt-3 border-t border-stone-200 pt-3">
+        <details open={expanded} className="mt-3 border-t border-stone-200 pt-3">
           <summary className="w-fit cursor-pointer rounded-sm font-medium text-teal-700 underline underline-offset-4 hover:text-teal-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700">
             View {research.sources.length}{" "}
             {research.sources.length === 1 ? "source" : "sources"}

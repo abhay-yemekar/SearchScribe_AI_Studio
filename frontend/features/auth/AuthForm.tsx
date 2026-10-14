@@ -26,8 +26,10 @@ const loginSchema = authSchema.omit({ name: true });
 type SignupValues = z.infer<typeof authSchema>;
 export default function AuthForm({
   initialMode = "login",
+  sessionPending = false,
 }: {
   initialMode?: "login" | "signup";
+  sessionPending?: boolean;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">(initialMode);
@@ -42,6 +44,8 @@ export default function AuthForm({
   });
 
   const onSubmit = async (values: SignupValues & { name?: string }) => {
+    // A rotating refresh must finish before a second authentication mutation.
+    if (sessionPending) return;
     setServerError(null);
     setBusy(true);
     try {
@@ -145,7 +149,12 @@ export default function AuthForm({
                   : "Sign in to continue using SearchScribe."}
               </p>
 
-              <GoogleSignIn
+              {sessionPending ? (
+                <p role="status" className="mb-5 rounded-lg bg-stone-50 p-3 text-xs leading-relaxed text-slate-600">
+                  Checking your session… You can fill in the form while we connect.
+                  After inactivity, the first connection may take a little longer.
+                </p>
+              ) : <GoogleSignIn
                 showUnavailableMessage
                 onError={setServerError}
                 onCredential={async (credential) => {
@@ -153,7 +162,7 @@ export default function AuthForm({
                   await googleLogin(credential);
                   router.push("/dashboard");
                 }}
-              />
+              />}
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
                 className="space-y-4"
@@ -239,7 +248,7 @@ export default function AuthForm({
 
                 <button
                   type="submit"
-                  disabled={busy}
+                  disabled={busy || sessionPending}
                   className="studio-primary-action mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-[#17252b] py-3 text-sm font-semibold text-white transition-colors hover:bg-[#293f48] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {busy ? <Spinner /> : null}

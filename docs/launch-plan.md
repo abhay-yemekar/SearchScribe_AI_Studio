@@ -59,7 +59,10 @@ must be designed alongside the successful flow.
       Combined generation and one targeted SEO repair are implemented. Saved
       review status distinguishes AI metadata, degraded/stale metadata, manual
       edits and legacy records. Deadline, quotas, provider routing and the broader
-      prompt evaluation remain open.
+      prompt evaluation were the next phase. Request-scoped deadlines, optional
+      configuration-driven Gemini/Groq fallback and a reusable 20-query evaluation
+      harness are implemented; deployment and real fallback/model acceptance must
+      be recorded separately. Persistent quotas and idempotency remain open.
 - [ ] Production deployment, backup/restore rehearsal, accessibility and
       mobile verification, and release notes.
 

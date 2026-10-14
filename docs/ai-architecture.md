@@ -16,15 +16,38 @@ Implementations:
 | Provider | File | Notes |
 | --- | --- | --- |
 | `GeminiProvider` | `app/ai/gemini.py` | google-genai SDK, structured JSON output (`response_schema` = Pydantic model), timeouts, token usage captured |
+| `GroqProvider` | `app/ai/groq.py` | optional JSON-object output, bounded HTTP response, local Pydantic validation, separate input/output limits |
 | `MockProvider` | `app/ai/mock.py` | deterministic, offline; test hooks for transient/permanent failure simulation |
 
-Selection is config-driven (`AI_PROVIDER`), resolved through `get_provider()`. Adding OpenAI/Groq/Ollama later = one new file + one factory entry + env vars; no business-logic changes.
+Selection is config-driven (`AI_PROVIDER` + exact `AI_MODEL`), resolved through
+`get_provider()`. Models never depend on the topic. Blank `AI_FALLBACK_PROVIDER`
+and `AI_FALLBACK_MODEL` disable fallback; setting both enables one explicitly
+selected secondary route. The secondary provider requires its own key, unless
+it uses the same provider with a different model. Mock stays completely offline.
 
 ## Failure taxonomy and retries
 
-- `TransientLLMError` — timeouts, 429, 5xx. Retried with exponential backoff + jitter, bounded by `AI_MAX_RETRIES`.
+- `TransientLLMError` — transport failures, timeouts, 429, 5xx. Primary retries
+  have exponential backoff + jitter, bounded by `AI_MAX_RETRIES` and the shared
+  remaining deadline. One configured fallback is attempted after a transient
+  primary failure, with the identical prompt and source bundle.
 - `PermanentLLMError` — auth failures, bad requests, blocked content. Never retried.
 - `SchemaValidationError` — provider answered but the payload failed Pydantic validation. Never retried blindly.
+
+The external-call budget (`AI_OPERATION_TIMEOUT_SECONDS`, default 100 seconds)
+includes research, primary attempts/backoff, one fallback and one SEO repair.
+Async transports cancel and close on expiry; there is no background generation
+thread continuing after a timeout. A configured fallback reserves up to 20 seconds
+of the remaining budget. SDK retries are disabled so attempts cannot multiply.
+Database commits and deterministic rendering remain outside this network budget.
+An exhausted budget produces a specific timeout error; failed operations never
+create a placeholder article or version.
+
+Fallback does not bypass missing current evidence, content refusals, bad keys,
+invalid configuration or malformed generated content. SEO repair remains one
+direct call with the remaining budget; a failed repair preserves the valid
+article and marks its metadata for review. Error logs contain sanitized categories,
+not upstream response bodies, keys, source excerpts or validation input.
 
 An article provider failure returns `502 GENERATION_FAILED`; it never creates a
 placeholder article. A valid article is retained if its SEO cannot be completed.
@@ -83,4 +106,26 @@ and models cannot assign a trusted review state, and no state means fact-checked
 
 ## Cost & observability
 
-Every call writes a `generations` row: provider, model, prompt name/version, input/output tokens, latency, status, error code. Structured logs emit `generation.started/completed/failed`, `generation.seo_fallback`, `llm.transient_retry`. Bounded limits: `AI_MAX_OUTPUT_TOKENS`, `AI_TIMEOUT_SECONDS`, `MAX_QUERY_LENGTH`, `MAX_REWRITE_INPUT_LENGTH`.
+Successful generation rows record the provider/model that actually answered,
+including a fallback answer. Failed rows record the last attempted route and
+sanitized error category. Structured logs record retries and fallback selection.
+Groq has separate `GROQ_MAX_INPUT_CHARS`, `GROQ_MAX_OUTPUT_TOKENS` and response-byte
+caps; an oversized source bundle is rejected, never silently truncated.
+
+## Comparing free models
+
+Use `backend/scripts/evaluate_generation.py` for the 20-case evaluation set.
+The default is a dry run; `--live` is explicit. It uses an isolated in-memory
+database, disables retries/fallback for fair comparisons, and reports generated
+drafts separately from evidence-related declines. Frozen public source bundles
+let models receive identical evidence, but do not establish live retrieval quality.
+Reports require manual factual review; a schema pass is not a fact-check.
+
+The current primary remains unchanged until a candidate is benchmarked. Current
+official references: [Gemini models](https://ai.google.dev/gemini-api/docs/models),
+[Gemini free pricing](https://ai.google.dev/gemini-api/docs/pricing),
+[Groq models](https://console.groq.com/docs/models), and
+[Groq account limits](https://console.groq.com/docs/rate-limits). Keep accounts on
+Free with paid upgrades disabled; published allowances can differ from account
+limits. Groq support being implemented does not mean a production key or fallback
+has been activated.
