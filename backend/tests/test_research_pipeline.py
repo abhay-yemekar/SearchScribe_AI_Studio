@@ -107,7 +107,7 @@ def test_sources_survive_edit_rewrite_restore_and_export(
     )
     assert response.status_code == 201, response.text
     article = response.json()
-    assert provider.calls[0][1] == "v3"
+    assert provider.calls[0][1] == "v4"
     assert "Source S1" in provider.calls[0][2]["research_context"]
     assert article["content"]["research"] == _sources().summary.model_dump()
     assert SOURCE_URL in article["markdown"] and SOURCE_URL in article["html"]

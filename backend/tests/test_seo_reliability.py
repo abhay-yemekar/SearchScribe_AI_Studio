@@ -227,7 +227,7 @@ def test_actual_gemini_adapter_renders_registered_combined_and_repair_prompts(
     detail = generate_article(client, token, "Container gardening")
     assert detail["seo"]["review_status"] == "generated"
     assert len(calls) == (2 if needs_repair else 1)
-    assert "SEO requirements (the seo object" in calls[0]["prompt"]
+    assert "SEO metadata (the seo object" in calls[0]["prompt"]
     if needs_repair:
         assert "Generate fresh metadata" in calls[1]["prompt"]
         assert "Container gardening" in calls[1]["prompt"]

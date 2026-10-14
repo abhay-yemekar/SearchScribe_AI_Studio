@@ -127,7 +127,7 @@ class GenerationService:
             article_response, selected_provider = call_with_fallback(
                 provider, lambda selected: (selected.generate(
                     "article_generation",
-                    "v3",
+                    "v4",
                     generation_variables,
                     GeneratedArticleWithSeo,
                 ), selected),
@@ -148,7 +148,7 @@ class GenerationService:
                 provider=exc.provider or provider.name,
                 model=exc.model or provider.model,
                 prompt_name="article_generation",
-                prompt_version="v3",
+                prompt_version="v4",
                 status="failed",
                 error_code=type(exc).__name__,
             )

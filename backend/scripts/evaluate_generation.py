@@ -12,12 +12,13 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import os
 import re
 import sys
 import time
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -235,9 +236,52 @@ def research_metrics(research: Any, query: str) -> dict[str, Any]:
     }
 
 
+def collect_sources(
+    cases: list[dict[str, str]], *, case_delay_seconds: float = 0,
+    on_case: Callable[[dict[str, Any]], None] | None = None,
+) -> dict[str, Any]:
+    """Freeze the real search stage once, with no model or application database."""
+    from app.ai.research import retrieve_sources
+
+    if not 1 <= len(cases) <= MAX_CASES:
+        raise ValueError("Source collection requires 1 through 20 selected cases.")
+    if not math.isfinite(case_delay_seconds) or not 0 <= case_delay_seconds <= 60:
+        raise ValueError("Evaluation case delay must be between 0 and 60 seconds.")
+    started = datetime.now(UTC).isoformat()
+    results = []
+    with evaluation_settings("mock", "mock-1"):
+        for index, case in enumerate(cases):
+            if index and case_delay_seconds:
+                time.sleep(case_delay_seconds)
+            tick = time.perf_counter()
+            research = retrieve_sources(case["query"])
+            result = {
+                **case, **research_metrics(research, case["query"]),
+                "status": "sources_collected" if research.summary.sources else "no_evidence",
+                "elapsed_ms": round((time.perf_counter() - tick) * 1000),
+                "research": {"summary": research.summary.model_dump(), "context": research.context},
+            }
+            results.append(result)
+            if on_case:
+                on_case({
+                    "case_id": case["id"], "completed": len(results), "total": len(cases),
+                    "status": result["status"], "elapsed_ms": result["elapsed_ms"],
+                })
+    return {
+        "version": 1, "started_at_utc": started, "finished_at_utc": datetime.now(UTC).isoformat(),
+        "research_mode": "live_public_search_only", "model_calls": 0, "database_access": False,
+        "selected_cases": len(results),
+        "status_counts": dict(Counter(r["status"] for r in results)),
+        "case_delay_seconds": case_delay_seconds,
+        "accuracy": "not_evaluated_human_review_required", "results": results,
+    }
+
+
 def run_evaluation(
     cases: list[dict[str, str]], *, provider: str, model: str,
     source_bundles: Path | None = None,
+    case_delay_seconds: float = 0,
+    on_case: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     from sqlalchemy import create_engine, select
     from sqlalchemy.orm import Session
@@ -250,6 +294,8 @@ def run_evaluation(
 
     if not 1 <= len(cases) <= MAX_CASES:
         raise ValueError("Evaluation execution requires 1 through 20 selected cases.")
+    if not math.isfinite(case_delay_seconds) or not 0 <= case_delay_seconds <= 60:
+        raise ValueError("Evaluation case delay must be between 0 and 60 seconds.")
     if provider == "mock" and source_bundles is not None:
         raise ValueError("Mock skips live research and frozen source bundles.")
     results: list[dict[str, Any]] = []
@@ -270,7 +316,9 @@ def run_evaluation(
                 db.add(user)
                 db.commit()
                 service = generation_service.GenerationService(db)
-                for case in cases:
+                for case_index, case in enumerate(cases):
+                    if case_index and case_delay_seconds:
+                        time.sleep(case_delay_seconds)
                     captured: list[Any] = []
                     model_articles: list[Any] = []
 
@@ -346,6 +394,13 @@ def run_evaluation(
                         "prompt_version": row.prompt_version,
                     } for row in calls]
                     results.append(result)
+                    if on_case:
+                        # Public identifiers and safe status only; no prompts or SDK bodies.
+                        on_case({
+                            "case_id": case["id"], "completed": len(results),
+                            "total": len(cases), "status": result["status"],
+                            "elapsed_ms": result["elapsed_ms"],
+                        })
         finally:
             engine.dispose()
     status_counts = dict(Counter(result["status"] for result in results))
@@ -355,6 +410,7 @@ def run_evaluation(
         "finished_at_utc": datetime.now(UTC).isoformat(),
         "provider": provider, "requested_model": model, "research_mode": mode,
         "database": "isolated_in_memory_sqlite", "retry_count": 0, "fallback_enabled": False,
+        "case_delay_seconds": case_delay_seconds,
         "accuracy": "not_evaluated_human_review_required",
         "schema_scores_do_not_certify_accuracy": True,
         "selected_cases": len(results), "status_counts": status_counts,
@@ -397,6 +453,10 @@ def write_report(report: dict[str, Any]) -> Path:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--live", action="store_true", help="Execute bounded provider requests.")
+    parser.add_argument(
+        "--collect-sources", action="store_true",
+        help="With --live, collect public search evidence only; no model or DB calls.",
+    )
     parser.add_argument("--provider", choices=("gemini", "groq", "mock"), default="gemini")
     parser.add_argument("--model", help="Exact provider model ID; required for execution.")
     parser.add_argument("--limit", type=int, default=MAX_CASES)
@@ -405,15 +465,31 @@ def main(argv: list[str] | None = None) -> int:
         "--id", action="append", default=[], help="Select one ID; repeat as needed.",
     )
     parser.add_argument("--source-bundles", type=Path, help="Frozen public reference bundles.")
+    parser.add_argument(
+        "--case-delay-seconds", type=float, default=0,
+        help="Pause 0-60 seconds between cases to respect a free account's limits.",
+    )
+    parser.add_argument(
+        "--progress", action="store_true", help="Print sanitized per-case JSON progress.",
+    )
     args = parser.parse_args(argv)
     try:
         ids = [item.strip() for item in args.ids.split(",") if item.strip()] + args.id
         cases = select_cases(load_cases(), ids, args.limit)
-        if args.live and (not args.model or not re.fullmatch(r"[A-Za-z0-9./_-]{1,60}", args.model)):
+        if not math.isfinite(args.case_delay_seconds) or not 0 <= args.case_delay_seconds <= 60:
+            parser.error("--case-delay-seconds must be between 0 and 60.")
+        if args.collect_sources and args.source_bundles:
+            parser.error("Source collection cannot also read frozen source bundles.")
+        if args.live and not args.collect_sources and (
+            not args.model or not re.fullmatch(r"[A-Za-z0-9./_-]{1,60}", args.model)
+        ):
             parser.error("--live requires an exact model ID; never pass credentials here.")
-        if args.live and re.search(r"(?:^|[-/])latest(?:$|[-/])", args.model):
+        if args.live and args.model and re.search(r"(?:^|[-/])latest(?:$|[-/])", args.model):
             parser.error("Use a fixed model ID instead of a latest alias for comparisons.")
-        if args.live and args.provider == "mock" and args.model != "mock-1":
+        if (
+            args.live and not args.collect_sources
+            and args.provider == "mock" and args.model != "mock-1"
+        ):
             parser.error("The offline provider's exact model ID is mock-1.")
         if args.source_bundles and args.provider == "mock":
             parser.error("Mock skips research; source bundles require a real provider.")
@@ -423,15 +499,24 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({
             "dry_run": True, "external_calls": 0, "database_access": False,
             "provider": args.provider, "model": args.model, "cases": cases,
-            "research_mode": "frozen_public_bundle" if args.source_bundles else "live_retrieval",
+            "research_mode": "live_public_search_only" if args.collect_sources else (
+                "frozen_public_bundle" if args.source_bundles else "live_retrieval"
+            ),
             "next_step": "Add --live and an exact --model to execute; accuracy needs human review.",
         }, indent=2, ensure_ascii=False))
         return 0
     bootstrap_cli()
     try:
-        report = run_evaluation(
-            cases, provider=args.provider, model=args.model, source_bundles=args.source_bundles,
-        )
+        progress = (lambda item: print(json.dumps(item), flush=True)) if args.progress else None
+        if args.collect_sources:
+            report = collect_sources(
+                cases, case_delay_seconds=args.case_delay_seconds, on_case=progress,
+            )
+        else:
+            report = run_evaluation(
+                cases, provider=args.provider, model=args.model, source_bundles=args.source_bundles,
+                case_delay_seconds=args.case_delay_seconds, on_case=progress,
+            )
         output = write_report(report)
     except Exception:
         print("Evaluation could not start or save its report. No exception details are exposed.")
@@ -439,7 +524,7 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps({
         "report_directory": str(output), "selected_cases": report["selected_cases"],
         "status_counts": report["status_counts"],
-        "schema_valid_cases": report["schema_valid_cases"],
+        "schema_valid_cases": report.get("schema_valid_cases"),
         "accuracy": report["accuracy"],
     }, indent=2))
     return 0 if not report["status_counts"].get("failed") else 1

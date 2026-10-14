@@ -110,6 +110,7 @@ def test_configured_model_fixed_endpoint_and_bounded_json_request(monkeypatch: p
 
 @pytest.mark.parametrize("name,version,variables,schema,data", [
     ("article_generation", "v3", VARIABLES, GeneratedArticleWithSeo, {**ARTICLE, "seo": SEO}),
+    ("article_generation", "v4", VARIABLES, GeneratedArticleWithSeo, {**ARTICLE, "seo": SEO}),
     ("seo_generation", "v3", {"article_json": json.dumps(ARTICLE)}, SeoCandidate, SEO),
     ("rewrite", "v1", {
         "style_label": "Professional", "style_guidance": "Clear prose",
