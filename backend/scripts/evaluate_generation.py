@@ -304,6 +304,15 @@ def run_evaluation(
         "frozen_public_bundle" if source_bundles else "live_retrieval"
     )
     with evaluation_settings(provider, model):
+        from app.core.config import settings
+
+        provider_options = {
+            "max_output_tokens": settings.groq_max_output_tokens if provider == "groq"
+            else settings.ai_max_output_tokens,
+            "json_mode": settings.groq_json_mode if provider == "groq" else "json_schema",
+            "reasoning_effort": settings.groq_reasoning_effort if provider == "groq" else None,
+            "operation_timeout_seconds": settings.ai_operation_timeout_seconds,
+        }
         bundles = load_source_bundles(source_bundles, cases) if source_bundles else {}
         original_retrieve = generation_service.retrieve_sources
         original_get_provider = generation_service.get_provider
@@ -409,6 +418,7 @@ def run_evaluation(
         "version": 1, "started_at_utc": started_at,
         "finished_at_utc": datetime.now(UTC).isoformat(),
         "provider": provider, "requested_model": model, "research_mode": mode,
+        "provider_options": provider_options,
         "database": "isolated_in_memory_sqlite", "retry_count": 0, "fallback_enabled": False,
         "case_delay_seconds": case_delay_seconds,
         "accuracy": "not_evaluated_human_review_required",
@@ -502,7 +512,11 @@ def main(argv: list[str] | None = None) -> int:
             "research_mode": "live_public_search_only" if args.collect_sources else (
                 "frozen_public_bundle" if args.source_bundles else "live_retrieval"
             ),
-            "next_step": "Add --live and an exact --model to execute; accuracy needs human review.",
+            "next_step": (
+                "Add --live to collect public sources; no model or application DB will be used."
+                if args.collect_sources else
+                "Add --live and an exact --model to execute; accuracy needs human review."
+            ),
         }, indent=2, ensure_ascii=False))
         return 0
     bootstrap_cli()

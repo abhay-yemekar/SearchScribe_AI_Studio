@@ -116,6 +116,9 @@ including a fallback answer. Failed rows record the last attempted route and
 sanitized error category. Structured logs record retries and fallback selection.
 Groq has separate `GROQ_MAX_INPUT_CHARS`, `GROQ_MAX_OUTPUT_TOKENS` and response-byte
 caps; an oversized source bundle is rejected, never silently truncated.
+The Groq request schema asks for editorial content, while the server assigns
+section IDs and research provenance. The model sees required fields explicitly
+even in strict mode; canonical article validation still runs before persistence.
 
 ## Comparing free models
 
@@ -133,7 +136,8 @@ Pass the resulting `source-bundles.json` to each model with `--source-bundles`.
 An explicit `--case-delay-seconds` between 0 and 60 can pace evaluation on Free
 accounts; `--progress` prints public case IDs and safe statuses without prompts
 or SDK exception bodies. A missing-evidence decline is reported separately from
-schema success. Frozen comparisons do not measure how future searches will rank.
+schema success. Reports record safe provider settings, including output bounds
+and reasoning mode. Frozen comparisons do not measure how future searches will rank.
 
 The current primary remains unchanged until a candidate is benchmarked. Current
 official references: [Gemini models](https://ai.google.dev/gemini-api/docs/models),

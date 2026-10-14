@@ -185,6 +185,8 @@ def test_live_pipeline_uses_only_memory_database_and_frozen_sources(monkeypatch,
     assert result["calls"][0]["provider"] == provider.name
     assert result["factual_accuracy"] == "not_evaluated"
     assert report["schema_19_of_20_threshold_met"] is False
+    assert report["provider_options"]["max_output_tokens"] == settings.ai_max_output_tokens
+    assert report["provider_options"]["reasoning_effort"] is None
 
 
 def test_current_topic_without_evidence_is_declined_before_model(monkeypatch) -> None:
