@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+from conftest import offline_review_response
 
 from app.ai.base import ProviderResponse, SchemaValidationError, TransientLLMError
 from app.ai.schemas import (
@@ -52,6 +53,8 @@ class EvaluatedProvider:
         self.calls += 1
         if self.failure:
             raise self.failure
+        if prompt_name == "draft_review":
+            return offline_review_response(self, prompt_name, prompt_version, variables)
         generated = article()
         generated.introduction += self.citation
         payload = GeneratedArticleWithSeo.model_validate({
@@ -78,6 +81,7 @@ def bundle_file(tmp_path: Path, cases: list[dict[str, str]]) -> Path:
                          "url": "https://example.org/gardening", "published_at": "2026-10-01"}],
         },
         "context": 'Public source S1 reports that herbs need suitable pots and light.',
+        "excerpts": {"S1": "Herbs need suitable pots and light."},
     } for case in cases]}), encoding="utf-8")
     return path
 
@@ -175,7 +179,7 @@ def test_live_pipeline_uses_only_memory_database_and_frozen_sources(monkeypatch,
     )
     assert engines == ["sqlite+pysqlite:///:memory:"]
     assert (settings.database_url, settings.ai_provider, settings.ai_model) == original_settings
-    assert provider.calls == 1
+    assert provider.calls == 2
     assert report["status_counts"] == {"generated": 1}
     assert report["research_mode"] == "frozen_public_bundle"
     result = report["results"][0]

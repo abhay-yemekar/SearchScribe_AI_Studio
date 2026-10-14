@@ -3,7 +3,7 @@
 from dataclasses import replace
 
 import pytest
-from conftest import auth_headers, register_user
+from conftest import auth_headers, offline_review_response, register_user
 
 from app.ai.base import ProviderResponse, SchemaValidationError
 from app.ai.budget import effective_timeout_seconds
@@ -126,6 +126,8 @@ def test_pipeline_filters_evidence_or_stops_before_creating_an_article(
 
         def generate(self, prompt_name, prompt_version, variables, schema):
             self.calls.append((prompt_name, variables))
+            if prompt_name == "draft_review":
+                return offline_review_response(self, prompt_name, prompt_version, variables)
             if schema is ResearchPlan or issubclass(schema, EvidenceReview):
                 assert effective_timeout_seconds() <= (15 if schema is ResearchPlan else 20)
                 data = ResearchPlan(
@@ -162,5 +164,6 @@ def test_pipeline_filters_evidence_or_stops_before_creating_an_article(
     else:
         assert response.status_code == 201, response.text
         assert [s["id"] for s in response.json()["content"]["research"]["sources"]] == ["S2"]
-        assert SECONDARY not in provider.calls[-1][1]["research_context"]
+        writer_call = next(call for call in provider.calls if call[0] == "article_generation")
+        assert SECONDARY not in writer_call[1]["research_context"]
         assert "roundup.example.com" not in response.json()["html"]

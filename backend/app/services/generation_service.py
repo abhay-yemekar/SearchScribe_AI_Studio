@@ -10,13 +10,20 @@ from __future__ import annotations
 
 import logging
 import re
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
 from ..ai.base import LLMError, LLMProvider, SchemaValidationError
-from ..ai.budget import effective_timeout_seconds, within_operation_budget
+from ..ai.budget import (
+    attempt_budget,
+    effective_timeout_seconds,
+    remaining_operation_seconds,
+    within_operation_budget,
+)
+from ..ai.draft_review import apply_review, recheck_draft, review_draft
 from ..ai.evidence_review import review_evidence, select_evidence
 from ..ai.factory import get_provider
 from ..ai.renderer import _fallback_seo, render_article_html
@@ -181,14 +188,22 @@ class GenerationService:
             "research_context": research.context,
         }
         try:
-            article_response, selected_provider = call_with_fallback(
-                provider, lambda selected: (selected.generate(
-                    "article_generation",
-                    "v5",
-                    generation_variables,
-                    GeneratedArticleWithSeo,
-                ), selected),
-            )
+            remaining = remaining_operation_seconds()
+            # Research and checking share the original request deadline. Nested
+            # routing budgets cannot spend this reserve on writer retries.
+            writing_budget = (attempt_budget(remaining - min(40, remaining / 2))
+                              if settings.draft_review_enabled and provider.name != "mock"
+                              and research.summary.sources
+                              else nullcontext())
+            with writing_budget:
+                article_response, selected_provider = call_with_fallback(
+                    provider, lambda selected: (selected.generate(
+                        "article_generation",
+                        "v5",
+                        generation_variables,
+                        GeneratedArticleWithSeo,
+                    ), selected),
+                )
             # Discard model-provided metadata before inspecting the actual draft.
             article_response.data.research = research.summary
             source_ids = {source.id for source in research.summary.sources}
@@ -236,6 +251,13 @@ class GenerationService:
             user, selected_provider, generated, article_response.data.seo
         )
 
+        if settings.draft_review_enabled and provider.name != "mock" and research.summary.sources:
+            generated, reviewed_seo = self._review_draft(
+                user, query, generated, seo, research, selected_provider,
+            )
+            assert reviewed_seo is not None
+            seo = reviewed_seo
+
         # --- deterministic rendering + sanitization ---
         markdown = generated.to_markdown()
         html = sanitize_document(render_article_html(generated, seo))
@@ -278,6 +300,66 @@ class GenerationService:
             seo=seo,
             seo_fallback_used=seo_fallback_used,
         )
+
+    def _review_draft(
+        self, user: User, query: str, article: GeneratedArticle, seo: SeoResult | None,
+        research: ResearchResult, provider: LLMProvider,
+    ) -> tuple[GeneratedArticle, SeoResult | None]:
+        """One evidence edit and one changed-text recheck within the same deadline."""
+        review_provider, review_model = provider.name, provider.model
+        stage = "draft_review"
+        try:
+            response = review_draft(query, article, seo, research, provider)
+            review_provider, review_model = response.provider, response.model
+            findings = any(block.verdict == "revise" for block in response.data.blocks)
+            self.generations.record(
+                user_id=user.id, kind="draft_review", provider=response.provider,
+                model=response.model, prompt_name=response.prompt_name,
+                prompt_version=response.prompt_version, status="success",
+                input_tokens=response.input_tokens, output_tokens=response.output_tokens,
+                latency_ms=response.latency_ms,
+                error_code="DRAFT_REVISION_REQUIRED" if findings else None,
+            )
+            if not findings:
+                return article, seo
+            article, seo, changed = apply_review(article, seo, research, response.data)
+            source_ids = {source.id for source in research.summary.sources}
+            cited_ids = _claimed_source_ids(article)
+            if not cited_ids or not cited_ids.issubset(source_ids):
+                raise SchemaValidationError("Evidence correction lost the draft citations")
+            stage = "draft_recheck"
+            confirmation = recheck_draft(
+                query, article, seo, research, provider, only_ids=changed,
+            )
+            review_provider, review_model = confirmation.provider, confirmation.model
+            self.generations.record(
+                user_id=user.id, kind="draft_review", provider=confirmation.provider,
+                model=confirmation.model, prompt_name=confirmation.prompt_name,
+                prompt_version=confirmation.prompt_version, status="success",
+                input_tokens=confirmation.input_tokens, output_tokens=confirmation.output_tokens,
+                latency_ms=confirmation.latency_ms,
+                error_code="DRAFT_EVIDENCE_CONFLICT" if confirmation.data.issues else None,
+            )
+            if confirmation.data.issues:
+                raise ExternalServiceError(
+                    "The draft still contained claims the retrieved excerpts could not "
+                    "support after one correction. No new article was saved. "
+                    "Try a narrower topic or more specific source details.",
+                    code="DRAFT_EVIDENCE_CONFLICT",
+                )
+            return article, seo
+        except LLMError as exc:
+            self.generations.record(
+                user_id=user.id, kind="draft_review",
+                provider=exc.provider or review_provider, model=exc.model or review_model,
+                prompt_name=stage, prompt_version="v1", status="failed",
+                error_code=type(exc).__name__,
+            )
+            raise ExternalServiceError(
+                "The draft's evidence check could not finish. No new article was saved. "
+                "Your topic has been kept; please try again shortly.",
+                code="DRAFT_REVIEW_UNAVAILABLE",
+            ) from exc
 
     def _resolve_seo(
         self, user: User, provider: LLMProvider, article: GeneratedArticle,

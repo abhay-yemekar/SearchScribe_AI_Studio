@@ -35,7 +35,9 @@ def effective_timeout_seconds() -> float:
 
 @contextmanager
 def attempt_budget(seconds: float) -> Iterator[None]:
-    token = _attempt_deadline.set(time.monotonic() + max(0.0, seconds))
+    deadline = time.monotonic() + max(0.0, seconds)
+    outer = _attempt_deadline.get()
+    token = _attempt_deadline.set(min(deadline, outer) if outer is not None else deadline)
     try:
         yield
     finally:

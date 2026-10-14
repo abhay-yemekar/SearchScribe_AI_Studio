@@ -69,8 +69,15 @@ async def _generate_content(
 class GeminiProvider:
     name = "gemini"
 
-    def __init__(self, *, model: str | None = None) -> None:
+    def __init__(
+        self, *, model: str | None = None, compact_schema: bool = False,
+        temperature: float = 0.7,
+        thinking_budget: int | None = None,
+    ) -> None:
         self.model = model if model is not None else settings.ai_model
+        self.compact_schema = compact_schema
+        self.temperature = temperature
+        self.thinking_budget = thinking_budget
 
     def generate(
         self,
@@ -85,9 +92,26 @@ class GeminiProvider:
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             response_mime_type="application/json",
             response_schema=schema,
-            temperature=0.7,
+            temperature=self.temperature,
             max_output_tokens=settings.ai_max_output_tokens,
         )
+        if self.thinking_budget is not None:
+            config.thinking_config = types.ThinkingConfig(thinking_budget=self.thinking_budget)
+        if self.compact_schema:
+            # Large bounded review arrays can exceed Gemini's decoder-state
+            # budget. Keep the structural wire schema small; the ORIGINAL
+            # Pydantic schema still enforces every length/ID/coverage constraint.
+            def compact(value):
+                if isinstance(value, list):
+                    return [compact(item) for item in value]
+                if isinstance(value, dict):
+                    return {key: compact(item) for key, item in value.items()
+                            if key not in {"minLength", "maxLength", "pattern", "maxItems"}
+                            and (key != "minItems" or item == 1)}
+                return value
+
+            config.response_schema = None
+            config.response_json_schema = compact(schema.model_json_schema())
         started = time.perf_counter()
 
         try:

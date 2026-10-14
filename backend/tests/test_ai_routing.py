@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-from conftest import auth_headers, register_user
+from conftest import auth_headers, offline_review_response, register_user
 from fastapi.testclient import TestClient
 from google.genai import errors as genai_errors
 from google.genai import types as genai_types
@@ -48,6 +48,8 @@ class FixtureProvider(MockProvider):
     def generate(self, prompt_name, prompt_version, variables, schema):
         self.calls.append(prompt_name)
         self.variables.append(variables.copy())
+        if prompt_name == "draft_review":
+            return offline_review_response(self, prompt_name, prompt_version, variables)
         response = super().generate(prompt_name, prompt_version, variables, schema)
         if variables.get("research_status") == "sources_retrieved":
             response.data.introduction += " A supported fixture claim [S1]."
@@ -372,7 +374,7 @@ def test_pipeline_fallback_preserves_sources_and_repairs_seo_once_on_actual_prov
         status="sources_retrieved", sources=[ResearchSource(
             id="S1", title="Fixture research", url="https://example.com/research",
         )],
-    ), "Source S1: untrusted reference evidence.")
+    ), "Source S1: untrusted reference evidence.", excerpts={"S1": "Untrusted reference evidence."})
     monkeypatch.setattr("app.services.generation_service.retrieve_sources", lambda _: research)
     token = register_user(client)["access_token"]
     response = client.post(
@@ -381,13 +383,14 @@ def test_pipeline_fallback_preserves_sources_and_repairs_seo_once_on_actual_prov
     assert response.status_code == 201, response.text
     assert response.json()["content"]["research"] == research.summary.model_dump()
     assert response.json()["seo"]["review_status"] == "needs_review"
-    assert fallback.calls == ["article_generation", "seo_generation"]
+    assert fallback.calls == ["article_generation", "seo_generation", "draft_review"]
     assert primary.variables[0] == fallback.variables[0]
     assert "https://example.com/research" in response.json()["html"]
     rows = db_session.scalars(select(Generation).order_by(Generation.id)).all()
     assert [(row.kind, row.provider, row.model, row.status) for row in rows] == [
         ("article", "fallback", "fallback-model", "success"),
         ("seo", "fallback", "fallback-model", "failed"),
+        ("draft_review", "fallback", "fallback-model", "success"),
     ]
 
 
@@ -402,7 +405,7 @@ def test_fallback_rewrite_retains_saved_evidence_and_actual_provider_metadata(
         status="sources_retrieved", sources=[ResearchSource(
             id="S1", title="Fixture research", url="https://example.com/research",
         )],
-    ), "Source S1: untrusted reference evidence.")
+    ), "Source S1: untrusted reference evidence.", excerpts={"S1": "Untrusted reference evidence."})
     monkeypatch.setattr("app.services.generation_service.retrieve_sources", lambda _: research)
     token = register_user(client)["access_token"]
     created = client.post(
@@ -417,7 +420,7 @@ def test_fallback_rewrite_retains_saved_evidence_and_actual_provider_metadata(
     assert rewritten.json()["content"]["research"] == research.summary.model_dump()
     assert rewritten.json()["seo"]["review_status"] == "needs_review"
     assert "https://example.com/research" in rewritten.json()["html"]
-    assert fallback.calls == ["article_generation", "rewrite"]
+    assert fallback.calls == ["article_generation", "draft_review", "rewrite"]
     row = db_session.scalar(select(Generation).where(Generation.kind == "rewrite"))
     assert row is not None
     assert (row.provider, row.model) == ("fallback", "fallback-model")

@@ -45,10 +45,13 @@ class ObservedProvider:
         self.articles = articles
         self.plans: list[dict[str, Any]] = []
         self.reviews: list[dict[str, Any]] = []
+        self.draft_reviews: list[dict[str, Any]] = []
+        self.draft_rechecks: list[dict[str, Any]] = []
         self.name = inner.name
         self.model = inner.model
 
     def generate(self, *args: Any, **kwargs: Any) -> Any:
+        from app.ai.draft_review import DraftRecheck, DraftReview
         from app.ai.evidence_review import EvidenceReview
         from app.ai.research_plan import ResearchPlan
         from app.ai.schemas import GeneratedArticle
@@ -60,6 +63,10 @@ class ObservedProvider:
             self.plans.append(response.data.model_dump())
         elif isinstance(response.data, EvidenceReview):
             self.reviews.append(response.data.model_dump())
+        elif isinstance(response.data, DraftReview):
+            self.draft_reviews.append(response.data.model_dump())
+        elif isinstance(response.data, DraftRecheck):
+            self.draft_rechecks.append(response.data.model_dump())
         return response
 
 
@@ -176,8 +183,14 @@ def load_source_bundles(path: Path, cases: list[dict[str, str]]) -> dict[str, An
             moment = datetime.fromisoformat(summary.retrieved_at.replace("Z", "+00:00"))
             if moment.tzinfo is None:
                 raise ValueError("Source bundle timestamp must include a timezone.")
+        excerpts = entry.get("excerpts", {})
+        if not isinstance(excerpts, dict) or set(excerpts) != source_ids or any(
+            not isinstance(text, str) or not text.strip()
+            or len(text) > settings.research_max_excerpt_chars for text in excerpts.values()
+        ):
+            raise ValueError("Frozen bundles require the original excerpt for every source.")
         bundles[case_id] = ResearchResult(
-            summary, context, None if summary.sources else "no_evidence",
+            summary, context, None if summary.sources else "no_evidence", excerpts=excerpts,
         )
     if set(bundles) != set(expected):
         raise ValueError("Every selected case must have an exact source bundle.")
@@ -272,7 +285,8 @@ def collect_sources(
                 **case, **research_metrics(research, case["query"]),
                 "status": "sources_collected" if research.summary.sources else "no_evidence",
                 "elapsed_ms": round((time.perf_counter() - tick) * 1000),
-                "research": {"summary": research.summary.model_dump(), "context": research.context},
+                "research": {"summary": research.summary.model_dump(), "context": research.context,
+                             "excerpts": research.excerpts},
             }
             results.append(result)
             if on_case:
@@ -325,12 +339,19 @@ def run_evaluation(
             "json_mode": settings.groq_json_mode if provider == "groq" else "json_schema",
             "reasoning_effort": settings.groq_reasoning_effort if provider == "groq" else None,
             "operation_timeout_seconds": settings.ai_operation_timeout_seconds,
+            "draft_reviewer_provider": settings.draft_reviewer_provider or "inherited_reviewer",
+            "draft_review_enabled": settings.draft_review_enabled,
+            "draft_reviewer_model": settings.draft_reviewer_model or None,
+            "draft_reviewer_reasoning_effort": settings.draft_reviewer_reasoning_effort,
+            "draft_reviewer_thinking_budget": settings.draft_reviewer_thinking_budget,
         }
         bundles = load_source_bundles(source_bundles, cases) if source_bundles else {}
         original_retrieve = generation_service.retrieve_sources
         original_select = generation_service.select_evidence
         original_plan = generation_service.plan_research
         original_review = generation_service.review_evidence
+        original_draft_review = generation_service.review_draft
+        original_recheck = generation_service.recheck_draft
         original_get_provider = generation_service.get_provider
         # Never import app.db.session or instantiate an engine from settings.database_url.
         engine = create_engine("sqlite+pysqlite:///:memory:")
@@ -376,6 +397,22 @@ def run_evaluation(
                             observer.reviews.append(response.data.model_dump())
                         return response
 
+                    def capture_draft_review(
+                        *args: Any, observer: Any = observed, **kwargs: Any,
+                    ) -> Any:
+                        before = len(observer.draft_reviews)
+                        response = original_draft_review(*args, **kwargs)
+                        if len(observer.draft_reviews) == before:
+                            observer.draft_reviews.append(response.data.model_dump())
+                        return response
+
+                    def capture_recheck(*args: Any, observer: Any = observed, **kwargs: Any) -> Any:
+                        before = len(observer.draft_rechecks)
+                        response = original_recheck(*args, **kwargs)
+                        if len(observer.draft_rechecks) == before:
+                            observer.draft_rechecks.append(response.data.model_dump())
+                        return response
+
                     result: dict[str, Any] = {
                         **case, "requested_provider": provider, "requested_model": model,
                         "research_mode": mode, "factual_accuracy": "not_evaluated",
@@ -390,6 +427,8 @@ def run_evaluation(
                             patch.object(generation_service, "select_evidence", capture_selection),
                             patch.object(generation_service, "plan_research", capture_plan),
                             patch.object(generation_service, "review_evidence", capture_review),
+                            patch.object(generation_service, "review_draft", capture_draft_review),
+                            patch.object(generation_service, "recheck_draft", capture_recheck),
                             patch.object(settings, "tavily_api_key",
                                          "" if bundles else settings.tavily_api_key),
                         ):
@@ -417,6 +456,8 @@ def run_evaluation(
                     result["elapsed_ms"] = round((time.perf_counter() - started) * 1000)
                     result["research_plan"] = observed.plans[0] if observed.plans else None
                     result["evidence_review"] = observed.reviews[0] if observed.reviews else None
+                    result["draft_reviews"] = observed.draft_reviews
+                    result["draft_rechecks"] = observed.draft_rechecks
                     if len(captured) > 1:
                         result["raw_research"] = {
                             "summary": captured[0].summary.model_dump(),
@@ -437,6 +478,7 @@ def run_evaluation(
                         result.update(citation_metrics(candidate))
                     result["research"] = {
                         "summary": research.summary.model_dump(), "context": research.context,
+                        "excerpts": research.excerpts,
                     }
                     calls = [
                         row for row in db.scalars(select(Generation)) if row.id not in seen_rows

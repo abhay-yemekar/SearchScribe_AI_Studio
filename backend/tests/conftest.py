@@ -20,6 +20,9 @@ os.environ["GROQ_API_KEY"] = ""
 os.environ["AI_FALLBACK_PROVIDER"] = ""
 os.environ["AI_FALLBACK_MODEL"] = ""
 os.environ["TAVILY_API_KEY"] = ""
+os.environ["DRAFT_REVIEW_ENABLED"] = "true"
+os.environ["DRAFT_REVIEWER_PROVIDER"] = ""
+os.environ["DRAFT_REVIEWER_MODEL"] = ""
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -34,6 +37,25 @@ from app.db.session import create_db_engine, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 
 TEST_PASSWORD = "correct-horse-1"
+
+
+def offline_review_response(provider, prompt_name, prompt_version, variables):
+    """Transport stub for unrelated integration tests; not a semantic quality score."""
+    import json
+
+    from app.ai.base import ProviderResponse
+    from app.ai.draft_review import DraftReview
+
+    blocks = json.loads(variables["review_json"])["draft_blocks"]
+    return ProviderResponse(
+        data=DraftReview(blocks=[{
+            "block_id": block["id"], "verdict": "editorial", "passage_ids": [],
+            "reason": "Offline transport fixture; semantics exercised in draft-review tests.",
+            "replacement": "",
+        } for block in blocks]), provider=provider.name, model=provider.model,
+        input_tokens=10, output_tokens=10, latency_ms=1,
+        prompt_name=prompt_name, prompt_version=prompt_version,
+    )
 
 
 def _make_engine():

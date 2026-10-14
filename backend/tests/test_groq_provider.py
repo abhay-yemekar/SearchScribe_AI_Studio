@@ -153,6 +153,17 @@ def test_explicit_fallback_model_and_optional_effort(monkeypatch: pytest.MonkeyP
     assert payload["model"] == "fallback-configured-model" and payload["reasoning_effort"] == "low"
 
 
+def test_review_effort_and_output_cap_do_not_mutate_writer_settings(monkeypatch):
+    _, requests = _client(monkeypatch, lambda _: _response())
+    monkeypatch.setattr(groq.settings, "groq_reasoning_effort", "medium")
+    monkeypatch.setattr(groq.settings, "groq_max_output_tokens", 4096)
+    _generate(groq.GroqProvider("review-model", reasoning_effort="low", max_output_tokens=1536))
+    _generate(groq.GroqProvider("writer-model"))
+    review, writer = [json.loads(request.content) for request in requests]
+    assert review["reasoning_effort"] == "low" and review["max_completion_tokens"] == 1536
+    assert writer["reasoning_effort"] == "medium" and writer["max_completion_tokens"] == 4096
+
+
 def test_strict_wire_schema_preserves_nested_id_and_nullable_constraints() -> None:
     original = GeneratedArticleWithSeo.model_json_schema()
     before = json.dumps(original, sort_keys=True)
