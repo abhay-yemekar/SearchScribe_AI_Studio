@@ -87,6 +87,7 @@ def test_dry_run_never_enters_pipeline_or_bootstrap(monkeypatch, capsys) -> None
         pytest.fail("Dry run entered an executing path")
 
     monkeypatch.setattr(evaluation, "run_evaluation", forbidden)
+    monkeypatch.setattr(evaluation, "collect_sources", forbidden)
     monkeypatch.setattr(evaluation, "bootstrap_cli", forbidden)
     assert evaluation.main(["--ids", "latest-elon-post", "--limit", "1"]) == 0
     output = json.loads(capsys.readouterr().out)
@@ -95,10 +96,25 @@ def test_dry_run_never_enters_pipeline_or_bootstrap(monkeypatch, capsys) -> None
     assert output["database_access"] is False
 
 
+def test_source_collection_is_opt_in_even_with_its_flag(monkeypatch, capsys) -> None:
+    def forbidden(*args, **kwargs):
+        pytest.fail("Source-only dry run executed a request")
+
+    monkeypatch.setattr(evaluation, "collect_sources", forbidden)
+    monkeypatch.setattr(evaluation, "bootstrap_cli", forbidden)
+    assert evaluation.main(["--collect-sources", "--limit", "1"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["external_calls"] == 0
+    assert output["research_mode"] == "live_public_search_only"
+
+
 @pytest.mark.parametrize("args", [
     ["--live"], ["--limit", "21"], ["--id", "missing"],
     ["--live", "--model", "gemini-flash-latest"],
     ["--live", "--provider", "mock", "--model", "wrong"],
+    ["--case-delay-seconds", "-1"], ["--case-delay-seconds", "61"],
+    ["--case-delay-seconds", "nan"], ["--case-delay-seconds", "inf"],
+    ["--collect-sources", "--source-bundles", "unused.json"],
 ])
 def test_invalid_execution_inputs_fail_before_calls(monkeypatch, args) -> None:
     def forbidden(*args, **kwargs):
@@ -169,6 +185,8 @@ def test_live_pipeline_uses_only_memory_database_and_frozen_sources(monkeypatch,
     assert result["calls"][0]["provider"] == provider.name
     assert result["factual_accuracy"] == "not_evaluated"
     assert report["schema_19_of_20_threshold_met"] is False
+    assert report["provider_options"]["max_output_tokens"] == settings.ai_max_output_tokens
+    assert report["provider_options"]["reasoning_effort"] is None
 
 
 def test_current_topic_without_evidence_is_declined_before_model(monkeypatch) -> None:
@@ -239,3 +257,79 @@ def test_report_has_drafts_metadata_and_reusable_exact_sources(monkeypatch, tmp_
     assert "research" not in metadata
     reused = evaluation.load_source_bundles(output / "source-bundles.json", cases)
     assert reused["fixture-case"].summary.sources[0].id == "S1"
+
+
+def test_free_plan_pacing_and_progress_preserve_every_case(monkeypatch) -> None:
+    provider = EvaluatedProvider()
+    monkeypatch.setattr(generation_service, "get_provider", lambda: provider)
+    monkeypatch.setattr(settings, "tavily_api_key", "")
+    pauses: list[float] = []
+    progress: list[dict] = []
+    monkeypatch.setattr(evaluation.time, "sleep", pauses.append)
+    cases = [*selected_cases(), {
+        "id": "second-case", "query": "Explain editorial review.", "category": "evergreen",
+    }]
+    report = evaluation.run_evaluation(
+        cases, provider="gemini", model=provider.model,
+        case_delay_seconds=30, on_case=progress.append,
+    )
+    assert pauses == [30]  # No delay before the first case or after the last one.
+    assert provider.calls == 2 and report["case_delay_seconds"] == 30
+    assert [item["completed"] for item in progress] == [1, 2]
+    assert all(set(item) == {"case_id", "completed", "total", "status", "elapsed_ms"}
+               for item in progress)
+    assert all(item["status"] == "generated" for item in progress)
+
+
+def test_source_collection_freezes_exact_queries_without_model_or_database(
+    monkeypatch, tmp_path,
+) -> None:
+    import sqlalchemy
+
+    from app.ai import research
+    from app.ai.research import ResearchResult
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Source collection accessed a model or database")
+
+    monkeypatch.setattr(sqlalchemy, "create_engine", forbidden)
+    monkeypatch.setattr(generation_service, "get_provider", forbidden)
+    cases = selected_cases()
+    existing = evaluation.load_source_bundles(bundle_file(tmp_path, cases), cases)["fixture-case"]
+    queries: list[str] = []
+
+    def retrieve(query):
+        queries.append(query)
+        return existing if len(queries) == 1 else ResearchResult(
+            ResearchSummary(), "No usable public evidence.", "no_evidence",
+        )
+
+    monkeypatch.setattr(research, "retrieve_sources", retrieve)
+    cases += [{"id": "missing-case", "query": "An uncertain release.", "category": "missing"}]
+    progress: list[dict] = []
+    report = evaluation.collect_sources(cases, on_case=progress.append)
+    assert queries == [case["query"] for case in cases]
+    assert report["database_access"] is False and report["model_calls"] == 0
+    assert report["status_counts"] == {"sources_collected": 1, "no_evidence": 1}
+    assert [item["status"] for item in progress] == ["sources_collected", "no_evidence"]
+    monkeypatch.setattr(evaluation, "REPOSITORY_ROOT", tmp_path)
+    output = evaluation.write_report(report)
+    reused = evaluation.load_source_bundles(output / "source-bundles.json", cases)
+    assert reused["fixture-case"].context == existing.context
+    assert reused["missing-case"].summary.sources == []
+
+
+def test_source_only_cli_does_not_require_a_model(monkeypatch, tmp_path, capsys) -> None:
+    monkeypatch.setattr(evaluation, "bootstrap_cli", lambda: None)
+    called = []
+
+    def collect(cases, **kwargs):
+        called.append(cases)
+        return {"selected_cases": len(cases), "status_counts": {"no_evidence": len(cases)},
+                "accuracy": "not_evaluated_human_review_required"}
+
+    monkeypatch.setattr(evaluation, "collect_sources", collect)
+    monkeypatch.setattr(evaluation, "write_report", lambda _: tmp_path)
+    assert evaluation.main(["--live", "--collect-sources", "--limit", "1"]) == 0
+    assert len(called) == 1 and len(called[0]) == 1
+    assert json.loads(capsys.readouterr().out)["schema_valid_cases"] is None

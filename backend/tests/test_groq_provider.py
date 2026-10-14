@@ -98,6 +98,8 @@ def test_configured_model_fixed_endpoint_and_bounded_json_request(monkeypatch: p
     assert payload["max_completion_tokens"] == 1536 and payload["stream"] is False
     assert "tools" not in payload and "reasoning_effort" not in payload
     assert "Return one JSON object" in payload["messages"][0]["content"]
+    assert "empty array" in payload["messages"][0]["content"]
+    assert json.loads(payload["messages"][0]["content"].split("\n", 1)[1]) == wire["schema"]
     assert "Writing with evidence" in payload["messages"][1]["content"]
     assert "untrusted reference data" in payload["messages"][1]["content"]
     assert options[0] == {"timeout": 4.5, "follow_redirects": False, "trust_env": False}
@@ -110,6 +112,7 @@ def test_configured_model_fixed_endpoint_and_bounded_json_request(monkeypatch: p
 
 @pytest.mark.parametrize("name,version,variables,schema,data", [
     ("article_generation", "v3", VARIABLES, GeneratedArticleWithSeo, {**ARTICLE, "seo": SEO}),
+    ("article_generation", "v4", VARIABLES, GeneratedArticleWithSeo, {**ARTICLE, "seo": SEO}),
     ("seo_generation", "v3", {"article_json": json.dumps(ARTICLE)}, SeoCandidate, SEO),
     ("rewrite", "v1", {
         "style_label": "Professional", "style_guidance": "Clear prose",
@@ -125,7 +128,7 @@ def test_real_prompt_registry_and_local_schema_validation(
     assert isinstance(response.data, schema) and len(requests) == 1
     payload = json.loads(requests[0].content)
     assert payload["response_format"]["json_schema"]["schema"] == (
-        groq._strict_json_schema(schema.model_json_schema())
+        groq._request_schema(schema)
     )
 
 
@@ -157,9 +160,40 @@ def test_json_object_compatibility_is_explicit_and_locally_validated(monkeypatch
     _generate(groq.GroqProvider("configured-model"))
     payload = json.loads(requests[0].content)
     assert payload["response_format"] == {"type": "json_object"}
-    assert json.loads(payload["messages"][0]["content"].split("\n", 1)[1])["$defs"][
-        "ArticleSection"
-    ]["properties"]["id"]["minLength"] == 8
+    wire = json.loads(payload["messages"][0]["content"].split("\n", 1)[1])
+    assert "id" not in wire["$defs"]["ArticleSection"]["properties"]
+    assert wire["$defs"]["ArticleSection"]["properties"]["heading"]["maxLength"] == 300
+
+
+@pytest.mark.parametrize("mode", ["json_schema", "json_object"])
+def test_server_assigns_ids_and_rejects_model_owned_provenance(monkeypatch, mode) -> None:
+    payload = {**ARTICLE, "sections": [{**ARTICLE["sections"][0], "id": "1"}],
+               "research": {"status": "sources_retrieved", "sources": [{
+                   "id": "S99", "url": "https://forged.example.com/claim",
+               }]}}
+    monkeypatch.setattr(groq.settings, "groq_json_mode", mode)
+    _client(monkeypatch, lambda _: _response(payload))
+    result = _generate()
+    assert len(result.data.sections[0].id) >= 8
+    assert result.data.sections[0].id != "1"
+    assert result.data.research.status == "unresearched"
+    assert result.data.research.sources == []
+    assert result.data.sections[0].paragraphs == ARTICLE["sections"][0]["paragraphs"]
+
+
+def test_editorial_wire_schema_preserves_content_bounds_without_internal_fields() -> None:
+    original = GeneratedArticleWithSeo.model_json_schema()
+    before = json.dumps(original, sort_keys=True)
+    wire = groq._request_schema(GeneratedArticleWithSeo)
+    assert "research" not in wire["properties"]
+    assert "ResearchSummary" not in wire["$defs"]
+    assert "ResearchSource" not in wire["$defs"]
+    section = wire["$defs"]["ArticleSection"]
+    assert set(section["required"]) == {"heading", "paragraphs", "bullets"}
+    assert "id" not in section["properties"]
+    assert wire["properties"]["title"]["maxLength"] == 200
+    assert wire["properties"]["sections"]["minItems"] == 1
+    assert json.dumps(GeneratedArticleWithSeo.model_json_schema(), sort_keys=True) == before
 
 
 @pytest.mark.parametrize("status,error", [

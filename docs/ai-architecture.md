@@ -61,6 +61,11 @@ Prompts are versioned files in `app/ai/prompts/` rendered with Jinja2 (strict un
 - Versioned article prompts include the actual query, current UTC date and
   bounded untrusted research context. Normal generation returns article and SEO
   together in one structured response.
+- Article prompt v4 sizes the article to the available evidence instead of
+  demanding a fixed number of sections or paragraphs. It preserves units and
+  attribution and asks the writer to name evidence gaps instead of filling them
+  with unsupported explanations. This is a generation instruction, not a
+  deterministic factual validator.
 - A separate SEO prompt is used only for one targeted repair when the combined
   response has missing, malformed or unsuitable metadata. This repair has no
   retry loop; the valid article survives an unsuccessful repair.
@@ -111,6 +116,9 @@ including a fallback answer. Failed rows record the last attempted route and
 sanitized error category. Structured logs record retries and fallback selection.
 Groq has separate `GROQ_MAX_INPUT_CHARS`, `GROQ_MAX_OUTPUT_TOKENS` and response-byte
 caps; an oversized source bundle is rejected, never silently truncated.
+The Groq request schema asks for editorial content, while the server assigns
+section IDs and research provenance. The model sees required fields explicitly
+even in strict mode; canonical article validation still runs before persistence.
 
 ## Comparing free models
 
@@ -120,6 +128,16 @@ database, disables retries/fallback for fair comparisons, and reports generated
 drafts separately from evidence-related declines. Frozen public source bundles
 let models receive identical evidence, but do not establish live retrieval quality.
 Reports require manual factual review; a schema pass is not a fact-check.
+
+To compare models against actual search results, first run the same CLI with
+`--live --collect-sources --progress`. This performs public web search only,
+without a model call or application database, and saves reusable source bundles.
+Pass the resulting `source-bundles.json` to each model with `--source-bundles`.
+An explicit `--case-delay-seconds` between 0 and 60 can pace evaluation on Free
+accounts; `--progress` prints public case IDs and safe statuses without prompts
+or SDK exception bodies. A missing-evidence decline is reported separately from
+schema success. Reports record safe provider settings, including output bounds
+and reasoning mode. Frozen comparisons do not measure how future searches will rank.
 
 The current primary remains unchanged until a candidate is benchmarked. Current
 official references: [Gemini models](https://ai.google.dev/gemini-api/docs/models),

@@ -19,6 +19,7 @@ from .base import (
 )
 from .budget import effective_timeout_seconds
 from .prompts import render_prompt
+from .schemas import GeneratedArticle, GeneratedArticleWithSeo
 
 GROQ_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
 
@@ -43,6 +44,18 @@ def _strict_json_schema(value: dict[str, Any]) -> dict[str, Any]:
         return result
 
     return convert(value)
+
+
+def _request_schema(schema: type[BaseModel]) -> dict[str, Any]:
+    """Ask for editorial content; section IDs and research belong to the server."""
+    wire = schema.model_json_schema()
+    if schema in {GeneratedArticle, GeneratedArticleWithSeo}:
+        wire["properties"].pop("research", None)
+        definitions = wire.get("$defs", {})
+        definitions["ArticleSection"]["properties"].pop("id", None)
+        definitions.pop("ResearchSummary", None)
+        definitions.pop("ResearchSource", None)
+    return _strict_json_schema(wire)
 
 
 async def _complete(payload: dict[str, object], api_key: str) -> dict[str, object]:
@@ -141,9 +154,14 @@ class GroqProvider:
         if not self.model.strip() or not settings.groq_api_key.strip():
             raise PermanentLLMError("groq model and API key must be configured")
         prompt = render_prompt(prompt_name, prompt_version, variables)
-        strict_schema = _strict_json_schema(schema.model_json_schema())
+        strict_schema = _request_schema(schema)
         schema_json = json.dumps(strict_schema, separators=(",", ":"))
-        instruction = "Return one JSON object matching the schema. No Markdown or commentary."
+        instruction = (
+            "Return one JSON object matching the schema. No Markdown or commentary. "
+            "Include every required property at every nesting level, even when unused. "
+            "Use an empty array for unused array fields, never omit them. "
+            "Use null only where the schema permits it."
+        )
         if variables.get("research_status") == "sources_retrieved":
             instruction += (
                 " Cite supported claims inline in the introduction and section paragraphs "
@@ -153,8 +171,10 @@ class GroqProvider:
                 "superlatives, release timing or latest/newest claims that the references "
                 "do not establish. A citation does not support an invented extrapolation."
             )
-        if settings.groq_json_mode == "json_object":
-            instruction += "\n" + schema_json
+        # Also show the schema to the model in strict mode. Live responses can be
+        # rejected upstream for omitted nested fields despite strict=True; the
+        # response_format alone is not a substitute for complete instructions.
+        instruction += "\n" + schema_json
         if len(prompt) + len(instruction) + (
             len(schema_json) if settings.groq_json_mode == "json_schema" else 0
         ) > settings.groq_max_input_chars:
@@ -181,7 +201,20 @@ class GroqProvider:
         response = asyncio.run(_complete(payload, settings.groq_api_key))
         text = _response_text(response)
         try:
-            data = schema.model_validate_json(text)
+            if schema in {GeneratedArticle, GeneratedArticleWithSeo}:
+                payload_content = json.loads(text)
+                if isinstance(payload_content, dict):
+                    # Compatibility mode can still emit unwanted keys. Never
+                    # accept model-owned provenance or depend on invented IDs.
+                    payload_content.pop("research", None)
+                    sections = payload_content.get("sections")
+                    if isinstance(sections, list):
+                        for section in sections:
+                            if isinstance(section, dict):
+                                section.pop("id", None)
+                data = schema.model_validate(payload_content)
+            else:
+                data = schema.model_validate_json(text)
         except (ValidationError, ValueError):
             raise SchemaValidationError("groq JSON output failed schema validation") from None
         usage = response.get("usage")
