@@ -98,6 +98,59 @@ for (const viewport of [
   { width: 1422, height: 900 },
   { width: 390, height: 844 },
 ]) {
+  test(`clarification preserves the current draft and accepts a refined topic at ${viewport.width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    const original = await createDraft(page, `clarification-${viewport.width}`);
+    await page.goto("/dashboard");
+    await selectArticle(page, original.query);
+    const originalHeading = page.getByRole("heading", {
+      name: original.title,
+      exact: true,
+    });
+    await expect(originalHeading).toBeVisible();
+    let clarify = true;
+    await page.route("**/api/v1/articles", async (route) => {
+      if (route.request().method() === "POST" && clarify) {
+        clarify = false;
+        await route.fulfill({
+          status: 400,
+          json: {
+            error: {
+              code: "TOPIC_CLARIFICATION_REQUIRED",
+              message: "Which location do you mean by ABC Trek?",
+              request_id: "local-clarification",
+            },
+          },
+        });
+      } else await route.fallback();
+    });
+    const topic = page.getByRole("textbox", { name: "Topic / search query" });
+    await topic.fill("ABC Trek");
+    await page.getByRole("button", { name: "Generate", exact: true }).click();
+    await expect(page.getByText("Which location do you mean by ABC Trek?")).toBeVisible();
+    await expect(topic).toHaveValue("ABC Trek");
+    await expect(topic).toBeFocused();
+    await expect(originalHeading).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    ).toBe(true);
+    await mkdir(screenshots, { recursive: true });
+    await page.screenshot({
+      path: path.join(screenshots, `clarification-${viewport.width}.png`),
+    });
+    await topic.fill("Annapurna Base Camp Trek in Nepal");
+    await page.getByRole("button", { name: "Generate", exact: true }).click();
+    await expect(
+      page.getByRole("heading", {
+        name: "A Practical Guide to Annapurna Base Camp Trek in Nepal",
+        exact: true,
+      }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("One detail before we write")).toBeHidden();
+  });
+
   test(`protect unsaved drafts and export saved versions at ${viewport.width}px`, async ({
     page,
   }) => {
@@ -119,9 +172,9 @@ for (const viewport of [
     });
     await selectArticle(page, original.query);
     expect(
-      await page.getByRole("tabpanel", { name: "Article", exact: true }).evaluate(
-        (element) => element.getBoundingClientRect().height,
-      ),
+      await page
+        .getByRole("tabpanel", { name: "Article", exact: true })
+        .evaluate((element) => element.getBoundingClientRect().height),
     ).toBeGreaterThan(280);
     await page.getByRole("button", { name: "Edit article", exact: true }).click();
 
@@ -360,8 +413,9 @@ test("Markdown download preserves the persisted source citations", async ({ page
   // The primary article is visible before opening the supporting evidence.
   const articlePanel = page.getByRole("tabpanel", { name: "Article", exact: true });
   await expect(articlePanel).toBeVisible();
-  expect(await articlePanel.evaluate((element) => element.getBoundingClientRect().top))
-    .toBeLessThan(450);
+  expect(
+    await articlePanel.evaluate((element) => element.getBoundingClientRect().top),
+  ).toBeLessThan(450);
   await expect(page.getByRole("region", { name: "Article sources" })).toHaveCount(0);
   await page.getByRole("tab", { name: "Sources", exact: true }).click();
   await expect(
@@ -375,9 +429,9 @@ test("Markdown download preserves the persisted source citations", async ({ page
   await sources.getByText("View 1 source", { exact: true }).press("Enter");
   await expect(sourceLink).toBeVisible();
   expect(
-    await page.getByRole("tabpanel", { name: "Sources", exact: true }).evaluate(
-      (element) => element.getBoundingClientRect().height,
-    ),
+    await page
+      .getByRole("tabpanel", { name: "Sources", exact: true })
+      .evaluate((element) => element.getBoundingClientRect().height),
   ).toBeGreaterThan(280);
   await expect(
     page

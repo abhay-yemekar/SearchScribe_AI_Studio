@@ -39,6 +39,7 @@ import {
   saveArticle,
 } from "@/lib/api/articles";
 import type { ArticleContent, ArticleDetail, Seo } from "@/lib/api/schemas";
+import { isApiError } from "@/lib/api/errors";
 
 type DraftSession =
   | {
@@ -61,6 +62,7 @@ type WorkspaceMemory = {
   draft: DraftSession | null;
   editorEpoch: number;
   actionError: string | null;
+  clarification: string | null;
 };
 
 export default function DashboardPage() {
@@ -96,6 +98,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
       draft: null,
       editorEpoch: 0,
       actionError: null,
+      clarification: null,
     },
   });
   const memory = memoryQuery.data!;
@@ -114,7 +117,14 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
     useIsMutating({ mutationKey: ["workspace-action", user!.id] }) > 0;
 
   const [query, setQuery] = useState("");
-  const { selectedId, activeTab, draft: draftSession, editorEpoch, actionError } = memory;
+  const {
+    selectedId,
+    activeTab,
+    draft: draftSession,
+    editorEpoch,
+    actionError,
+    clarification,
+  } = memory;
   const setActionError = (error: string | null) => remember({ actionError: error });
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const pendingAction = useRef<(() => void) | null>(null);
@@ -186,12 +196,20 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
     mutationFn: (topic: string) => generateArticle(topic),
     onSuccess: (detail) => {
       setActionError(null);
+      remember({ clarification: null });
       setSelectedId(detail.id);
       setActiveTab("article");
       setQuery("");
       void queryClient.invalidateQueries({ queryKey: ["articles"] });
     },
-    onError: (error) => setActionError((error as Error).message),
+    onError: (error) => {
+      if (isApiError(error) && error.code === "TOPIC_CLARIFICATION_REQUIRED") {
+        remember({ actionError: null, clarification: error.message });
+        queryInputRef.current?.focus();
+      } else {
+        setActionError(error.message);
+      }
+    },
   });
 
   const rewrite = useMutation({
@@ -332,6 +350,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
     }
     requestAction(() => {
       setActionError(null);
+      remember({ clarification: null });
       generate.mutate(topic);
     });
   };
@@ -391,6 +410,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
           requestAction(() => {
             setSelectedId(null);
             setActionError(null);
+            remember({ clarification: null });
             setMobileNavOpen(false);
             queryInputRef.current?.focus();
           });
@@ -424,7 +444,9 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
               <Menu aria-hidden className="h-5 w-5" />
             </button>
             <div>
-              <p className={`${selectedId !== null ? "sr-only" : ""} text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500`}>
+              <p
+                className={`${selectedId !== null ? "sr-only" : ""} text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500`}
+              >
                 Your writing desk
               </p>
               <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
@@ -468,10 +490,16 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
         </header>
 
         {/* Query + generate */}
-        <div className={`studio-panel rounded-xl border border-stone-200 bg-white ${selectedId !== null ? "p-3" : "p-4 sm:p-6"}`}>
+        <div
+          className={`studio-panel rounded-xl border border-stone-200 bg-white ${selectedId !== null ? "p-3" : "p-4 sm:p-6"}`}
+        >
           <label
             htmlFor="topic"
-            className={selectedId !== null ? "sr-only" : "mb-2 block text-sm font-semibold text-slate-800"}
+            className={
+              selectedId !== null
+                ? "sr-only"
+                : "mb-2 block text-sm font-semibold text-slate-800"
+            }
           >
             What would you like to write about?
           </label>
@@ -483,6 +511,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
               ref={queryInputRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
+              aria-describedby={clarification ? "topic-clarification" : undefined}
               onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
                   event.preventDefault();
@@ -506,12 +535,27 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
               {generate.isPending ? "Generating…" : "Generate"}
             </button>
           </div>
-          <p className={`${selectedId !== null ? "sr-only" : "mt-2"} text-xs text-slate-500`}>
+          <p
+            className={`${selectedId !== null ? "sr-only" : "mt-2"} text-xs text-slate-500`}
+          >
             Tip: press <kbd className="rounded bg-stone-100 px-1">Ctrl</kbd>+
             <kbd className="rounded bg-stone-100 px-1">Enter</kbd> to generate.
           </p>
         </div>
 
+        {clarification ? (
+          <div
+            id="topic-clarification"
+            role="status"
+            className="studio-panel rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-slate-700"
+          >
+            <p className="font-semibold text-[#17252b]">One detail before we write</p>
+            <p className="mt-1">{clarification}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Add this detail to your topic, then generate again.
+            </p>
+          </div>
+        ) : null}
         {actionError ? <ErrorBanner message={actionError} /> : null}
         {dirty || saving ? (
           <p role="status" className="text-sm font-semibold text-teal-800">
@@ -525,7 +569,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
             {generate.isPending ? (
               <div className="w-full max-w-2xl space-y-6 p-8">
                 <p className="text-center text-sm text-slate-600">
-                  Writing your article…
+                  Researching your topic and writing your draft…
                 </p>
                 <ArticleSkeleton />
               </div>
@@ -731,7 +775,13 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
                 {
                   key: "sources",
                   label: "Sources",
-                  content: <ResearchPanel key={detail.id} research={detail.content.research} expanded />,
+                  content: (
+                    <ResearchPanel
+                      key={detail.id}
+                      research={detail.content.research}
+                      expanded
+                    />
+                  ),
                 },
                 {
                   key: "versions",

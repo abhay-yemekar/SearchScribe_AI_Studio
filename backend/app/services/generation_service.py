@@ -17,9 +17,11 @@ from sqlalchemy.orm import Session
 
 from ..ai.base import LLMError, LLMProvider, SchemaValidationError
 from ..ai.budget import effective_timeout_seconds, within_operation_budget
+from ..ai.evidence_review import review_evidence, select_evidence
 from ..ai.factory import get_provider
 from ..ai.renderer import _fallback_seo, render_article_html
 from ..ai.research import ResearchResult, needs_current_sources, retrieve_sources
+from ..ai.research_plan import ResearchPlan, plan_research
 from ..ai.routing import call_with_fallback
 from ..ai.sanitizer import sanitize_document
 from ..ai.schemas import (
@@ -86,15 +88,70 @@ class GenerationService:
                 code="AI_PROVIDER_UNAVAILABLE",
             ) from exc
 
+        # Plan only when live search is configured. Mock remains fully offline.
+        plan: ResearchPlan | None = None
+        if provider.name != "mock" and settings.tavily_api_key.strip():
+            try:
+                planning = plan_research(query, provider)
+            except LLMError as exc:
+                self.generations.record(
+                    user_id=user.id, kind="research_plan", provider=exc.provider or provider.name,
+                    model=exc.model or provider.model, prompt_name="research_planning",
+                    prompt_version="v1", status="failed", error_code=type(exc).__name__,
+                )
+                raise ExternalServiceError(
+                    "Unable to prepare research right now. Your topic has been kept; try again.",
+                    code="RESEARCH_PLANNING_UNAVAILABLE",
+                ) from exc
+            plan = planning.data
+            self.generations.record(
+                user_id=user.id, kind="research_plan", provider=planning.provider,
+                model=planning.model, prompt_name=planning.prompt_name,
+                prompt_version=planning.prompt_version, status="success",
+                input_tokens=planning.input_tokens, output_tokens=planning.output_tokens,
+                latency_ms=planning.latency_ms,
+            )
+            if plan.clarification_question:
+                raise BadRequestError(
+                    plan.clarification_question,
+                    code="TOPIC_CLARIFICATION_REQUIRED",
+                    details={"hint": "Add this detail to your topic, then generate again."},
+                )
         # Mock preview/tests never retrieve live pages or consume provider credits.
         research = (
-            retrieve_sources(query)
+            (retrieve_sources(query, plan=plan) if plan else retrieve_sources(query))
             if provider.name != "mock"
             else ResearchResult(ResearchSummary(), "Offline mock preview; no live research.")
         )
+        if plan is not None and research.summary.sources:
+            review_provider, review_model = provider.name, provider.model
+            try:
+                assessment = review_evidence(query, research, plan, provider)
+                review_provider, review_model = assessment.provider, assessment.model
+                research = select_evidence(research, assessment.data,
+                                           primary_only=plan.primary_sources_only)
+            except LLMError as exc:
+                self.generations.record(
+                    user_id=user.id, kind="evidence_review",
+                    provider=exc.provider or review_provider, model=exc.model or review_model,
+                    prompt_name="evidence_review", prompt_version="v1", status="failed",
+                    error_code=type(exc).__name__,
+                )
+                raise ExternalServiceError(
+                    "Unable to select reliable evidence for this draft right now. "
+                    "Your topic has been kept; try again.", code="EVIDENCE_REVIEW_UNAVAILABLE",
+                ) from exc
+            self.generations.record(
+                user_id=user.id, kind="evidence_review", provider=assessment.provider,
+                model=assessment.model, prompt_name=assessment.prompt_name,
+                prompt_version=assessment.prompt_version, status="success",
+                input_tokens=assessment.input_tokens, output_tokens=assessment.output_tokens,
+                latency_ms=assessment.latency_ms,
+            )
         if (
             provider.name != "mock"
-            and needs_current_sources(query)
+            and ((plan.requires_current_sources or plan.primary_sources_only)
+                 if plan else needs_current_sources(query))
             and not research.summary.sources
         ):
             if research.failure == "not_configured":
@@ -127,7 +184,7 @@ class GenerationService:
             article_response, selected_provider = call_with_fallback(
                 provider, lambda selected: (selected.generate(
                     "article_generation",
-                    "v4",
+                    "v5",
                     generation_variables,
                     GeneratedArticleWithSeo,
                 ), selected),
@@ -148,7 +205,7 @@ class GenerationService:
                 provider=exc.provider or provider.name,
                 model=exc.model or provider.model,
                 prompt_name="article_generation",
-                prompt_version="v4",
+                prompt_version="v5",
                 status="failed",
                 error_code=type(exc).__name__,
             )

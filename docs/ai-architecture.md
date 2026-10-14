@@ -61,11 +61,45 @@ Prompts are versioned files in `app/ai/prompts/` rendered with Jinja2 (strict un
 - Versioned article prompts include the actual query, current UTC date and
   bounded untrusted research context. Normal generation returns article and SEO
   together in one structured response.
-- Article prompt v4 sizes the article to the available evidence instead of
+- Article prompt v5 sizes the article to the available evidence instead of
   demanding a fixed number of sections or paragraphs. It preserves units and
   attribution and asks the writer to name evidence gaps instead of filling them
   with unsupported explanations. This is a generation instruction, not a
   deterministic factual validator.
+- With live research configured, `research_planning/v1` classifies reference,
+  reporting, historical or general intent in one call capped at 15 seconds.
+  Unresolved identity/location ambiguity returns `TOPIC_CLARIFICATION_REQUIRED`
+  before searching or persisting a draft. The workspace retains the topic and
+  asks the user to add the missing detail. A planning failure stops clearly.
+- The original query always runs. At most one model-proposed complementary query
+  searches for original evidence, without a topic/provider domain allowlist.
+  The original search uses basic depth; complementary discovery uses explicit
+  advanced depth (up to three Tavily credits total), concurrently within the
+  research deadline. Each response is byte-bounded; results are interleaved,
+  deduplicated and limited to five complete source records in the prompt.
+- Reporting retains strict UTC publication/update date checks. Reference discovery
+  permits older or undated maintained documents, while excluding future dates.
+  This improves discovery; it does not certify primary authorship or freshness.
+  V5 explicitly distinguishes event dates from roundup publication dates, asks
+  for attribution of conflicting figures and names missing official evidence.
+- `RESEARCH_PLANNER_PROVIDER` and `RESEARCH_PLANNER_MODEL` optionally assign a
+  separately validated planner role; blank fields reuse the article provider.
+  These fields do not enable article fallback. Generation metadata records
+  planning usage/provider separately. Mock never calls either external role.
+- Before writing from live evidence, `evidence_review/v1` selects relevant
+  original passages, publisher roles, conflicts and coverage gaps in a call capped
+  at 20 seconds. The server assigns passage IDs and copies the original text;
+  the model selects IDs instead of retyping or paraphrasing quotes. Unknown,
+  or cross-source passage IDs stop before persistence. Duplicate valid selections
+  are consolidated; conflicting role assessments are treated as uncertain.
+  Official-only tasks exclude material classified as secondary or uncertain from
+  both the writer context and saved source list. This is model-assisted source
+  selection, not proof of factual accuracy or publisher authenticity.
+- `RESEARCH_REVIEWER_PROVIDER` and `RESEARCH_REVIEWER_MODEL` optionally select a
+  separate evidence-review model; blank fields reuse the planner. Groq reviewers
+  use JSON-object mode with local schema and passage-ownership validation. Article
+  generation retains its configured strict schema. The original source records
+  and selected records are saved separately in local evaluation reports.
 - A separate SEO prompt is used only for one targeted repair when the combined
   response has missing, malformed or unsuitable metadata. This repair has no
   retry loop; the valid article survives an unsuccessful repair.
@@ -128,6 +162,8 @@ database, disables retries/fallback for fair comparisons, and reports generated
 drafts separately from evidence-related declines. Frozen public source bundles
 let models receive identical evidence, but do not establish live retrieval quality.
 Reports require manual factual review; a schema pass is not a fact-check.
+Live evaluation exercises planning as well as retrieval; frozen bundles skip
+planning and report that limitation, so identical-evidence comparisons stay fair.
 
 To compare models against actual search results, first run the same CLI with
 `--live --collect-sources --progress`. This performs public web search only,

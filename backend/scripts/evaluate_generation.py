@@ -33,6 +33,7 @@ MAX_CASES = 20
 MAX_BUNDLE_BYTES = 512_000
 DECLINED_CODES = {
     "RESEARCH_NOT_CONFIGURED", "CURRENT_SOURCES_NOT_FOUND", "CURRENT_SOURCES_UNAVAILABLE",
+    "TOPIC_CLARIFICATION_REQUIRED",
 }
 
 
@@ -42,15 +43,23 @@ class ObservedProvider:
     def __init__(self, inner: Any, articles: list[Any]) -> None:
         self.inner = inner
         self.articles = articles
+        self.plans: list[dict[str, Any]] = []
+        self.reviews: list[dict[str, Any]] = []
         self.name = inner.name
         self.model = inner.model
 
     def generate(self, *args: Any, **kwargs: Any) -> Any:
+        from app.ai.evidence_review import EvidenceReview
+        from app.ai.research_plan import ResearchPlan
         from app.ai.schemas import GeneratedArticle
 
         response = self.inner.generate(*args, **kwargs)
         if isinstance(response.data, GeneratedArticle):
             self.articles.append(response.data)
+        elif isinstance(response.data, ResearchPlan):
+            self.plans.append(response.data.model_dump())
+        elif isinstance(response.data, EvidenceReview):
+            self.reviews.append(response.data.model_dump())
         return response
 
 
@@ -213,19 +222,23 @@ def article_metrics(article: Any, seo: Any) -> dict[str, Any]:
     }
 
 
-def research_metrics(research: Any, query: str) -> dict[str, Any]:
-    from app.ai.research import _recent_window, _reported_date, needs_current_sources
+def research_metrics(research: Any, query: str, plan_data: Any = None) -> dict[str, Any]:
+    from app.ai.research import _reported_date, needs_current_sources, publication_window
+    from app.ai.research_plan import ResearchPlan
 
     today = datetime.now(UTC).date()
     sources = research.summary.sources
-    window = _recent_window(query, today)
+    plan = ResearchPlan.model_validate(plan_data) if plan_data is not None else None
+    window = publication_window(query, today, plan)
     dates = [_reported_date(source) for source in sources]
     matching = (
         sum(moment is not None and window[0] <= moment <= window[1] for moment in dates)
         if window else None
     )
     return {
-        "current_topic": needs_current_sources(query), "source_count": len(sources),
+        "current_topic": plan.requires_current_sources if plan else needs_current_sources(query),
+        "research_intent": plan.mode if plan else "unplanned",
+        "source_count": len(sources),
         "research_status": research.summary.status, "research_failure": research.failure,
         "reported_dated_source_count": sum(moment is not None for moment in dates),
         "within_requested_window_count": matching,
@@ -315,6 +328,9 @@ def run_evaluation(
         }
         bundles = load_source_bundles(source_bundles, cases) if source_bundles else {}
         original_retrieve = generation_service.retrieve_sources
+        original_select = generation_service.select_evidence
+        original_plan = generation_service.plan_research
+        original_review = generation_service.review_evidence
         original_get_provider = generation_service.get_provider
         # Never import app.db.session or instantiate an engine from settings.database_url.
         engine = create_engine("sqlite+pysqlite:///:memory:")
@@ -335,10 +351,30 @@ def run_evaluation(
 
                     def capture_research(
                         query: str, case_id: str = case["id"], sink: list[Any] = captured,
+                        **kwargs: Any,
                     ) -> Any:
-                        result = bundles[case_id] if bundles else original_retrieve(query)
+                        result = bundles[case_id] if bundles else original_retrieve(query, **kwargs)
                         sink.append(result)
                         return result
+
+                    def capture_selection(
+                        research: Any, review: Any, sink: list[Any] = captured, **kwargs: Any,
+                    ) -> Any:
+                        result = original_select(research, review, **kwargs)
+                        sink.append(result)
+                        return result
+
+                    def capture_plan(*args: Any, observer: Any = observed, **kwargs: Any) -> Any:
+                        response = original_plan(*args, **kwargs)
+                        if not observer.plans:
+                            observer.plans.append(response.data.model_dump())
+                        return response
+
+                    def capture_review(*args: Any, observer: Any = observed, **kwargs: Any) -> Any:
+                        response = original_review(*args, **kwargs)
+                        if not observer.reviews:
+                            observer.reviews.append(response.data.model_dump())
+                        return response
 
                     result: dict[str, Any] = {
                         **case, "requested_provider": provider, "requested_model": model,
@@ -351,6 +387,11 @@ def run_evaluation(
                         with (
                             patch.object(generation_service, "retrieve_sources", capture_research),
                             patch.object(generation_service, "get_provider", return_value=observed),
+                            patch.object(generation_service, "select_evidence", capture_selection),
+                            patch.object(generation_service, "plan_research", capture_plan),
+                            patch.object(generation_service, "review_evidence", capture_review),
+                            patch.object(settings, "tavily_api_key",
+                                         "" if bundles else settings.tavily_api_key),
                         ):
                             outcome = service.generate_article(user, case["query"])
                         version = service.articles.latest_version(outcome.article.id)
@@ -374,10 +415,19 @@ def run_evaluation(
                         db.rollback()
                         result.update({"status": "failed", "error_code": "EVALUATION_FAILED"})
                     result["elapsed_ms"] = round((time.perf_counter() - started) * 1000)
-                    research = captured[0] if captured else generation_service.ResearchResult(
+                    result["research_plan"] = observed.plans[0] if observed.plans else None
+                    result["evidence_review"] = observed.reviews[0] if observed.reviews else None
+                    if len(captured) > 1:
+                        result["raw_research"] = {
+                            "summary": captured[0].summary.model_dump(),
+                            "context": captured[0].context,
+                        }
+                    research = captured[-1] if captured else generation_service.ResearchResult(
                         ResearchSummary(), "Offline mock preview; no research.",
                     )
-                    result.update(research_metrics(research, case["query"]))
+                    result.update(research_metrics(
+                        research, case["query"], result["research_plan"],
+                    ))
                     result["pipeline_output_valid"] = result["status"] == "generated"
                     if model_articles:
                         # Even a declined unsupported citation had syntactically valid schema.
@@ -418,6 +468,9 @@ def run_evaluation(
         "version": 1, "started_at_utc": started_at,
         "finished_at_utc": datetime.now(UTC).isoformat(),
         "provider": provider, "requested_model": model, "research_mode": mode,
+        "research_planning": "skipped_for_frozen_bundles" if source_bundles else (
+            "offline" if provider == "mock" else "one_bounded_model_call_when_search_configured"
+        ),
         "provider_options": provider_options,
         "database": "isolated_in_memory_sqlite", "retry_count": 0, "fallback_enabled": False,
         "case_delay_seconds": case_delay_seconds,
