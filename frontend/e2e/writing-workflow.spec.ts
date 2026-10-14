@@ -12,6 +12,80 @@ if (apiOrigin && !/^http:\/\/127\.0\.0\.1:\d+$/.test(apiOrigin)) {
 const apiPath = (pathname: string) => `${apiOrigin}${pathname}`;
 const screenshots = path.resolve("..", ".cache", "writing-workflow");
 
+for (const viewport of [
+  { width: 1440, height: 900 },
+  { width: 390, height: 844 },
+]) {
+  test(`AI limit keeps the topic and saved article usable at ${viewport.width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    const original = await createDraft(page, `quota-${viewport.width}`);
+    await page.goto("/dashboard");
+    await selectArticle(page, original.query);
+    await closeMobileNavigation(page);
+    const article = page.getByRole("tabpanel", { name: "Article", exact: true });
+    await expect(article).toBeVisible();
+    const before = await article.innerText();
+    let requests = 0;
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route("**/api/v1/articles", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      requests++;
+      await pending;
+      await route.fulfill({
+        status: 503,
+        json: {
+          error: {
+            code: "AI_DAILY_LIMIT_REACHED",
+            message:
+              "The AI service has reached its daily limit. Please try again later. Your topic and saved articles are unchanged.",
+            request_id: "quota-fixture",
+            details: {
+              retry_after_seconds: 3600,
+              retry_at: new Date(Date.now() + 3600000).toISOString(),
+            },
+          },
+        },
+      });
+    });
+    const topic = page.getByRole("textbox", { name: "Topic / search query" });
+    await topic.fill("An article topic to keep");
+    await page.getByRole("button", { name: "Generate", exact: true }).click();
+    await expect(
+      page.getByText("Wait for the current action to finish before exporting."),
+    ).toBeVisible();
+    release();
+    const alert = page.getByRole("alert").filter({ hasText: /daily limit/ });
+    await expect(alert).toContainText("Suggested retry:");
+    await expect(topic).toHaveValue("An article topic to keep");
+    await expect(
+      page.getByRole("button", { name: "Generate", exact: true }),
+    ).toBeEnabled();
+    await expect(
+      page.getByRole("button", { name: "Download Markdown", exact: true }),
+    ).toBeEnabled();
+    expect(await article.innerText()).toBe(before);
+    expect(requests).toBe(1);
+    expect(errors).toEqual([]);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await mkdir(screenshots, { recursive: true });
+    await page.screenshot({
+      path: path.join(screenshots, `quota-recovery-${viewport.width}.png`),
+      fullPage: true,
+    });
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   if (apiOrigin) {
     await page.route("**/api/v1/**", async (route) => {

@@ -109,7 +109,12 @@ def error_response(
     }
     if details:
         error_body["details"] = details
-    return JSONResponse(status_code=status_code, content={"error": error_body})
+    headers = {}
+    delay = details.get("retry_after_seconds") if details else None
+    if (code in {"AI_DAILY_LIMIT_REACHED", "AI_SERVICE_BUSY"}
+            and isinstance(delay, int) and not isinstance(delay, bool) and 1 <= delay <= 86400):
+        headers["Retry-After"] = str(delay)
+    return JSONResponse(status_code=status_code, content={"error": error_body}, headers=headers)
 
 
 def register_exception_handlers(app: FastAPI) -> None:

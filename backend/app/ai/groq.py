@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from contextlib import suppress
 from typing import Any, Literal, TypeVar
 
 import httpx
@@ -19,6 +20,7 @@ from .base import (
 )
 from .budget import effective_timeout_seconds
 from .prompts import render_prompt
+from .rate_limits import groq_rate_limit
 from .schemas import GeneratedArticle, GeneratedArticleWithSeo
 
 GROQ_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -79,7 +81,21 @@ async def _complete(payload: dict[str, object], api_key: str) -> dict[str, objec
                     json=payload,
                 ) as response:
                     status = response.status_code
-                    if status in {408, 429} or status >= 500:
+                    if status == 429:
+                        # Quota errors can contain account IDs and request text.
+                        # Read only a small uncompressed body, then discard it.
+                        details = None
+                        if response.headers.get("content-encoding", "").lower() in {"", "identity"}:
+                            limited = bytearray()
+                            async for chunk in response.aiter_bytes(chunk_size=1024):
+                                if len(limited) + len(chunk) > 8192:
+                                    limited.clear()
+                                    break
+                                limited.extend(chunk)
+                            with suppress(ValueError, UnicodeDecodeError):
+                                details = json.loads(limited)
+                        raise groq_rate_limit(details, response.headers.get("retry-after"))
+                    if status == 408 or status >= 500:
                         raise TransientLLMError(f"groq request failed ({status})")
                     if status != 200:
                         raise PermanentLLMError(f"groq request rejected ({status})")

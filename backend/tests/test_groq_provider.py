@@ -12,7 +12,12 @@ import pytest
 from pydantic import BaseModel
 
 from app.ai import groq
-from app.ai.base import PermanentLLMError, SchemaValidationError, TransientLLMError
+from app.ai.base import (
+    PermanentLLMError,
+    RateLimitedLLMError,
+    SchemaValidationError,
+    TransientLLMError,
+)
 from app.ai.schemas import GeneratedArticle, GeneratedArticleWithSeo, SeoCandidate
 
 ARTICLE = {
@@ -75,6 +80,39 @@ def _generate(provider: groq.GroqProvider | None = None):
     return (provider or groq.GroqProvider("configured-test-model")).generate(
         "article_generation", "v3", VARIABLES, GeneratedArticleWithSeo,
     )
+
+
+@pytest.mark.parametrize("message,daily", [
+    ("Rate limit on tokens per day (TPD). private-account", True),
+    ("Rate limit on requests per day (RPD). private-account", True),
+    ("Rate limit on tokens per minute (TPM). private-account", False),
+])
+def test_quota_error_retains_only_classification_and_retry_header(monkeypatch, message, daily):
+    _client(monkeypatch, lambda _: httpx.Response(429, headers={"Retry-After": "12.2"}, json={
+        "error": {"message": message},
+    }))
+    with pytest.raises(RateLimitedLLMError) as caught:
+        _generate()
+    assert caught.value.daily is daily and caught.value.retry_after_seconds == 13
+    assert str(caught.value) == "groq rate limit reached"
+
+
+def test_quota_error_body_is_bounded_and_invalid_metadata_is_ignored(monkeypatch):
+    reads = []
+
+    class Oversized(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            for i in range(100):
+                reads.append(i)
+                yield b"private-account" * 100
+
+    _client(monkeypatch, lambda _: httpx.Response(
+        429, headers={"Retry-After": "inf"}, stream=Oversized(),
+    ))
+    with pytest.raises(RateLimitedLLMError) as caught:
+        _generate()
+    assert not caught.value.daily and caught.value.retry_after_seconds is None
+    assert len(reads) < 10 and "private" not in str(caught.value)
 
 
 def test_configured_model_fixed_endpoint_and_bounded_json_request(monkeypatch: pytest.MonkeyPatch):

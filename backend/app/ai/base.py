@@ -25,6 +25,17 @@ class TransientLLMError(LLMError):
     """Retryable failure (timeout, 429, 5xx)."""
 
 
+class RateLimitedLLMError(TransientLLMError):
+    """A provider limit, with sanitized retry guidance when supplied."""
+
+    def __init__(
+        self, message: str, *, daily: bool = False, retry_after_seconds: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.daily = daily
+        self.retry_after_seconds = retry_after_seconds
+
+
 class PermanentLLMError(LLMError):
     """Non-retryable failure (auth, bad request, safety block)."""
 
@@ -86,10 +97,14 @@ def call_with_retry[R](
             return fn()
         except TransientLLMError as exc:
             last_error = exc
-            if attempt >= max_retries:
+            if attempt >= max_retries or (isinstance(exc, RateLimitedLLMError) and exc.daily):
                 break
             delay = base_delay_seconds * (2**attempt) + random.uniform(0, 0.25)  # noqa: S311 - jitter only, not crypto
+            if isinstance(exc, RateLimitedLLMError) and exc.retry_after_seconds is not None:
+                delay = max(delay, exc.retry_after_seconds)
             if delay >= effective_timeout_seconds():
+                if isinstance(exc, RateLimitedLLMError):
+                    raise
                 raise DeadlineExceededLLMError("AI operation deadline exhausted") from None
             logger.warning(
                 "llm.transient_retry",
