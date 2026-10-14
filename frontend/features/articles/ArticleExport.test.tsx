@@ -40,4 +40,15 @@ describe("export controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Download Markdown" }));
     expect(screen.getByRole("alert")).toHaveTextContent("download could not start");
   });
+  it("explains a pending action without claiming there are unsaved edits", () => {
+    render(
+      <ArticleExport
+        {...props}
+        disabled
+        disabledReason="Wait for the current action to finish before exporting."
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Wait for the current action");
+    expect(screen.queryByText(/Save or discard/)).not.toBeInTheDocument();
+  });
 });

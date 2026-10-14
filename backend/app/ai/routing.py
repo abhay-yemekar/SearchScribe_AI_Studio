@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable
 
 from ..core.config import settings
-from .base import LLMError, LLMProvider, TransientLLMError, call_with_retry
+from .base import LLMError, LLMProvider, RateLimitedLLMError, TransientLLMError, call_with_retry
 from .budget import attempt_budget, effective_timeout_seconds, remaining_operation_seconds
 from .factory import get_fallback_provider
 
@@ -21,7 +21,9 @@ def _attempt[R](provider: LLMProvider, fn: Callable[[LLMProvider], R]) -> R:
         return result
     except LLMError as exc:
         # The failure belongs to this invocation, never shared mutable router state.
-        failure = type(exc)(str(exc))
+        failure = (RateLimitedLLMError(str(exc), daily=exc.daily,
+                                       retry_after_seconds=exc.retry_after_seconds)
+                   if isinstance(exc, RateLimitedLLMError) else type(exc)(str(exc)))
         failure.provider = provider.name
         failure.model = provider.model
         raise failure from None

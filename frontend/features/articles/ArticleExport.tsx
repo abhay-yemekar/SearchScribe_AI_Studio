@@ -9,11 +9,13 @@ export default function ArticleExport({
   html,
   markdown,
   disabled = false,
+  disabledReason = "Save or discard your changes before exporting.",
 }: {
   title: string;
   html: string;
   markdown: string;
   disabled?: boolean;
+  disabledReason?: string;
 }) {
   const [error, setError] = useState<string | null>(null);
   function download(format: ArticleExportFormat) {
@@ -53,7 +55,7 @@ export default function ArticleExport({
       </button>
       {disabled && (
         <p role="status" className="w-full text-xs text-slate-600">
-          Save or discard your changes before exporting.
+          {disabledReason}
         </p>
       )}
       {error && (

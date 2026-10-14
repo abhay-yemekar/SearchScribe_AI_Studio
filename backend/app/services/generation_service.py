@@ -12,11 +12,11 @@ import logging
 import re
 from contextlib import nullcontext
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from ..ai.base import LLMError, LLMProvider, SchemaValidationError
+from ..ai.base import LLMError, LLMProvider, RateLimitedLLMError, SchemaValidationError
 from ..ai.budget import (
     attempt_budget,
     effective_timeout_seconds,
@@ -41,12 +41,31 @@ from ..ai.schemas import (
 from ..ai.styles import get_style
 from ..ai.validation import validate_generated_seo
 from ..core.config import settings
-from ..core.exceptions import BadRequestError, ExternalServiceError
+from ..core.exceptions import BadRequestError, ExternalServiceError, ServiceUnavailableError
 from ..db.models import Article, User
 from ..repositories.article_repo import ArticleRepository
 from ..repositories.generation_repo import GenerationRepository
 
 logger = logging.getLogger(__name__)
+
+
+def _raise_provider_limit(exc: LLMError) -> None:
+    if not isinstance(exc, RateLimitedLLMError):
+        return
+    details: dict[str, object] = {}
+    delay = exc.retry_after_seconds
+    if isinstance(delay, int) and not isinstance(delay, bool) and 1 <= delay <= 86400:
+        details = {
+            "retry_after_seconds": delay,
+            "retry_at": (datetime.now(UTC) + timedelta(seconds=delay)).isoformat(),
+        }
+    raise ServiceUnavailableError(
+        ("The AI service has reached its daily limit. Please try again later. " if exc.daily
+         else "The AI service is temporarily busy. Please try again later. ")
+        + "Your topic and saved articles are unchanged.",
+        code="AI_DAILY_LIMIT_REACHED" if exc.daily else "AI_SERVICE_BUSY",
+        details=details,
+    ) from exc
 
 
 def _claimed_source_ids(article: GeneratedArticle) -> set[str]:
@@ -106,6 +125,7 @@ class GenerationService:
                     model=exc.model or provider.model, prompt_name="research_planning",
                     prompt_version="v1", status="failed", error_code=type(exc).__name__,
                 )
+                _raise_provider_limit(exc)
                 raise ExternalServiceError(
                     "Unable to prepare research right now. Your topic has been kept; try again.",
                     code="RESEARCH_PLANNING_UNAVAILABLE",
@@ -144,6 +164,7 @@ class GenerationService:
                     prompt_name="evidence_review", prompt_version="v1", status="failed",
                     error_code=type(exc).__name__,
                 )
+                _raise_provider_limit(exc)
                 raise ExternalServiceError(
                     "Unable to select reliable evidence for this draft right now. "
                     "Your topic has been kept; try again.", code="EVIDENCE_REVIEW_UNAVAILABLE",
@@ -225,6 +246,7 @@ class GenerationService:
                 error_code=type(exc).__name__,
             )
             logger.warning("generation.failed", extra={"user_id": user.id, "query_len": len(query)})
+            _raise_provider_limit(exc)
             raise ExternalServiceError(
                 "Unable to generate content right now. Please try again shortly.",
                 code="GENERATION_FAILED",
@@ -355,6 +377,7 @@ class GenerationService:
                 prompt_name=stage, prompt_version="v1", status="failed",
                 error_code=type(exc).__name__,
             )
+            _raise_provider_limit(exc)
             raise ExternalServiceError(
                 "The draft's evidence check could not finish. No new article was saved. "
                 "Your topic has been kept; please try again shortly.",
@@ -477,6 +500,7 @@ class GenerationService:
                 status="failed",
                 error_code=type(exc).__name__,
             )
+            _raise_provider_limit(exc)
             raise ExternalServiceError(
                 "Unable to rewrite the article right now. Please try again shortly.",
                 code="REWRITE_FAILED",

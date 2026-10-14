@@ -40,6 +40,7 @@ import {
 } from "@/lib/api/articles";
 import type { ArticleContent, ArticleDetail, Seo } from "@/lib/api/schemas";
 import { isApiError } from "@/lib/api/errors";
+import { actionErrorMessage } from "@/features/articles/action-error";
 
 type DraftSession =
   | {
@@ -207,7 +208,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
         remember({ actionError: null, clarification: error.message });
         queryInputRef.current?.focus();
       } else {
-        setActionError(error.message);
+        setActionError(actionErrorMessage(error));
       }
     },
   });
@@ -216,7 +217,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
     mutationKey: ["workspace-action", user!.id, "rewrite"],
     mutationFn: () => rewriteArticle(selectedId as number, style),
     onSuccess: invalidateSelected,
-    onError: (error) => setActionError((error as Error).message),
+    onError: (error) => setActionError(actionErrorMessage(error)),
   });
 
   const remove = useMutation({
@@ -643,6 +644,11 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
                 html={detail.html}
                 markdown={detail.markdown}
                 disabled={dirty || busy}
+                disabledReason={
+                  dirty
+                    ? "Save or discard your changes before exporting."
+                    : "Wait for the current action to finish before exporting."
+                }
               />
 
               {/* Rewrite controls */}

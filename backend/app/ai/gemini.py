@@ -21,6 +21,7 @@ from .base import (
 )
 from .budget import effective_timeout_seconds
 from .prompts import render_prompt
+from .rate_limits import gemini_rate_limit
 
 # Codes worth retrying: rate limit + server-side failures.
 _TRANSIENT_CODES = {408, 429, 500, 502, 503, 504}
@@ -120,6 +121,10 @@ class GeminiProvider:
             ))
         except genai_errors.APIError as exc:
             code = getattr(exc, "code", None)
+            if code == 429:
+                retry_after = (exc.response.headers.get("retry-after")
+                               if isinstance(exc.response, httpx.Response) else None)
+                raise gemini_rate_limit(exc.details, retry_after) from None
             if code in _TRANSIENT_CODES:
                 raise TransientLLMError(f"gemini api error {code}") from None
             raise PermanentLLMError(f"gemini api error {code}") from None
