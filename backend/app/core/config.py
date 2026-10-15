@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     # --- CORS ---
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
+    # --- User-selected article photos (public metadata API; no key) ---
+    photo_provider: Literal["commons", "disabled"] = "commons"
+
     # --- AI provider ---
     ai_provider: Literal["gemini", "groq", "mock"] = "gemini"
     ai_model: str = Field(default="gemini-3.8-flash", min_length=1, max_length=60)

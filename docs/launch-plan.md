@@ -62,6 +62,10 @@ must be designed alongside the successful flow.
       is the absolute latest. Broader factual evaluation remains a release gate.
 - [ ] Photos: suggestions for a hero and relevant sections, user selection,
       photographer credits, source links, and editable alt text.
+      Implemented on the photo feature branch using keyless Wikimedia Commons
+      search, server-owned metadata, signed selections, durable version snapshots
+      and HTML/Markdown credits. Local real-photo save/render and responsive
+      fixture checks pass; production deployment and acceptance remain pending.
 - [ ] AI routing: one combined article/SEO response, bounded fallback and
       deadline, persistent daily quotas, and idempotent generation requests.
       Combined generation and one targeted SEO repair are implemented. Saved
@@ -105,8 +109,11 @@ Verify account-specific eligibility and current terms before deployment.
 
 Gemini is the proposed primary AI provider, with Groq as a bounded fallback.
 Select actual model IDs only after checking account availability and evaluating
-representative prompts. Tavily is the proposed research API and Pexels the photo
-source. Configure keys in service secret stores, never the repository or chat.
+representative prompts. Tavily is the research API. Pexels paused new API-key
+issuance in the maintainer's account on 15 October; use keyless Wikimedia Commons
+for the photo phase. Review each file's attribution/license and additional
+restrictions. Configure other provider keys in secret stores, never the repository
+or chat.
 
 Initial application limits: 3 generation/rewrite operations per user per day,
 20 globally per day, reduced if provider allowances require it. Exhausting AI

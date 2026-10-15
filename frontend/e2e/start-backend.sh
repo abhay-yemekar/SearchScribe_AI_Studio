@@ -8,6 +8,7 @@ rm -f e2e_test.db
 
 export DATABASE_URL="sqlite:///./e2e_test.db"
 export AI_PROVIDER="mock"
+export PHOTO_PROVIDER="disabled"
 export SECRET_KEY="e2e-local-only-not-production-0123456789"
 export GEMINI_API_KEY=""
 export CORS_ORIGINS="http://127.0.0.1:3100,http://localhost:3100"

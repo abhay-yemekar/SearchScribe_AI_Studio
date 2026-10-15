@@ -11,7 +11,7 @@ import nh3
 # Document structure + content tags we legitimately produce in rendered pages.
 ALLOWED_TAGS = {
     "html", "head", "body", "title", "meta", "link", "style",
-    "article", "section", "p", "span", "div",
+    "article", "section", "p", "span", "div", "figure", "figcaption", "img",
     "h1", "h2", "h3", "h4", "h5", "h6",
     "ul", "ol", "li", "blockquote", "strong", "em", "b", "i", "u",
     "a", "code", "pre", "br", "hr", "table", "thead", "tbody", "tr", "th", "td",
@@ -23,6 +23,7 @@ ALLOWED_ATTRIBUTES = {
     # <a> tags, and sanitizer tests assert dangerous schemes never do.
     "link": {"rel", "href"},
     "a": {"href", "title", "rel"},
+    "img": {"src", "alt", "width", "height", "loading", "decoding", "referrerpolicy"},
     "*": {"class"},
 }
 

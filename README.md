@@ -139,6 +139,16 @@ pwsh -NoProfile -File frontend/scripts/runapp.ps1
 The helper uses [localhost:3200](http://localhost:3200), a local API, and a preview
 database. It requires PowerShell 7.4+ and never deploys production.
 
+Article photos use Wikimedia Commons' public metadata API; no Pexels account or
+new API key is required. `PHOTO_PROVIDER=commons` enables explicit searches;
+`disabled` keeps a preview offline. The helper defaults to offline photos; add
+`-EnablePhotos` to try real photo searches while keeping AI mocked and email off.
+Choose up to four cover/section photos in **Photos**, review the file's license,
+and edit the suggested alt text. Creator, title, license and file-page links stay
+with saved versions and HTML/Markdown exports. Previews use smaller hosted images;
+original dimensions are shown, and 4K is labelled only when the original meets it.
+Exports reference hosted images rather than embedding an offline image bundle.
+
 For real generation, select `AI_PROVIDER=gemini` and put your own `GEMINI_API_KEY`
 in the backend environment. `AI_MODEL` selects an available model. Provider
 accounts, limits, and data-use terms apply; the MIT license does not include API

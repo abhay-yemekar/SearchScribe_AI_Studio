@@ -46,6 +46,8 @@ return a password or automatically issue a new session.
 | GET    | `/articles/rewrite-styles`                  | Style registry for the rewrite picker.                                                                                                |
 | GET    | `/articles/{id}`                            | Full detail.                                                                                                                          |
 | PUT    | `/articles/{id}/content`                    | Save structured content + SEO as a new immutable version. Requires `base_version`; stale writes return `STALE_ARTICLE_VERSION` (409). |
+| GET    | `/articles/{id}/photos?query=...`            | Owned article only. Explicit Commons photo search (3–120 characters), at most six suggestions, bounded network request, 10 searches/minute per user and client IP. |
+| PUT    | `/articles/{id}/photos`                     | `{base_version, photos: [{id OR selection_token, section_id, alt}]}`. At most four images, one per cover/section; `section_id: null` selects the cover. Creates an immutable version and preserves SEO. |
 | PATCH  | `/articles/{id}`                            | `{"title": "..."}` rename.                                                                                                            |
 | DELETE | `/articles/{id}`                            | 204; cascades versions + SEO.                                                                                                         |
 | POST   | `/articles/{id}/duplicate`                  | 201 copy with fresh versions.                                                                                                         |
@@ -55,6 +57,20 @@ return a password or automatically issue a new session.
 | POST   | `/articles/{id}/versions/{version}/restore` | Restores as a **new** version.                                                                                                        |
 
 `ArticleDetailOut`:
+
+`content.photos` contains server-owned source metadata and editable alt/placement.
+Search selections are signed for the authenticated owner and article and expire
+after 30 minutes; they are not login tokens. Ordinary content saves cannot replace
+photo credits or drop a cover photo. Removing a section removes its photo in the
+new version; its previous snapshot remains restorable. Rewrite keeps photos and
+their section positions, or rejects a layout change that would lose an image.
+Only configured Commons raster hosts and supported Creative Commons/public-domain
+license URLs are accepted. Search is disabled by `PHOTO_PROVIDER=disabled`.
+No database migration is required: media lives in the version's content snapshot.
+
+Deploy the compatible API before exposing the Photos UI where possible. After
+photo snapshots exist, a pre-photo API cannot safely preserve media during text
+edits: retain a known photo-aware rollback build, or suspend writes during rollback.
 
 `seo.review_status` is server-owned: `generated`, `needs_review`, `edited`, or
 `unknown` for legacy snapshots. It records provenance/review needs, not factual

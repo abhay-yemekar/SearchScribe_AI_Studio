@@ -8,10 +8,14 @@ construction (sanitizer runs afterwards as defense in depth).
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
 
 from jinja2 import Environment, StrictUndefined, select_autoescape
 
 from .schemas import GeneratedArticle, SeoResult
+
+if TYPE_CHECKING:
+    from ..schemas.media import ArticlePhoto
 from .validation import DESCRIPTION_MAX, TITLE_MAX, _truncate, fitting_first_sentence
 
 _env = Environment(
@@ -39,15 +43,34 @@ ARTICLE_PAGE_TEMPLATE = _env.from_string(
     h2 { margin-top: 2rem; }
     .intro { font-size: 1.1rem; color: #4a5568; }
     .conclusion { border-top: 1px solid #e2e8f0; margin-top: 2.5rem; padding-top: 1rem; }
+    figure { margin: 1.5rem 0; }
+    figure img { display: block; width: 100%; height: auto; border-radius: .5rem; }
+    figcaption { margin-top: .5rem; font-size: .75rem; color: #52616a; overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
+  {% macro photo_figure(photo) %}
+  <figure>
+    <img src="{{ photo.preview_url }}" alt="{{ photo.alt }}" width="{{ photo.width }}"
+         height="{{ photo.height }}" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+    <figcaption>{{ photo.title }} —
+      <a href="{{ photo.source_url }}" rel="noopener noreferrer">{{ photo.creator }}</a>,
+      <a href="{{ photo.license_url }}" rel="noopener noreferrer">{{ photo.license_name }}</a>.
+      Wikimedia Commons.</figcaption>
+  </figure>
+  {% endmacro %}
   <article>
     <h1>{{ article.title }}</h1>
+    {% for photo in photos %}
+    {% if photo.section_id is none %}{{ photo_figure(photo) }}{% endif %}
+    {% endfor %}
     <p class="intro">{{ article.introduction }}</p>
     {% for section in article.sections %}
     <section>
       <h2>{{ section.heading }}</h2>
+      {% for photo in photos %}
+      {% if photo.section_id == section.id %}{{ photo_figure(photo) }}{% endif %}
+      {% endfor %}
       {% for paragraph in section.paragraphs %}
       <p>{{ paragraph }}</p>
       {% endfor %}
@@ -107,8 +130,11 @@ def _fallback_seo(article: GeneratedArticle) -> SeoResult:
     )
 
 
-def render_article_html(article: GeneratedArticle, seo: SeoResult | None = None) -> str:
+def render_article_html(
+    article: GeneratedArticle, seo: SeoResult | None = None,
+    *, photos: list[ArticlePhoto] | None = None,
+) -> str:
     """Render a complete standalone HTML page for the article."""
     return ARTICLE_PAGE_TEMPLATE.render(
-        article=article, seo=seo or _fallback_seo(article)
+        article=article, seo=seo or _fallback_seo(article), photos=photos or []
     )

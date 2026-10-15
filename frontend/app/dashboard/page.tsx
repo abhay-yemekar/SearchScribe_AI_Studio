@@ -22,6 +22,7 @@ import HtmlPreview from "@/features/articles/HtmlPreview";
 import VersionsPanel from "@/features/articles/VersionsPanel";
 import ArticleExport from "@/features/articles/ArticleExport";
 import ResearchPanel from "@/features/articles/ResearchPanel";
+import PhotosPanel, { type PhotoDraft } from "@/features/articles/PhotosPanel";
 import DiscardChangesDialog from "@/features/articles/DiscardChangesDialog";
 import { draftIsDirty, type EditorDraft } from "@/features/articles/useEditorDraft";
 import { downloadArticleFile } from "@/lib/article-export";
@@ -38,6 +39,7 @@ import {
   restoreVersion,
   rewriteArticle,
   saveArticle,
+  saveArticlePhotos,
 } from "@/lib/api/articles";
 import type { ArticleContent, ArticleDetail, Seo } from "@/lib/api/schemas";
 import { isApiError } from "@/lib/api/errors";
@@ -57,6 +59,13 @@ type DraftSession =
       kind: "seo";
       base: ArticleDetail;
       editor: EditorDraft<Seo | null>;
+    }
+  | {
+      id: string;
+      revision: number;
+      kind: "photos";
+      base: ArticleDetail;
+      editor: EditorDraft<PhotoDraft[]>;
     };
 type WorkspaceMemory = {
   selectedId: number | null;
@@ -126,10 +135,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
   const setActionError = (error: string | null) => remember({ actionError: error });
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const pendingAction = useRef<(() => void) | null>(null);
-  const dirty =
-    draftSession?.kind === "article"
-      ? draftIsDirty(draftSession.editor)
-      : draftIsDirty(draftSession?.editor);
+  const dirty = draftIsDirty<unknown>(draftSession?.editor);
   const setSelectedId = (id: number | null) => remember({ selectedId: id });
   const setActiveTab = (tab: string) => remember({ activeTab: tab });
   const clearDraft = () => {
@@ -273,6 +279,41 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
     onError: (error) => setActionError((error as Error).message),
   });
 
+  const photoSave = useMutation({
+    mutationKey: ["workspace-action", user!.id, "photos"],
+    mutationFn: ({
+      base,
+      photos,
+    }: {
+      base: ArticleDetail;
+      photos: PhotoDraft[];
+      owner: { id: string; revision: number };
+    }) =>
+      saveArticlePhotos(
+        base.id,
+        base.current_version,
+        photos.map(({ id, selection_token, alt, section_id }) => ({
+          id,
+          selection_token,
+          alt,
+          section_id,
+        })),
+      ),
+    onSuccess: (updated, variables) => {
+      const current = queryClient.getQueryData<WorkspaceMemory>(memoryKey);
+      if (!current) return;
+      setActionError(null);
+      queryClient.setQueryData(["article", updated.id], updated);
+      if (
+        current.draft?.id === variables.owner.id &&
+        current.draft.revision === variables.owner.revision
+      )
+        clearDraft();
+      invalidateSelected();
+    },
+    onError: (error) => setActionError(actionErrorMessage(error)),
+  });
+
   const detail = selectedQuery.data;
   const busy = sharedPending;
   const saving =
@@ -280,10 +321,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
   const requestAction = (action: () => void) => {
     if (queryClient.isMutating({ mutationKey: ["workspace-action", user!.id] })) return;
     const currentDraft = queryClient.getQueryData<WorkspaceMemory>(memoryKey)?.draft;
-    const currentDirty =
-      currentDraft?.kind === "article"
-        ? draftIsDirty(currentDraft.editor)
-        : draftIsDirty(currentDraft?.editor);
+    const currentDirty = draftIsDirty<unknown>(currentDraft?.editor);
     if (currentDirty) {
       pendingAction.current = action;
       setConfirmDiscard(true);
@@ -324,6 +362,23 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
       return { draft: next };
     });
   };
+  const updatePhotoDraft = (editor: EditorDraft<PhotoDraft[]>) => {
+    remember((current) => {
+      const previous = current.draft?.kind === "photos" ? current.draft : null;
+      return {
+        draft:
+          editor.editing && detail
+            ? {
+                id: previous?.id ?? crypto.randomUUID(),
+                revision: (previous?.revision ?? 0) + 1,
+                kind: "photos",
+                base: previous?.base ?? structuredClone(detail),
+                editor,
+              }
+            : null,
+      };
+    });
+  };
 
   const downloadHtml = useCallback(() => {
     if (!detail) return;
@@ -331,14 +386,14 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
   }, [detail, dirty, busy]);
 
   useEffect(() => {
-    if (!dirty && !saving) return;
+    if (!dirty && !saving && !photoSave.isPending) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty, saving]);
+  }, [dirty, saving, photoSave.isPending]);
 
   const handleGenerate = () => {
     const topic = query.trim();
@@ -772,6 +827,38 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
                       html={detail.html}
                       title={detail.title}
                       onDownload={dirty || busy ? undefined : downloadHtml}
+                    />
+                  ),
+                },
+                {
+                  key: "photos",
+                  label: "Photos",
+                  content: (
+                    <PhotosPanel
+                      key={`photos-${detail.id}-${editorEpoch}`}
+                      article={detail}
+                      saving={busy}
+                      initialDraft={
+                        draftSession?.kind === "photos" ? draftSession.editor : undefined
+                      }
+                      onDraftChange={updatePhotoDraft}
+                      requestDiscard={requestAction}
+                      onSave={async (photos) => {
+                        const currentDraft =
+                          queryClient.getQueryData<WorkspaceMemory>(memoryKey)?.draft;
+                        if (
+                          currentDraft?.kind !== "photos" ||
+                          queryClient.isMutating({
+                            mutationKey: ["workspace-action", user!.id],
+                          })
+                        )
+                          throw new Error("A photo edit is required before saving.");
+                        await photoSave.mutateAsync({
+                          base: currentDraft.base,
+                          photos,
+                          owner: { id: currentDraft.id, revision: currentDraft.revision },
+                        });
+                      }}
                     />
                   ),
                 },

@@ -22,8 +22,10 @@ from ...schemas.article import (
     VersionDetailOut,
     VersionListOut,
 )
+from ...schemas.media import PhotoSearchOut, SavePhotosRequest
 from ...services.article_service import ArticleService
 from ...services.generation_service import GenerationService
+from ...services.photo_service import search_photos
 from ..deps import get_current_user
 
 router = APIRouter(prefix="/articles", tags=["articles"])
@@ -111,6 +113,38 @@ def save_article(
     current_user: User = Depends(get_current_user),
 ) -> ArticleDetailOut:
     return ArticleService(db).save_article(current_user, article_id, payload)
+
+
+@router.get(
+    "/{article_id}/photos", response_model=PhotoSearchOut,
+    summary="Search credited Commons photos for an owned article",
+    dependencies=[rate_limit("photo-search", 10)],
+)
+def find_photos(
+    article_id: int, query: str = Query(min_length=3, max_length=120),
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+) -> PhotoSearchOut:
+    _owned_article(db, current_user, article_id)
+    from ...core.exceptions import BadRequestError, RateLimitError
+    from ...core.rate_limit import limiter
+
+    if len(query.strip()) < 3:
+        raise BadRequestError("Enter at least three characters to search.")
+    if not limiter.allow(f"photo-user:{current_user.id}", 10):
+        raise RateLimitError()
+    return search_photos(query, current_user.id, article_id)
+
+
+@router.put(
+    "/{article_id}/photos", response_model=ArticleDetailOut,
+    summary="Save selected photos and alt text as an immutable article version",
+    dependencies=[rate_limit("photo-save", 20)],
+)
+def save_photos(
+    article_id: int, payload: SavePhotosRequest,
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
+) -> ArticleDetailOut:
+    return ArticleService(db).save_photos(current_user, article_id, payload)
 
 
 @router.delete(

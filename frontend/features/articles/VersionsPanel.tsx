@@ -9,6 +9,7 @@ const CHANGE_LABELS: Record<string, string> = {
   rewrite: "Rewrite",
   restore: "Restored",
   edit: "Edited",
+  photos: "Photos updated",
 };
 
 export default function VersionsPanel({
