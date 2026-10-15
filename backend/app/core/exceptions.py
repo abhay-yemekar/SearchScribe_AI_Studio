@@ -111,7 +111,7 @@ def error_response(
         error_body["details"] = details
     headers = {}
     delay = details.get("retry_after_seconds") if details else None
-    if (code in {"AI_DAILY_LIMIT_REACHED", "AI_SERVICE_BUSY"}
+    if (code in {"AI_DAILY_LIMIT_REACHED", "AI_SERVICE_BUSY", "GENERATION_DAILY_LIMIT"}
             and isinstance(delay, int) and not isinstance(delay, bool) and 1 <= delay <= 86400):
         headers["Retry-After"] = str(delay)
     return JSONResponse(status_code=status_code, content={"error": error_body}, headers=headers)

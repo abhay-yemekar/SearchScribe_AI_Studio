@@ -4,7 +4,7 @@ import { isApiError } from "@/lib/api/errors";
 export function actionErrorMessage(error: Error): string {
   if (
     !isApiError(error) ||
-    !["AI_DAILY_LIMIT_REACHED", "AI_SERVICE_BUSY"].includes(error.code)
+    !["AI_DAILY_LIMIT_REACHED", "AI_SERVICE_BUSY", "GENERATION_DAILY_LIMIT"].includes(error.code)
   )
     return error.message;
   const retryAt = error.details?.retry_at;

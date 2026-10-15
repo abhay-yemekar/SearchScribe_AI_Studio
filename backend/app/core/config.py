@@ -108,6 +108,8 @@ class Settings(BaseSettings):
     # --- Rate limits (requests per minute) ---
     rate_limit_auth_per_minute: int = 10
     rate_limit_generation_per_minute: int = 5
+    generation_daily_user_limit: int = Field(default=3, ge=1, le=10000)
+    generation_daily_global_limit: int = Field(default=20, ge=1, le=100000)
 
     @field_validator("database_url")
     @classmethod

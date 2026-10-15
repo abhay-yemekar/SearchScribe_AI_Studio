@@ -175,7 +175,9 @@ describe("workspace unsaved edits", () => {
     await waitFor(() =>
       expect(screen.queryByText("One detail before we write")).not.toBeInTheDocument(),
     );
-    expect(mocks.generate).toHaveBeenLastCalledWith("ABC Trek in Nepal");
+    expect(mocks.generate).toHaveBeenLastCalledWith(
+      "ABC Trek in Nepal", expect.stringMatching(/^[\w-]{36}$/),
+    );
   });
   beforeEach(() => {
     vi.clearAllMocks();

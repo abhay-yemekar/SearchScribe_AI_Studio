@@ -23,6 +23,8 @@ EXPECTED_TABLES = {
     "provider_identities",
     "security_tokens",
     "security_rate_buckets",
+    "generation_operations",
+    "generation_budgets",
 }
 
 
