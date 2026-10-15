@@ -36,14 +36,14 @@ must be designed alongside the successful flow.
       Recovery and password management shipped in PRs #16–20; real verification,
       Google-to-password addition and notice delivery are verified. Untracked
       direct links, full reset acceptance and mobile email rendering remain open.
-      **Open provider blocker: Brevo ticket #5612282.** Its 12 October reply
-      refuses tracking removal for new SMTP relay clients and offers a branded
-      hostname that retains tracking. Clarify the HTTPS API behavior and inspect
-      a delivered message before enabling direct security links. Keep manual-code
-      delivery available. Authorized follow-up submitted 15 October 2026;
-      Brevo confirmed receipt and reopened the ticket. Await its response.
-      Include this item in every overall project status;
-      see the support decision in [auth-setup.md](auth-setup.md).
+      **Provider migration pending after Brevo ticket #5612282.** Its 15 October
+      HTTPS-specific answer confirms that consent=false does not guarantee no
+      pixels, unchanged security links, or intact fragments. The ticket is Solved;
+      no further reply is pending. Resend integration is prepared, but domain
+      verification, scoped credentials, activation and delivered-message/reset
+      acceptance remain open. Keep Brevo manual-code delivery available until
+      migration is verified. Include this item in overall project status;
+      see [auth-setup.md](auth-setup.md).
 - [x] Writing workflow: visible unsaved-edit status, keep/discard protection,
       in-memory draft retention across workspace navigation, and Markdown export
       from saved versions with source links and provenance.

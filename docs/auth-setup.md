@@ -62,7 +62,7 @@ Brevo Free is a candidate for the zero-spend beta: its documented limit is 300 e
 
 The recovery implementation reads these variables. The send integration uses HTTPS `POST https://api.brevo.com/v3/smtp/email` with a bounded timeout, no redirects and no automatic retry: an ambiguous timeout may already have sent the message. Apply the recovery migration and deploy the reviewed recovery commit before enabling the flow. No mail credentials belong in Vercel's browser configuration.
 
-10. In **Settings → Contacts → Per-contact pixel tracking consent**, enable **Yes** and set **Track contacts whose consent is unknown** to **No**. This changes existing contacts to Unknown; use only the personal account. The integration sends `contactPixelTrackingConsent: false` on each recipient. Before setting `SECURITY_EMAIL_LINKS_ENABLED=true`, verify a fresh delivered security message has direct canonical links, intact fragments, and no Brevo open-tracking pixel. Anonymized tracking alone is not tracking disabled. Never copy a live security token into logs, screenshots, or chat.
+10. In **Settings → Contacts → Per-contact pixel tracking consent**, enable **Yes** and set **Track contacts whose consent is unknown** to **No**. This changes existing contacts to Unknown; use only the personal account. The integration sends `contactPixelTrackingConsent: false` on each recipient. Brevo support has since confirmed that this does not guarantee unchanged links or no pixels; keep `SECURITY_EMAIL_LINKS_ENABLED=false` with Brevo. Anonymized tracking alone is not tracking disabled. Never copy a live security token into logs, screenshots, or chat.
 11. Test with addresses whose owners authorize the messages. Verify the actual inbox, spam folder, visible sender rewrite, plain-text fallback, expiry, and password-change notice. Opening a verification link must not consume it; only explicit confirmation sends the POST. A reset link opens the new-password form and must not change the password until submission. Provider acceptance alone does not establish delivery.
 12. Keep a persistent daily send cap below the provider's free limit, with a reserve for password resets. Never send marketing without consent. Later move to a verified owned sender domain without changing the public app URL.
 
@@ -72,7 +72,7 @@ References: [Render Free SMTP restriction](https://render.com/docs/free), [Brevo
 
 - Login includes **Forgot password?**; request screen always returns the same neutral message for known and unknown emails.
 - Generate cryptographically random reset codes; store only their hashes in Postgres with expiry and atomic single-use consumption. Defaults: 30-minute reset expiry, 24-hour verification expiry, 3 security-email requests per email/hour and 20 per ASGI client IP/hour.
-- Send branded HTML plus plain text. With security links enabled, the canonical verify/reset URL carries the opaque token in its fragment; the form immediately removes it from the address bar, retains it only in memory, and submits it in a POST body after the user's action. No token belongs in a query string, analytics, browser storage, or logs. Expiry and atomic single-use checks remain server-side. The disabled default preserves manual-code emails; old-email code entry remains available in the forms. Brevo's per-recipient tracking flag requires account activation and an actual delivered-message check; see [official tracking-consent guidance](https://help.brevo.com/hc/en-us/articles/37114679474706-About-email-tracking-pixels-and-the-CNIL-recommendation-in-Brevo).
+- Send branded HTML plus plain text. With security links enabled, the canonical verify/reset URL carries the opaque token in its fragment; the form immediately removes it from the address bar, retains it only in memory, and submits it in a POST body after the user's action. No token belongs in a query string, analytics, browser storage, or logs. Expiry and atomic single-use checks remain server-side. The disabled default preserves manual-code emails; old-email code entry remains available in the forms. Brevo is restricted to manual-code mode after its support clarification; see [official tracking-consent guidance](https://help.brevo.com/hc/en-us/articles/37114679474706-About-email-tracking-pixels-and-the-CNIL-recommendation-in-Brevo).
 - New-password validation matches signup. Consume tokens atomically, invalidate all sessions (including access tokens), and send a password-change notice. Do not automatically log the user in after reset.
 - A Google-only account remains Google-only; a reset request must not silently turn it into a password account. Explain the appropriate sign-in route without exposing account existence.
 - Add email verification for password accounts with expiring, hashed, single-use tokens; resend limits; delivery failure handling. Google verified identity can satisfy Google-account email verification, but never authorize merging by email alone.
@@ -113,33 +113,11 @@ describes `contactPixelTrackingConsent: false` as disabling opens and clicks, bu
 also mentions aggregate deliverability tracking. The consent setting alone does
 not prove that pixels and link rewriting are absent.
 
-### Open Brevo support decision — ticket #5612282
+### Brevo support resolved; sender migration required
 
-Status recorded 15 October 2026: the maintainer supplied Brevo's 12 October
-reply. Support says new SMTP relay clients cannot disable open tracking, click
-tracking, or link rewriting. Its branded-domain alternative retains tracking;
-changing the hostname does not satisfy the untracked-security-link requirement.
+Ticket #5612282 received its HTTPS-specific answer on 15 October 2026. Support confirmed that consent=false does not guarantee removal of all pixels, unchanged security links, or exact fragment preservation through either SMTP relay or the HTTPS API. A branded tracking hostname retains the behavior. There is no confirmed complete opt-out for this Free account; the ticket is Solved, not awaiting a reply.
 
-SearchScribe sends through HTTPS `POST /v3/smtp/email`, not an SMTP connection.
-Ask support whether its restriction also covers this API when per-contact consent
-is enabled, unknown-consent tracking is off, and each recipient has
-`contactPixelTrackingConsent: false`. Do not assume the API is exempt merely
-because the reply says SMTP. Request separate answers for open-pixel insertion,
-click redirects, and preservation of a URL fragment, including any exception
-available for verification and password-reset links.
-
-Keep `SECURITY_EMAIL_LINKS_ENABLED=false` and the existing manual-code flow while
-the answer and actual delivered-message inspection are pending. Do not purchase
-a branded-domain add-on as a tracking fix. If Brevo cannot meet this requirement,
-evaluate an HTTPS email provider with verified tracking controls and sender-domain
-requirements before migrating. Report this specific blocker in overall project
-status; it must not disappear behind a generic email-acceptance item.
-
-The maintainer authorized the prepared follow-up, which was submitted on
-15 October 2026. Brevo confirmed "Your reply was successfully added" and the
-existing ticket changed from Solved to Open. Await the API-specific response;
-the untracked-link acceptance check remains pending. No API key, live token,
-recipient address, attachment, or paid-plan request was sent.
+Keep Brevo manual-code delivery available with SECURITY_EMAIL_LINKS_ENABLED=false. The remaining work is Resend sender verification, scoped credentials, production activation and delivered-message/end-to-end acceptance, described below. Include this migration in overall project status until completed; do not label direct links live based on an API acceptance response.
 
 ## Operational boundaries
 
@@ -157,3 +135,14 @@ solve this. Password reset increments the account session version and revokes
 refresh sessions, so old access tokens also stop working. Existing accounts keep
 their articles and Google links; advisory verification does not lock out legacy
 password users.
+
+
+## Untracked security email with Resend
+
+Brevo ticket #5612282 was answered on 15 October 2026: consent=false anonymizes activity but does not guarantee no open pixels, unchanged links, or exact fragment preservation, including through the HTTPS API. Branded tracking domains retain redirects. Keep Brevo in manual-code mode; the application rejects enabling token-bearing links with that provider.
+
+The Resend adapter is available in source. Production activation requires a personal account, a verified dedicated sending subdomain, open/click tracking disabled on that domain, a sending-only API key restricted to that domain, and an actual delivered-message check. See [Resend verified domains](https://resend.com/docs/dashboard/domains/introduction) and [API keys](https://resend.com/docs/dashboard/api-keys/introduction).
+
+Set MAIL_PROVIDER=resend, RESEND_API_KEY in the personal Render secret, MAIL_FROM_EMAIL to an address on the verified subdomain, and MAIL_REPLY_TO_EMAIL to a monitored inbox. Set MAIL_DAILY_LIMIT=90 and MAIL_RECOVERY_RESERVE=20 for the current Free plan; these are application caps, not provider quota discovery. Initially keep SECURITY_EMAIL_LINKS_ENABLED=false. Enable links only after checking delivered HTML for unchanged fragment URLs and no tracking pixel/redirect, then verify the real verification and reset journeys. A provider acceptance response alone is not that proof.
+
+Resend uses the existing HTML/plain-text templates and expiry/single-use/ownership protections. Ambiguous delivery is never retried or sent through Brevo as a fallback. Existing Brevo manual-code sending remains available by explicit configuration. No API key belongs in source control or browser-visible environment variables.

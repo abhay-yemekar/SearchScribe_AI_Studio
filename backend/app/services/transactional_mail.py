@@ -1,14 +1,15 @@
-"""Branded security emails with opt-in fragment links and tracking consent off.
+"""Branded security mail through bounded HTTPS providers.
 
-Fragment links are enabled only after Brevo's account-level per-contact tracking
-feature is activated and verified. Until then, emails retain manual security
-codes and token-free destinations. Acceptance is not inbox proof. No payload is logged.
+Token-bearing links require an operator-verified untracked Resend domain. Brevo
+retains manual codes because consent=false does not guarantee unchanged links.
+API acceptance is not inbox delivery proof. No message payload is logged.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from email.utils import formataddr
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -143,7 +144,7 @@ def render_security_email(
         origin=origin, code=None if link_mode else token, label=label,
         expiry=expiry, notice=notice, action_page=action_page,
         logo_url=origin + "/brand/email-wordmark-v2.png",
-        support_email=settings.mail_from_email,
+        support_email=settings.mail_reply_to_email or settings.mail_from_email,
     )
     lines = ["SearchScribe AI", "", f"Hi {greeting},", "", heading, intro, "", instruction]
     if token and not link_mode:
@@ -151,8 +152,9 @@ def render_security_email(
     elif token:
         lines.extend(["", expiry, "Use this link once, only on SearchScribe."])
     lines.extend(["", f"{action}: {action_url}", "", notice])
-    if settings.mail_from_email:
-        lines.extend(["", f"Need help? Reply to {settings.mail_from_email}."])
+    support_email = settings.mail_reply_to_email or settings.mail_from_email
+    if support_email:
+        lines.extend(["", f"Need help? Reply to {support_email}."])
     lines.extend(["", "SearchScribe AI — your words, your workspace.", origin])
     return RenderedSecurityEmail(subject, html, "\n".join(lines))
 
@@ -160,39 +162,54 @@ def render_security_email(
 def send_security_email(
     kind: SecurityMailKind, recipient: str, name: str, *, token: str | None = None,
 ) -> None:
-    """Send once with bounded timeout; never retry ambiguous accepted deliveries."""
-    if settings.mail_provider != "brevo" or not settings.brevo_api_key:
+    """Send once; ambiguous delivery never retries or falls through to another provider."""
+    provider = settings.mail_provider
+    api_key = (settings.resend_api_key if provider == "resend" else settings.brevo_api_key)
+    if provider not in {"brevo", "resend"} or not api_key:
+        raise MailDeliveryError("Email service is unavailable.")
+    if (provider == "brevo" and settings.security_email_links_enabled
+            and kind in {"password_reset", "email_verification"}):
         raise MailDeliveryError("Email service is unavailable.")
     try:
         to_email = str(_EMAIL.validate_python(recipient))
         from_email = str(_EMAIL.validate_python(settings.mail_from_email))
+        reply_to = str(_EMAIL.validate_python(settings.mail_reply_to_email or from_email))
         rendered = render_security_email(kind, name, token=token)
     except (ValidationError, ValueError) as exc:
         raise MailDeliveryError("Email service is unavailable.") from exc
-    payload = {
-        "sender": {"name": settings.mail_from_name, "email": from_email},
-        # Brevo documents this recipient setting for opens and clicks after its
-        # per-contact tracking consent feature is activated on the account.
-        "to": [{"email": to_email, "contactPixelTrackingConsent": False}],
-        "replyTo": {"name": settings.mail_from_name, "email": from_email},
-        "subject": rendered.subject,
-        "htmlContent": rendered.html,
-        "textContent": rendered.text,
-        "tags": ["searchscribe-security", kind],
-    }
+    payload: dict[str, object]
+    if provider == "resend":
+        endpoint, accepted_status = "https://api.resend.com/emails", 200
+        headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
+        payload = {
+            "from": formataddr((settings.mail_from_name, from_email)),
+            "to": [to_email], "reply_to": reply_to,
+            "subject": rendered.subject, "html": rendered.html, "text": rendered.text,
+            "tags": [{"name": "category", "value": "searchscribe-security"},
+                     {"name": "kind", "value": kind}],
+        }
+        # Tracking is controlled on the verified Resend sending domain. No
+        # undocumented per-message tracking header is invented here.
+    else:
+        endpoint, accepted_status = "https://api.brevo.com/v3/smtp/email", 201
+        headers = {"api-key": api_key, "Accept": "application/json"}
+        payload = {
+            "sender": {"name": settings.mail_from_name, "email": from_email},
+            # Consent anonymizes activity; it does not promise no pixels/redirects.
+            "to": [{"email": to_email, "contactPixelTrackingConsent": False}],
+            "replyTo": {"name": settings.mail_from_name, "email": reply_to},
+            "subject": rendered.subject, "htmlContent": rendered.html,
+            "textContent": rendered.text, "tags": ["searchscribe-security", kind],
+        }
     try:
         with httpx.Client(
             timeout=httpx.Timeout(settings.mail_timeout_seconds, connect=3),
             follow_redirects=False,
             trust_env=False,
         ) as client:
-            response = client.post(
-                "https://api.brevo.com/v3/smtp/email",
-                headers={"api-key": settings.brevo_api_key, "Accept": "application/json"},
-                json=payload,
-            )
+            response = client.post(endpoint, headers=headers, json=payload)
     except httpx.HTTPError as exc:
         raise MailDeliveryError("Email delivery could not be confirmed.") from exc
     # Do not reflect provider bodies: they may contain recipients or submitted data.
-    if response.status_code != 201:
+    if response.status_code != accepted_status:
         raise MailDeliveryError("Email delivery could not be confirmed.")

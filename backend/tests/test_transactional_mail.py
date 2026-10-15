@@ -25,6 +25,8 @@ def mail_settings(monkeypatch: pytest.MonkeyPatch) -> None:
         "mail_from_email": "support@example.com",
         "mail_provider": "brevo",
         "brevo_api_key": "fake-key-for-tests",
+        "resend_api_key": "fake-resend-key-for-tests",
+        "mail_reply_to_email": "",
         "security_email_links_enabled": False,
         "password_reset_expire_minutes": 30,
         "email_verification_expire_hours": 24,
@@ -182,30 +184,51 @@ def intercept(monkeypatch: pytest.MonkeyPatch, handler: Any) -> dict[str, Any]:
     "password_reset", "email_verification", "password_changed", "password_added",
 ])
 @pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("provider", ["brevo", "resend"])
 def test_provider_uses_https_and_approved_sender_with_plain_text_fallback(
-    kind: Any, enabled: bool, monkeypatch: pytest.MonkeyPatch,
+    kind: Any, enabled: bool, provider: str, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(mail.settings, "mail_provider", provider)
     monkeypatch.setattr(mail.settings, "security_email_links_enabled", enabled)
     calls: list[httpx.Request] = []
 
     def accept(request: httpx.Request) -> httpx.Response:
         calls.append(request)
-        return httpx.Response(201, json={"messageId": "not-inbox-proof"})
+        return httpx.Response(200 if provider == "resend" else 201,
+                              json={"id": "not-inbox-proof"})
 
     options = intercept(monkeypatch, accept)
+    if provider == "brevo" and enabled and kind in {"password_reset", "email_verification"}:
+        with pytest.raises(mail.MailDeliveryError):
+            mail.send_security_email(kind, "reader@example.com", "Reader", token=CODE)
+        assert not calls
+        return
     mail.send_security_email(kind, "reader@example.com", "Reader", token=CODE)
     assert len(calls) == 1
     request = calls[0]
-    assert str(request.url) == "https://api.brevo.com/v3/smtp/email"
-    assert request.headers["api-key"] == "fake-key-for-tests"
     payload = json.loads(request.content)
-    assert payload["sender"] == {"name": "SearchScribe AI", "email": "support@example.com"}
-    assert payload["replyTo"] == payload["sender"]
-    assert payload["to"] == [{"email": "reader@example.com", "contactPixelTrackingConsent": False}]
-    if kind in {"password_changed", "password_added"}:
-        assert CODE not in payload["htmlContent"] and CODE not in payload["textContent"]
+    if provider == "resend":
+        assert str(request.url) == "https://api.resend.com/emails"
+        assert request.headers["authorization"] == "Bearer fake-resend-key-for-tests"
+        assert "api-key" not in request.headers
+        assert payload["from"] == "SearchScribe AI <support@example.com>"
+        assert payload["reply_to"] == "support@example.com"
+        assert payload["to"] == ["reader@example.com"]
+        html, plain = payload["html"], payload["text"]
     else:
-        assert CODE in payload["htmlContent"] and CODE in payload["textContent"]
+        assert str(request.url) == "https://api.brevo.com/v3/smtp/email"
+        assert request.headers["api-key"] == "fake-key-for-tests"
+        assert "authorization" not in request.headers
+        assert payload["sender"] == {"name": "SearchScribe AI", "email": "support@example.com"}
+        assert payload["replyTo"] == payload["sender"]
+        assert payload["to"] == [
+            {"email": "reader@example.com", "contactPixelTrackingConsent": False},
+        ]
+        html, plain = payload["htmlContent"], payload["textContent"]
+    if kind in {"password_changed", "password_added"}:
+        assert CODE not in html and CODE not in plain
+    else:
+        assert CODE in html and CODE in plain
     assert not any("tracking" in key.lower() for key in request.headers)
     assert "headers" not in payload
     assert options["follow_redirects"] is False
@@ -214,10 +237,12 @@ def test_provider_uses_https_and_approved_sender_with_plain_text_fallback(
     assert options["timeout"].read <= 30
 
 
+@pytest.mark.parametrize("provider", ["brevo", "resend"])
 @pytest.mark.parametrize("status", [302, 400, 401, 429, 500])
 def test_failed_or_redirected_delivery_is_opaque_and_not_retried(
-    status: int, monkeypatch: pytest.MonkeyPatch,
+    status: int, provider: str, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr(mail.settings, "mail_provider", provider)
     calls: list[httpx.Request] = []
 
     def reject(request: httpx.Request) -> httpx.Response:
@@ -231,7 +256,11 @@ def test_failed_or_redirected_delivery_is_opaque_and_not_retried(
     assert str(failure.value) == "Email delivery could not be confirmed."
 
 
-def test_ambiguous_timeout_is_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("provider", ["brevo", "resend"])
+def test_ambiguous_timeout_is_not_retried(
+    monkeypatch: pytest.MonkeyPatch, provider: str,
+) -> None:
+    monkeypatch.setattr(mail.settings, "mail_provider", provider)
     calls: list[httpx.Request] = []
 
     def timeout(request: httpx.Request) -> httpx.Response:
@@ -253,3 +282,34 @@ def test_disabled_provider_does_not_open_network_client(monkeypatch: pytest.Monk
     monkeypatch.setattr(mail.httpx, "Client", unexpected)
     with pytest.raises(mail.MailDeliveryError, match="unavailable"):
         mail.send_security_email("password_reset", "reader@example.com", "Reader", token=CODE)
+
+
+
+def test_reply_to_uses_a_monitored_mailbox_in_payload_and_both_email_formats(monkeypatch):
+    monkeypatch.setattr(mail.settings, "mail_provider", "resend")
+    monkeypatch.setattr(mail.settings, "mail_reply_to_email", "help@example.org")
+    calls = []
+
+    def accept(request):
+        calls.append(request)
+        return httpx.Response(200)
+
+    intercept(monkeypatch, accept)
+    mail.send_security_email("password_added", "reader@example.com", "Reader")
+    payload = json.loads(calls[0].content)
+    assert payload["reply_to"] == "help@example.org"
+    assert "Need help? Reply to this email." in payload["html"]
+    assert "help@example.org" in payload["text"]
+
+
+@pytest.mark.parametrize("provider,key", [("resend", "resend_api_key"), ("brevo", "brevo_api_key")])
+def test_missing_selected_provider_key_never_falls_back(monkeypatch, provider, key):
+    monkeypatch.setattr(mail.settings, "mail_provider", provider)
+    monkeypatch.setattr(mail.settings, key, "")
+
+    def forbidden(**kwargs):
+        pytest.fail("A missing key attempted network access or provider fallback")
+
+    monkeypatch.setattr(mail.httpx, "Client", forbidden)
+    with pytest.raises(mail.MailDeliveryError, match="unavailable"):
+        mail.send_security_email("password_added", "reader@example.com", "Reader")

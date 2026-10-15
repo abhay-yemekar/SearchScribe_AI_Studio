@@ -117,3 +117,33 @@ def test_daily_mail_limit_stays_below_free_quota_and_has_recovery_capacity() -> 
         production_settings(mail_daily_limit=300)
     with pytest.raises(ValidationError, match="MAIL_RECOVERY_RESERVE"):
         production_settings(mail_daily_limit=50, mail_recovery_reserve=50)
+
+
+
+def test_resend_requires_its_own_key_and_rejects_invalid_reply_to():
+    with pytest.raises(ValidationError, match="RESEND_API_KEY"):
+        production_settings(mail_provider="resend", resend_api_key="")
+    with pytest.raises(ValidationError, match="MAIL_REPLY_TO_EMAIL"):
+        production_settings(mail_provider="resend", resend_api_key="test-resend-key",
+                            mail_from_email="security@example.com", mail_reply_to_email="bad")
+    configured = production_settings(
+        mail_provider="resend", resend_api_key="  test-resend-key  ",
+        mail_from_email="security@example.com", mail_reply_to_email="help@example.org",
+        public_site_url="https://searchscribe-ai.vercel.app", security_email_links_enabled=True,
+    )
+    assert configured.resend_api_key == "test-resend-key"
+    assert "test-resend-key" not in repr(configured)
+
+
+def test_brevo_refuses_token_bearing_links_after_tracking_clarification():
+    with pytest.raises(ValidationError, match="Brevo cannot guarantee"):
+        production_settings(mail_provider="brevo", brevo_api_key="test-api-key",
+                            mail_from_email="security@example.com",
+                            security_email_links_enabled=True)
+
+
+def test_sender_display_name_rejects_header_controls():
+    with pytest.raises(ValidationError, match="MAIL_FROM_NAME"):
+        production_settings(mail_provider="resend", resend_api_key="test-resend-key",
+                            mail_from_email="security@example.com",
+                            mail_from_name="Name\nBcc: leak")

@@ -40,12 +40,14 @@ class Settings(BaseSettings):
     google_client_id: str = ""
 
     # --- Transactional security email ---
-    mail_provider: Literal["disabled", "brevo"] = "disabled"
+    mail_provider: Literal["disabled", "brevo", "resend"] = "disabled"
     security_email_links_enabled: bool = False
     public_site_url: str = "http://localhost:3000"
     mail_from_name: str = "SearchScribe AI"
     mail_from_email: str = ""
-    brevo_api_key: str = ""
+    mail_reply_to_email: str = ""
+    brevo_api_key: str = Field(default="", repr=False)
+    resend_api_key: str = Field(default="", repr=False)
     mail_timeout_seconds: int = Field(default=10, ge=1, le=30)
     password_reset_expire_minutes: int = Field(default=30, ge=5, le=60)
     email_verification_expire_hours: int = Field(default=24, ge=1, le=48)
@@ -226,18 +228,35 @@ class Settings(BaseSettings):
     def _validate_mail(self) -> Settings:
         if self.mail_recovery_reserve >= self.mail_daily_limit:
             raise ValueError("MAIL_RECOVERY_RESERVE must be below MAIL_DAILY_LIMIT")
-        if self.mail_provider == "brevo":
-            if not self.brevo_api_key.strip():
-                raise ValueError("BREVO_API_KEY is required when MAIL_PROVIDER=brevo")
-            self.brevo_api_key = self.brevo_api_key.strip()
+        if self.mail_provider in {"brevo", "resend"}:
+            key_field = "brevo_api_key" if self.mail_provider == "brevo" else "resend_api_key"
+            key = getattr(self, key_field).strip()
+            if not key:
+                raise ValueError(
+                    f"{key_field.upper()} is required when MAIL_PROVIDER={self.mail_provider}"
+                )
+            setattr(self, key_field, key)
             try:
                 self.mail_from_email = str(
                     TypeAdapter(EmailStr).validate_python(self.mail_from_email)
                 )
             except ValueError:
-                raise ValueError("MAIL_FROM_EMAIL must be valid when MAIL_PROVIDER=brevo") from None
-            if not self.mail_from_name.strip():
-                raise ValueError("MAIL_FROM_NAME must not be blank")
+                raise ValueError("MAIL_FROM_EMAIL must be a valid email address") from None
+            if self.mail_reply_to_email:
+                try:
+                    self.mail_reply_to_email = str(
+                        TypeAdapter(EmailStr).validate_python(self.mail_reply_to_email)
+                    )
+                except ValueError:
+                    raise ValueError("MAIL_REPLY_TO_EMAIL must be a valid email address") from None
+            if not self.mail_from_name.strip() or any(
+                ord(char) < 32 or ord(char) == 127 for char in self.mail_from_name
+            ):
+                raise ValueError(
+                    "MAIL_FROM_NAME must be nonblank and contain no control characters"
+                )
+            if self.mail_provider == "brevo" and self.security_email_links_enabled:
+                raise ValueError("Brevo cannot guarantee untracked SECURITY_EMAIL_LINKS_ENABLED")
             if self.is_production and urlsplit(self.public_site_url).scheme != "https":
                 raise ValueError("Production security email requires an HTTPS PUBLIC_SITE_URL")
         return self
