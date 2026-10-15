@@ -11,7 +11,19 @@ promise. Check account limits before launch: [Vercel Hobby policy](https://verce
 [Render Free](https://render.com/docs/free), and [Neon plans](https://neon.com/pricing).
 Render Free sleeps and its filesystem is ephemeral; production SQLite is refused.
 The in-memory minute limiter is single-process and resets on restart. Persistent
-daily quotas and provider fallback remain separate launch work.
+daily generation reservations and request journals shipped in PR #34. Optional
+provider fallback is implemented; writer quality qualification remains open.
+
+### Reliability release — 15 October 2026
+
+PR #34 merged as `c96c88f`. Render deployment `dep-db87igij9qps73bv7750`
+is Live on reviewed API commit `556a7d9`; startup upgraded
+`c73a_security_email_recovery` to `d84b_generation_operations`. Vercel's production
+deployment of `c96c88f` succeeded. Existing accounts and articles remained readable.
+During a real reload test the Gemini writer returned three bounded 503 responses;
+the journal retained the failed request and the recovery control unlocked the UI
+without another generation. Successful saved-result recovery is verified in local
+and CI mock integration at desktop/mobile sizes; production success is still open.
 
 ### Existing service audit — 7 October 2026
 
@@ -153,6 +165,36 @@ data: store them encrypted with restricted access, outside the public repository
 
 Record successful restore and rollback separately. Neon plan-specific history
 or recovery features are not a substitute for a demonstrated restore.
+
+### Repeatable synthetic rehearsal
+
+`.github/workflows/backup-restore.yml` runs an isolated PostgreSQL 18 service in
+GitHub Actions, matching the production database's major version. It uses fictional
+accounts and mock AI, with email, Google, research and external photo search disabled.
+It never connects to Neon, reads production secrets, or operates local Docker.
+
+The real API creates two accounts, an article with a credited photo, edited SEO,
+five immutable versions, another user's private article, and completed/failed request
+journals. Native PostgreSQL 18 `pg_dump --format=custom` and `pg_restore --list`
+produce and inspect the archive. Restore uses a separate new empty database with
+`--exit-on-error --single-transaction --no-owner --no-acl`.
+See PostgreSQL's [pg_dump](https://www.postgresql.org/docs/18/app-pgdump.html) and
+[pg_restore](https://www.postgresql.org/docs/18/app-pgrestore.html) documentation.
+
+Acceptance compares every table's columns and all row hashes before API activity,
+then checks password login, ownership, every article version, SEO, photo credits,
+HTML/Markdown, journal recovery/replay, and new account/article inserts to catch
+sequence errors. A separate process loads the PR base's application code against
+the restored schema and verifies login, owned reads and exports without downgrading
+the database. This proves previous-code read compatibility, not a hosting rollback;
+generation must be suspended during an actual rollback to code without journals.
+
+The script refuses remote hosts, other database names, and non-test/non-mock runs.
+Only hashes, fictional record IDs, schema revision and acceptance outcomes are
+published as a seven-day artifact. The dump stays inside the ephemeral CI service.
+This rehearsal does **not** establish that a real Neon backup is recoverable.
+Production backup restoration, provider quality and full beta acceptance remain
+separate release gates.
 
 ## Local Docker Compose (optional)
 
