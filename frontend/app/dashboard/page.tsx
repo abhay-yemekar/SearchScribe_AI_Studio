@@ -44,6 +44,7 @@ import {
 import type { ArticleContent, ArticleDetail, Seo } from "@/lib/api/schemas";
 import { isApiError } from "@/lib/api/errors";
 import { actionErrorMessage } from "@/features/articles/action-error";
+import { useGenerationRecovery } from "@/features/articles/useGenerationRecovery";
 
 type DraftSession =
   | {
@@ -93,6 +94,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
   const router = useRouter();
   const queryClient = useQueryClient();
   const { token, user, logout } = session;
+  const recovery = useGenerationRecovery(user!.id);
   const memoryKey = ["workspace-draft", user!.id];
   const memoryQuery = useQuery<WorkspaceMemory>({
     queryKey: memoryKey,
@@ -197,7 +199,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
 
   const generate = useMutation({
     mutationKey: ["workspace-action", user!.id, "generate"],
-    mutationFn: (topic: string) => generateArticle(topic),
+    mutationFn: (topic: string) => recovery.run((key) => generateArticle(topic, key)),
     onSuccess: (detail) => {
       setActionError(null);
       remember({ clarification: null });
@@ -218,7 +220,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
 
   const rewrite = useMutation({
     mutationKey: ["workspace-action", user!.id, "rewrite"],
-    mutationFn: () => rewriteArticle(selectedId as number, style),
+    mutationFn: () => recovery.run((key) => rewriteArticle(selectedId as number, style, key)),
     onSuccess: invalidateSelected,
     onError: (error) => setActionError(actionErrorMessage(error)),
   });
@@ -483,7 +485,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
       />
 
       <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
-        <header className="flex flex-col gap-3 border-b border-stone-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <header className="flex shrink-0 flex-col gap-3 border-b border-stone-200 pb-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <button
               ref={navButtonRef}
@@ -544,7 +546,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
 
         {/* Query + generate */}
         <div
-          className={`studio-panel rounded-xl border border-stone-200 bg-white ${selectedId !== null ? "p-3" : "p-4 sm:p-6"}`}
+          className={`studio-panel shrink-0 rounded-xl border border-stone-200 bg-white ${selectedId !== null ? "p-3" : "p-4 sm:p-6"}`}
         >
           <label
             htmlFor="topic"
@@ -577,7 +579,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={busy}
+              disabled={busy || !!recovery.pendingKey}
               className="studio-primary-action flex shrink-0 items-center justify-center gap-2 rounded-lg bg-[#e0f06b] px-5 py-3 text-sm font-semibold text-[#17252b] transition-colors hover:bg-[#d3e458] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {generate.isPending ? (
@@ -610,6 +612,33 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
           </div>
         ) : null}
         {actionError ? <ErrorBanner message={actionError} /> : null}
+        {(recovery.pendingKey || recovery.notice) && !sharedPending ? (
+          <div role="status" className="studio-panel flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-slate-700">
+            <p className="max-w-2xl">
+              {recovery.notice || "A previous generation request needs a status check. Recover its result before generating again."}
+            </p>
+            {recovery.pendingKey ? (
+              <button
+                type="button"
+                disabled={recovery.checking}
+                className="rounded-lg border border-stone-300 px-3 py-2 font-medium text-[#17252b] disabled:opacity-50"
+                onClick={async () => {
+                  const articleId = await recovery.check();
+                  if (articleId) requestAction(() => {
+                    setSelectedId(articleId);
+                    setActiveTab("article");
+                    setActionError(null);
+                    void queryClient.invalidateQueries({ queryKey: ["articles"] });
+                    void queryClient.invalidateQueries({ queryKey: ["article", articleId] });
+                    void queryClient.invalidateQueries({ queryKey: ["versions", articleId] });
+                  });
+                }}
+              >
+                {recovery.checking ? "Checking…" : "Check previous request"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {dirty || saving ? (
           <p role="status" className="text-sm font-semibold text-teal-800">
             {saving ? "Saving changes…" : "Unsaved changes"}
@@ -618,7 +647,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
 
         {/* Workspace */}
         {selectedId === null ? (
-          <div className="studio-panel flex min-h-80 flex-1 items-center justify-center rounded-xl border border-stone-200 bg-white/70 px-6 py-12 text-sm text-slate-500">
+          <div className="studio-panel flex min-h-80 flex-auto shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white/70 px-6 py-12 text-sm text-slate-500">
             {generate.isPending ? (
               <div className="w-full max-w-2xl space-y-6 p-8">
                 <p className="text-center text-sm text-slate-600">
@@ -725,7 +754,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
                 <button
                   type="button"
                   onClick={() => requestAction(() => rewrite.mutate())}
-                  disabled={busy}
+                  disabled={busy || !!recovery.pendingKey}
                   className="flex items-center gap-1.5 rounded bg-[#17252b] px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-[#293f48] disabled:opacity-60"
                 >
                   {rewrite.isPending ? <Spinner className="h-3.5 w-3.5" /> : null}

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, Query, Response, status
 from sqlalchemy.orm import Session
 
 from ...ai.styles import REWRITE_STYLES
@@ -25,6 +25,7 @@ from ...schemas.article import (
 from ...schemas.media import PhotoSearchOut, SavePhotosRequest
 from ...services.article_service import ArticleService
 from ...services.generation_service import GenerationService
+from ...services.operation_service import OperationService
 from ...services.photo_service import search_photos
 from ..deps import get_current_user
 
@@ -40,11 +41,17 @@ router = APIRouter(prefix="/articles", tags=["articles"])
 )
 def generate_article(
     payload: GenerateArticleRequest,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    request_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> ArticleDetailOut:
-    outcome = GenerationService(db).generate_article(current_user, payload.query)
-    return ArticleService(db).get_article(current_user, outcome.article.id)
+    article_id, key = OperationService(db).run(
+        current_user.id, request_key, "generation", {"query": payload.query},
+        lambda: GenerationService(db).generate_article(current_user, payload.query).article.id,
+    )
+    response.headers["X-Generation-Request"] = key
+    return ArticleService(db).get_article(current_user, article_id)
 
 
 @router.get(
@@ -183,12 +190,31 @@ def duplicate_article(
 def rewrite_article(
     article_id: int,
     payload: RewriteRequest,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    request_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ) -> ArticleDetailOut:
     article = _owned_article(db, current_user, article_id)
-    GenerationService(db).rewrite_article(current_user, article, payload.style)
-    return ArticleService(db).get_article(current_user, article_id)
+    from ...ai.styles import get_style
+
+    try:
+        get_style(payload.style)  # Reject invalid styles before reserving a daily slot.
+    except ValueError as exc:
+        from ...core.exceptions import BadRequestError
+
+        raise BadRequestError("Unknown rewrite style.", code="UNKNOWN_STYLE") from exc
+
+    def rewrite() -> int:
+        GenerationService(db).rewrite_article(current_user, article, payload.style)
+        return article_id
+
+    result_id, key = OperationService(db).run(
+        current_user.id, request_key, "rewrite", {"article_id": article_id, "style": payload.style},
+        rewrite,
+    )
+    response.headers["X-Generation-Request"] = key
+    return ArticleService(db).get_article(current_user, result_id)
 
 
 @router.get(

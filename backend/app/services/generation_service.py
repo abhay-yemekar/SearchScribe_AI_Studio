@@ -51,6 +51,7 @@ from ..core.exceptions import BadRequestError, ExternalServiceError, ServiceUnav
 from ..db.models import Article, User
 from ..repositories.article_repo import ArticleRepository
 from ..repositories.generation_repo import GenerationRepository
+from .operation_service import complete_operation
 
 logger = logging.getLogger(__name__)
 
@@ -310,6 +311,7 @@ class GenerationService:
                 "robots": seo.robots,
             },
         )
+        complete_operation(self.db, article.id, 1)
         self.db.commit()
 
         logger.info(
@@ -558,6 +560,7 @@ class GenerationService:
             seo_snapshot=current_seo.model_dump_json() if current_seo else None,
         )
         article.title = rewritten.title
+        complete_operation(self.db, article.id, next_version)
         self.db.commit()
 
         logger.info(

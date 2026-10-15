@@ -16,9 +16,13 @@ import {
   type PhotoChoice,
 } from "./schemas";
 
-export async function generateArticle(query: string): Promise<ArticleDetail> {
+export async function generateArticle(
+  query: string,
+  requestKey: string = crypto.randomUUID(),
+): Promise<ArticleDetail> {
   const payload = await apiFetch<unknown>("/api/v1/articles", {
     method: "POST",
+    headers: { "Idempotency-Key": requestKey },
     body: JSON.stringify({ query }),
   });
   return articleDetailSchema.parse(payload);
@@ -71,9 +75,14 @@ export async function duplicateArticle(id: number): Promise<ArticleDetail> {
   return articleDetailSchema.parse(payload);
 }
 
-export async function rewriteArticle(id: number, style: string): Promise<ArticleDetail> {
+export async function rewriteArticle(
+  id: number,
+  style: string,
+  requestKey: string = crypto.randomUUID(),
+): Promise<ArticleDetail> {
   const payload = await apiFetch<unknown>(`/api/v1/articles/${id}/rewrite`, {
     method: "POST",
+    headers: { "Idempotency-Key": requestKey },
     body: JSON.stringify({ style }),
   });
   return articleDetailSchema.parse(payload);

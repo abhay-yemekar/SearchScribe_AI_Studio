@@ -114,6 +114,8 @@ if (-not $taskApiOwner) {
         APP_ENV = 'local'
         AI_PROVIDER = 'mock'
         PHOTO_PROVIDER = if ($EnablePhotos) { 'commons' } else { 'disabled' }
+        GENERATION_DAILY_USER_LIMIT = '1000'
+        GENERATION_DAILY_GLOBAL_LIMIT = '10000'
         GOOGLE_CLIENT_ID = ''
         GEMINI_API_KEY = ''
         GROQ_API_KEY = ''

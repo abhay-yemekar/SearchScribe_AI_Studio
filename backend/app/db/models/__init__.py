@@ -2,12 +2,15 @@
 
 from .article import Article, ArticleVersion, SeoMetadata
 from .generation import Generation
+from .operation import GenerationBudget, GenerationOperation
 from .user import ProviderIdentity, RefreshToken, SecurityRateBucket, SecurityToken, User
 
 __all__ = [
     "Article",
     "ArticleVersion",
     "Generation",
+    "GenerationBudget",
+    "GenerationOperation",
     "ProviderIdentity",
     "RefreshToken",
     "SecurityRateBucket",

@@ -60,12 +60,14 @@ must be designed alongside the successful flow.
       direct X links. Reload and actual HTML preview retained the source snapshot.
       Source retrieval does not prove every claim or establish that a social post
       is the absolute latest. Broader factual evaluation remains a release gate.
-- [ ] Photos: suggestions for a hero and relevant sections, user selection,
+- [x] Photos: suggestions for a hero and relevant sections, user selection,
       photographer credits, source links, and editable alt text.
-      Implemented on the photo feature branch using keyless Wikimedia Commons
+      Released in PR #33 using keyless Wikimedia Commons
       search, server-owned metadata, signed selections, durable version snapshots
-      and HTML/Markdown credits. Local real-photo save/render and responsive
-      fixture checks pass; production deployment and acceptance remain pending.
+      and HTML/Markdown credits. Production API `f310f12` and frontend `24b453c`
+      verified 15 October: real 7008×4672 photo selected on a separate article copy,
+      version saved, full reload retained photo/alt/credits, HTML preview included
+      attribution, and a 1280×853 preview loaded. Responsive fixture checks pass.
 - [ ] AI routing: one combined article/SEO response, bounded fallback and
       deadline, persistent daily quotas, and idempotent generation requests.
       Combined generation and one targeted SEO repair are implemented. Saved
@@ -74,7 +76,9 @@ must be designed alongside the successful flow.
       prompt evaluation were the next phase. Request-scoped deadlines, optional
       configuration-driven Gemini/Groq fallback and a reusable 20-query evaluation
       harness are implemented; deployment and real fallback/model acceptance must
-      be recorded separately. Persistent quotas and idempotency remain open.
+      be recorded separately. Persistent daily reservations, request idempotency
+      and lost-response recovery are implemented on the reliability branch;
+      deployment and final acceptance remain separate gates.
 - [ ] Production deployment, backup/restore rehearsal, accessibility and
       mobile verification, and release notes.
 
