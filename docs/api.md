@@ -110,6 +110,40 @@ editorial edit. Sending a status in a save request cannot promote it.
 }
 ```
 
+## Generation request recovery and daily limits
+
+Send a fresh `Idempotency-Key` (16-64 ASCII letters, digits, `_` or `-`) on
+article generation and rewrite POSTs. Reuse that key only to retrieve the same
+logical action, never for a different topic/style. The accepted key is also
+returned as `X-Generation-Request`. Legacy callers without a key receive a
+server-generated one, but cannot recover a lost response without knowing it.
+
+`GET /generation-requests/{key}` is authenticated and account-scoped. It returns
+`processing`, `completed`, `failed` or `interrupted`, with a result article ID
+and version when available. A completed replay returns the existing article's
+current state; it does not create another article/version or call AI again.
+Deleted results remain deleted. Failed/interrupted requests require an explicit
+new key to try again; they are never automatically rerun. Completion and article
+storage commit together. Expired operations cannot commit a late result.
+
+Daily UTC reservations are stored in PostgreSQL/SQLite, shared across workers
+and restarts. `GENERATION_DAILY_USER_LIMIT=3` and
+`GENERATION_DAILY_GLOBAL_LIMIT=20` are configurable beta defaults. Each accepted
+generation/rewrite attempt spends one slot, including provider failures and
+clarification requests that used AI; model retries/SEO repair belong to that
+same operation. Replays and rejected reservations do not spend extra slots.
+`429 GENERATION_DAILY_LIMIT` includes `Retry-After` and an exact reset time.
+Reading, manual edits, photos, restoration and exports do not consume these slots.
+Mock preview/E2E launchers explicitly use larger limits for repeated QA.
+
+The workspace keeps only the request identifier in tab session storage, without
+credentials/topic/article text. After a lost response or reload, **Check previous
+request** retrieves its saved result rather than silently generating again.
+This is request recovery, not a background job queue or an exactly-once promise
+from external AI providers. Apply migration `d84b_generation_operations` before
+deploying this frontend. Leave the new tables in place during a code rollback;
+older API builds do not enforce these reservations or deduplicate requests.
+
 ## Health
 
 - `GET /health` — liveness, `{"status": "ok"}`
