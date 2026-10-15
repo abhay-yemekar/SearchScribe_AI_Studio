@@ -168,7 +168,7 @@ def test_reviewer_receives_original_excerpts_not_timestamp_as_factual_evidence(m
                 "max_characters": 160, "complete_sentence": True, "citations_allowed": False,
             }
             assert constraints["seo.title"]["max_characters"] == 60
-            assert version == "v2"
+            assert version == "v3"
             block_schema = schema.model_json_schema()["$defs"]["SupportedReviewBlockForDraft"]
             assert block_schema["properties"]["block_id"]["enum"] == [
                 block.id for block in draft_blocks(draft(), metadata())
@@ -355,3 +355,90 @@ def test_pipeline_rechecks_changed_text_and_saves_only_accepted_draft(
         assert len(provider.review_calls) <= 2
     rows = db_session.scalars(select(Generation).where(Generation.kind == "draft_review")).all()
     assert len(rows) == len(provider.review_calls)
+
+
+@pytest.mark.parametrize("provider_name", ["groq", "gemini"])
+def test_explicit_draft_reviewer_is_also_used_for_correction_acceptance(monkeypatch, provider_name):
+    from app.ai.draft_review import recheck_draft
+    from app.ai.gemini import GeminiProvider
+    from app.ai.groq import GroqProvider
+
+    monkeypatch.setattr(settings, "gemini_api_key", "fixture-key")
+    monkeypatch.setattr(settings, "draft_reviewer_provider", provider_name)
+    monkeypatch.setattr(settings, "draft_reviewer_model", "selected-draft-reviewer")
+    monkeypatch.setattr(settings, "draft_reviewer_reasoning_effort", "high")
+    monkeypatch.setattr(settings, "groq_max_output_tokens", 4096)
+    monkeypatch.setattr(settings, "research_reviewer_provider", "groq")
+    monkeypatch.setattr(settings, "research_reviewer_model", "different-research-reviewer")
+    seen = []
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Explicit draft reviewer was replaced by the research reviewer")
+
+    def generate(self, name, version, variables, schema):
+        assert self.model == "selected-draft-reviewer"
+        assert self.name == provider_name
+        if isinstance(self, GroqProvider):
+            assert self.json_mode == "json_object"
+            assert self.reasoning_effort == "high"
+            assert self.max_output_tokens == (1536 if name == "draft_recheck" else 4096)
+        else:
+            assert self.compact_schema and self.temperature == 0.2
+            assert self.thinking_budget == settings.draft_reviewer_thinking_budget
+        seen.append(name)
+        data = (DraftRecheck(reviewed_block_ids=["D2"], issues=[])
+                if name == "draft_recheck" else assessment())
+        return ProviderResponse(data, self.name, self.model, 1, 1, 1, name, version)
+
+    monkeypatch.setattr("app.ai.draft_review.research_provider", forbidden)
+    monkeypatch.setattr(GroqProvider, "generate", generate)
+    monkeypatch.setattr(GeminiProvider, "generate", generate)
+    review_draft("Studio", draft(), None, evidence(), MockProvider())
+    recheck_draft("Studio", draft(), None, evidence(), MockProvider(), only_ids={"D2"})
+    assert seen == ["draft_review", "draft_recheck"]
+
+
+def test_inherited_recheck_keeps_existing_research_model_and_small_budget(monkeypatch):
+    from app.ai.draft_review import recheck_draft
+    from app.ai.groq import GroqProvider
+
+    monkeypatch.setattr(settings, "draft_reviewer_provider", "")
+    monkeypatch.setattr(settings, "draft_reviewer_model", "")
+    monkeypatch.setattr(settings, "groq_max_output_tokens", 4096)
+    monkeypatch.setattr("app.ai.draft_review.research_provider", lambda *a, **k: GroqProvider(
+        "inherited-reviewer",
+    ))
+
+    def generate(self, name, version, variables, schema):
+        assert self.model == "inherited-reviewer"
+        assert self.reasoning_effort == "low" and self.max_output_tokens == 1536
+        return ProviderResponse(DraftRecheck(reviewed_block_ids=["D2"], issues=[]),
+                                self.name, self.model, 1, 1, 1, name, version)
+
+    monkeypatch.setattr(GroqProvider, "generate", generate)
+    recheck_draft("Studio", draft(), None, evidence(), MockProvider(), only_ids={"D2"})
+
+
+
+@pytest.mark.parametrize("replacement", [
+    "The studio announced a research hub. [S1-P1]",
+    "The studio announced a research hub.",
+])
+def test_corrections_cannot_leak_passage_ids_or_drop_body_citations(replacement):
+    review = assessment()
+    review.blocks[1].verdict = "revise"
+    review.blocks[1].replacement = replacement
+    with pytest.raises(SchemaValidationError, match=r"source IDs|body citation"):
+        apply_review(draft(), None, evidence(), review)
+
+
+@pytest.mark.parametrize("field", ["title", "seo.title", "seo.description"])
+def test_correction_cannot_insert_citations_into_metadata(field):
+    review = assessment(seo=metadata())
+    block = next(item for item in draft_blocks(draft(), metadata())
+                 if ".".join(map(str, item.path)) == field)
+    revised = next(item for item in review.blocks if item.block_id == block.id)
+    revised.verdict = "revise"
+    revised.replacement = "Studio hub announcement. [S1]"
+    with pytest.raises(SchemaValidationError, match="metadata"):
+        apply_review(draft(), metadata(), evidence(), review)

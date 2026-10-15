@@ -25,6 +25,7 @@ _REGISTRY: dict[tuple[str, str], str] = {
     ("evidence_review", "v1"): "evidence_review_v1.md",
     ("draft_review", "v1"): "draft_review_v1.md",
     ("draft_review", "v2"): "draft_review_v2.md",
+    ("draft_review", "v3"): "draft_review_v3.md",
     ("draft_recheck", "v1"): "draft_recheck_v1.md",
     ("draft_recheck", "v2"): "draft_recheck_v2.md",
     ("seo_generation", "v1"): "seo_generation_v1.md",

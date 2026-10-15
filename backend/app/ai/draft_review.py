@@ -26,7 +26,7 @@ from .research_plan import research_provider
 from .schemas import GeneratedArticle, SeoCandidate, SeoResult
 from .validation import DESCRIPTION_MAX, TITLE_MAX, validate_generated_seo
 
-DRAFT_REVIEW_PROMPT_VERSION = "v2"
+DRAFT_REVIEW_PROMPT_VERSION = "v3"
 DRAFT_RECHECK_PROMPT_VERSION = "v2"
 
 
@@ -105,10 +105,8 @@ def _review_block(block: DraftBlock) -> dict[str, Any]:
             "text": block.text, "replacement_constraints": constraints}
 
 
-def review_draft(
-    query: str, article: GeneratedArticle, seo: SeoResult | None,
-    research: ResearchResult, provider: LLMProvider,
-) -> ProviderResponse[DraftReview]:
+def _draft_review_provider(provider: LLMProvider, *, recheck: bool = False) -> LLMProvider:
+    """Honor the explicit draft reviewer for both editing and correction acceptance."""
     if settings.draft_reviewer_provider == "groq":
         provider = GroqProvider(
             settings.draft_reviewer_model, json_mode="json_object",
@@ -118,11 +116,25 @@ def review_draft(
         provider = _build_provider(settings.draft_reviewer_provider, settings.draft_reviewer_model)
     else:
         provider = research_provider(provider, review=True)
+    if recheck and isinstance(provider, GroqProvider):
+        provider = GroqProvider(
+            provider.model, json_mode="json_object", max_output_tokens=1536,
+            reasoning_effort=(settings.draft_reviewer_reasoning_effort
+                              if settings.draft_reviewer_provider else "low"),
+        )
     if isinstance(provider, GeminiProvider):
         provider = GeminiProvider(
             model=provider.model, compact_schema=True, temperature=0.2,
             thinking_budget=settings.draft_reviewer_thinking_budget,
         )
+    return provider
+
+
+def review_draft(
+    query: str, article: GeneratedArticle, seo: SeoResult | None,
+    research: ResearchResult, provider: LLMProvider,
+) -> ProviderResponse[DraftReview]:
+    provider = _draft_review_provider(provider)
     try:
         blocks = draft_blocks(article, seo)
         passages = source_passages(research)
@@ -186,6 +198,7 @@ def validate_review(
         raise SchemaValidationError("Draft review must cover each requested block exactly once")
     passages = {key for group in source_passages(research).values() for key in group}
     originals = {block.id: block.text for block in blocks}
+    paths = {block.id: block.path for block in blocks}
     for block in review.blocks:
         if not set(block.passage_ids).issubset(passages):
             raise SchemaValidationError("Draft review cites a nonexistent evidence passage")
@@ -200,8 +213,19 @@ def validate_review(
             raise SchemaValidationError("Clean draft blocks cannot carry hidden corrections")
         checked_text = (block.replacement if block.verdict == "revise"
                         else originals[block.block_id])
-        cited = {item for bracket in re.findall(r"\[[^\]\n]*\]", checked_text)
-                 for item in re.findall(r"\bS\d+\b", bracket)}
+        brackets = re.findall(r"\[[^\]\n]*\]", checked_text)
+        source_brackets = [bracket for bracket in brackets if re.search(r"\bS\d+\b", bracket)]
+        if any(not re.fullmatch(r"\[\s*S\d+(?:[\s,;]+S\d+)*\s*\]", bracket)
+               for bracket in source_brackets):
+            raise SchemaValidationError("Reviewed text must cite source IDs, not passage IDs")
+        cited = {item for bracket in source_brackets for item in re.findall(r"\bS\d+\b", bracket)}
+        if block.verdict == "revise":
+            original_cited = bool(re.search(r"\[[^\]\n]*\bS\d+\b", originals[block.block_id]))
+            if paths[block.block_id][0] == "seo" or paths[block.block_id] == ("title",):
+                if cited:
+                    raise SchemaValidationError("Reviewed metadata cannot contain citations")
+            elif original_cited and block.passage_ids and not cited:
+                raise SchemaValidationError("A factual correction must preserve its body citation")
         available = {source.id for source in research.summary.sources}
         if not cited.issubset(available):
             raise SchemaValidationError("Reviewed text cites a source that was not retrieved")
@@ -216,13 +240,7 @@ def recheck_draft(
     research: ResearchResult, provider: LLMProvider, *, only_ids: set[str],
 ) -> ProviderResponse[DraftRecheck]:
     """A compact second opinion: check changed text, never generate more patches."""
-    provider = research_provider(provider, review=True)
-    if isinstance(provider, GroqProvider):
-        provider = GroqProvider(provider.model, json_mode="json_object",
-                                reasoning_effort="low", max_output_tokens=1536)
-    elif isinstance(provider, GeminiProvider):
-        provider = GeminiProvider(model=provider.model, compact_schema=True, temperature=0.2,
-                                  thinking_budget=settings.draft_reviewer_thinking_budget)
+    provider = _draft_review_provider(provider, recheck=True)
     try:
         blocks = draft_blocks(article, seo)
         if not only_ids or not only_ids.issubset({block.id for block in blocks}):
