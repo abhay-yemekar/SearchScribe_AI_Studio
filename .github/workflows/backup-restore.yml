@@ -11,6 +11,10 @@ on:
     paths: ["backend/**", ".github/workflows/backup-restore.yml", "docs/deployment.md"]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backup-restore:
     name: PostgreSQL backup, restore and previous-code acceptance

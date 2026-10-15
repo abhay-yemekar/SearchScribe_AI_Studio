@@ -79,9 +79,11 @@ must be designed alongside the successful flow.
       be recorded separately. Persistent daily reservations, request idempotency
       and lost-response recovery shipped in PR #34 (API `556a7d9`, frontend
       `c96c88f`, migration `d84b_generation_operations`). Live reload recovered a
-      terminal provider failure without generating again. Successful result recovery
-      passes desktop/mobile local and CI tests; production success remains open
-      after the Gemini writer returned 503. Final AI quality acceptance is separate.
+      terminal provider failure without generating again. A subsequent authorized
+      live attempt recovered one saved Version 1 article after reload; processing
+      and completed states, repeat reload and clean console were verified. Successful
+      recovery also passes desktop/mobile local and CI tests. Final AI quality
+      acceptance is separate from this request-integrity check.
 - [ ] Production deployment, backup/restore rehearsal, accessibility and
       mobile verification, and release notes.
 

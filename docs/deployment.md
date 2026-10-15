@@ -20,10 +20,15 @@ PR #34 merged as `c96c88f`. Render deployment `dep-db87igij9qps73bv7750`
 is Live on reviewed API commit `556a7d9`; startup upgraded
 `c73a_security_email_recovery` to `d84b_generation_operations`. Vercel's production
 deployment of `c96c88f` succeeded. Existing accounts and articles remained readable.
-During a real reload test the Gemini writer returned three bounded 503 responses;
-the journal retained the failed request and the recovery control unlocked the UI
-without another generation. Successful saved-result recovery is verified in local
-and CI mock integration at desktop/mobile sizes; production success is still open.
+During the first real reload test the Gemini writer returned three bounded 503
+responses; the journal retained the failed request and recovery unlocked the UI
+without another generation. One authorized subsequent attempt succeeded: reload
+while generating showed the pending-request control, status lookup first reported
+processing, and a later lookup opened the saved article without another Generate
+click. Exactly one matching draft and Version 1 were present, another full reload
+retained the article, and the Chrome console was clean. Desktop/mobile lost-response
+recovery also passes local and CI mock integration. Production still explicitly
+uses `gemini-2.5-flash`; a source-code default does not change that hosting override.
 
 ### Existing service audit — 7 October 2026
 
@@ -195,6 +200,11 @@ published as a seven-day artifact. The dump stays inside the ephemeral CI servic
 This rehearsal does **not** establish that a real Neon backup is recoverable.
 Production backup restoration, provider quality and full beta acceptance remain
 separate release gates.
+
+The initial rehearsal passed in GitHub Actions run `38697723869` on 15 October
+2026: native PostgreSQL 18 dump/restore, complete row comparison, API integrity
+and previous-code acceptance all succeeded. Inspect the PR's latest checks before
+merging; this historical run does not validate later changes automatically.
 
 ## Local Docker Compose (optional)
 
