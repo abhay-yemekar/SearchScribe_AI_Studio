@@ -1,6 +1,6 @@
 # Testing
 
-## Backend — pytest (55 tests, fully offline)
+## Backend — pytest (fully offline)
 
 ```bash
 cd backend && ../.venv/Scripts/python -m pytest
@@ -19,7 +19,7 @@ Coverage:
 
 The AI provider is always the MockProvider in tests (`AI_PROVIDER=mock`); no network calls, deterministic, with failure-injection hooks.
 
-## Frontend — Vitest + Testing Library (15 tests)
+## Frontend — Vitest + Testing Library
 
 ```bash
 cd frontend && npm test
@@ -40,3 +40,9 @@ Boots a real stack automatically (backend :8001 with mock AI + fresh SQLite via 
 ## CI (GitHub Actions)
 
 `backend` job: ruff → mypy → pytest. `frontend` job: eslint → tsc → vitest → build. `e2e` job runs the Playwright suite on Ubuntu. `docker` job builds both images. See [.github/workflows/ci.yml](../.github/workflows/ci.yml).
+
+## Evidence editor regression checks
+
+From backend/, run python scripts/evaluate_evidence.py for a dry run. Add --live --provider groq --model EXACT_MODEL_ID to evaluate the 12 fictional labelled cases using the existing local key; --ids selects cases and --case-delay-seconds spaces free-tier requests. Reports go to ignored .cache/evidence-evaluation/.
+
+The evaluator checks unsupported claims, clean controls, Hindi and source instructions without search, email or an application database. A correction gets one recheck with the configured draft reviewer. Review or recheck failures and label mismatches fail the run; saved replacements still need human review. Passing this small corpus does not qualify an article writer or certify factual accuracy. No production flag is enabled by running it.
