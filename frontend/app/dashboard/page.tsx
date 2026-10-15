@@ -647,7 +647,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
 
         {/* Workspace */}
         {selectedId === null ? (
-          <div className="studio-panel flex min-h-80 flex-1 items-center justify-center rounded-xl border border-stone-200 bg-white/70 px-6 py-12 text-sm text-slate-500">
+          <div className="studio-panel flex min-h-80 flex-auto shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-white/70 px-6 py-12 text-sm text-slate-500">
             {generate.isPending ? (
               <div className="w-full max-w-2xl space-y-6 p-8">
                 <p className="text-center text-sm text-slate-600">
