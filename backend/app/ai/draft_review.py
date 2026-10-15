@@ -24,7 +24,10 @@ from .groq import GroqProvider
 from .research import ResearchResult
 from .research_plan import research_provider
 from .schemas import GeneratedArticle, SeoCandidate, SeoResult
-from .validation import validate_generated_seo
+from .validation import DESCRIPTION_MAX, TITLE_MAX, validate_generated_seo
+
+DRAFT_REVIEW_PROMPT_VERSION = "v2"
+DRAFT_RECHECK_PROMPT_VERSION = "v2"
 
 
 class BlockReview(BaseModel):
@@ -81,6 +84,27 @@ def draft_blocks(article: GeneratedArticle, seo: SeoResult | None) -> list[Draft
     return blocks
 
 
+def _review_block(block: DraftBlock) -> dict[str, Any]:
+    """Keep each field's output contract beside the text the editor may replace."""
+    constraints: dict[str, Any] = {"max_characters": 4000}
+    if block.path[0] == "seo":
+        field = block.path[1]
+        constraints = {
+            "max_characters": (
+                TITLE_MAX if field in {"title", "og_title"}
+                else DESCRIPTION_MAX if field in {"description", "og_description"} else 80
+            ),
+            "complete_sentence": field in {"description", "og_description"},
+            "citations_allowed": False,
+        }
+    elif block.path == ("title",):
+        constraints = {"max_characters": 200, "citations_allowed": False}
+    elif block.path[-1] == "heading":
+        constraints = {"max_characters": 300}
+    return {"id": block.id, "field": ".".join(map(str, block.path)),
+            "text": block.text, "replacement_constraints": constraints}
+
+
 def review_draft(
     query: str, article: GeneratedArticle, seo: SeoResult | None,
     research: ResearchResult, provider: LLMProvider,
@@ -113,8 +137,7 @@ def review_draft(
         ]
         data = {
             "topic": query,
-            "draft_blocks": [{"id": block.id, "field": ".".join(map(str, block.path)),
-                              "text": block.text} for block in blocks],
+            "draft_blocks": [_review_block(block) for block in blocks],
             "references": references,
         }
         # Bind the schema shown to the model to this invocation's real IDs.
@@ -141,7 +164,7 @@ def review_draft(
         ))
         with attempt_budget(30):
             response = provider.generate(
-                "draft_review", "v1",
+                "draft_review", DRAFT_REVIEW_PROMPT_VERSION,
                 {"review_json": json.dumps(data, ensure_ascii=False).replace(
                     "<", "\\u003c"
                 ).replace(">", "\\u003e")}, response_schema,
@@ -182,7 +205,7 @@ def validate_review(
         available = {source.id for source in research.summary.sources}
         if not cited.issubset(available):
             raise SchemaValidationError("Reviewed text cites a source that was not retrieved")
-        if block.verdict == "supported" and not cited.issubset({
+        if block.verdict in {"supported", "revise"} and not cited.issubset({
             passage.split("-", 1)[0] for passage in block.passage_ids
         }):
             raise SchemaValidationError("Text citations disagree with assessed evidence")
@@ -208,15 +231,13 @@ def recheck_draft(
         passages = source_passages(research)
         if not passages or any(not group for group in passages.values()):
             raise SchemaValidationError("Original excerpts are required for draft recheck")
-        data = {"topic": query, "draft_blocks": [
-            {"id": block.id, "field": ".".join(map(str, block.path)), "text": block.text}
-            for block in blocks
-        ], "references": [
+        data = {"topic": query, "draft_blocks": [_review_block(block) for block in blocks],
+                "references": [
             {"source_id": source.id, "title": source.title,
              "passages": passages[source.id]} for source in research.summary.sources
         ]}
         with attempt_budget(20):
-            response = provider.generate("draft_recheck", "v1", {
+            response = provider.generate("draft_recheck", DRAFT_RECHECK_PROMPT_VERSION, {
                 "review_json": json.dumps(data, ensure_ascii=False).replace(
                     "<", "\\u003c"
                 ).replace(">", "\\u003e"),

@@ -25,6 +25,13 @@ and `AI_FALLBACK_MODEL` disable fallback; setting both enables one explicitly
 selected secondary route. The secondary provider requires its own key, unless
 it uses the same provider with a different model. Mock stays completely offline.
 
+The default and sample writer model are now `gemini-3.8-flash`, an explicit
+version with a documented free tier. Existing `.env` and hosting `AI_MODEL`
+values override that default and require a deliberate configuration update;
+changing this source default alone does not migrate a deployed service. Free
+availability and capacity remain account-specific. The release's isolated live
+qualification records and deployed configuration must be checked separately.
+
 ## Failure taxonomy and retries
 
 - `TransientLLMError` — transport failures, timeouts, 429, 5xx. Primary retries
@@ -127,6 +134,13 @@ Prompts are versioned files in `app/ai/prompts/` rendered with Jinja2 (strict un
   provider configuration has been validated. Gemini review uses a compact wire
   schema with original local bounds intact and a separately configurable
   `DRAFT_REVIEWER_THINKING_BUDGET`; it does not change the writer's settings.
+- Review prompt v2 places the exact field constraints beside every block.
+  In particular, corrected SEO descriptions must remain complete sentences and
+  fit the product targets after removing unsupported claims. Local validation
+  still rejects malformed corrections; it never clips text or adds punctuation
+  to disguise a fragment. Revised body citations must agree with the selected
+  supporting passage's source, just as supported original text must. Correction
+  and recheck prompt versions are recorded independently, including failures.
 - A separate SEO prompt is used only for one targeted repair when the combined
   response has missing, malformed or unsuitable metadata. This repair has no
   retry loop; the valid article survives an unsuccessful repair.

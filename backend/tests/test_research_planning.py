@@ -143,7 +143,7 @@ def test_mock_stays_offline_even_when_search_key_exists(client, monkeypatch):
 ])
 def test_planner_configuration_requires_a_valid_pair_and_its_own_key(overrides):
     with pytest.raises(ValidationError):
-        Settings(_env_file=None, **overrides)
+        Settings(_env_file=None, ai_model="gemini-2.5-flash", **overrides)
 
 
 def test_configured_planner_role_does_not_change_article_provider(monkeypatch):
