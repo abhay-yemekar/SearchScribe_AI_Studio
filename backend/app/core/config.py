@@ -59,7 +59,7 @@ class Settings(BaseSettings):
 
     # --- AI provider ---
     ai_provider: Literal["gemini", "groq", "mock"] = "gemini"
-    ai_model: str = Field(default="gemini-2.5-flash", min_length=1, max_length=60)
+    ai_model: str = Field(default="gemini-3.8-flash", min_length=1, max_length=60)
     gemini_api_key: str = Field(default="", repr=False)
     ai_timeout_seconds: int = Field(default=60, ge=1, le=120)
     ai_operation_timeout_seconds: int = Field(default=100, ge=10, le=180)

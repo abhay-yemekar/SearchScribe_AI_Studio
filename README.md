@@ -122,6 +122,13 @@ Open [localhost:3000](http://localhost:3000). API documentation is at
 the API; `BACKEND_URL` changes its destination. If you change ports, update that
 setting and any configured Google authorized JavaScript origin together.
 
+For manual development, copy `frontend/.env.example` to `frontend/.env.local`.
+`backend/.env` holds the local provider settings; hosting secrets do not sync
+to your laptop. Keep the existing Gemini key, choose an exact `AI_MODEL`, and
+add your own `TAVILY_API_KEY` for web research. Groq roles need a local
+`GROQ_API_KEY`; email and Google remain optional. Never copy a sample over an
+existing secrets file. Restart the affected local process after env changes.
+
 On Windows, after installing the dependencies above and running `npm ci` in
 `frontend`, the project helper can start a safe mock preview and open it:
 

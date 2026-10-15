@@ -185,7 +185,8 @@ def test_mock_cannot_cross_to_a_live_fallback(monkeypatch: pytest.MonkeyPatch) -
     {"ai_max_retries": 3},
 ])
 def test_invalid_or_unsafe_routing_configuration_is_rejected(overrides: dict) -> None:
-    values = {"app_env": "test", "ai_provider": "gemini", "_env_file": None, **overrides}
+    values = {"app_env": "test", "ai_provider": "gemini", "ai_model": "gemini-2.5-flash",
+              "_env_file": None, **overrides}
     with pytest.raises(ValidationError):
         Settings(**values)
 

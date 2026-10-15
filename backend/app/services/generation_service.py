@@ -23,7 +23,13 @@ from ..ai.budget import (
     remaining_operation_seconds,
     within_operation_budget,
 )
-from ..ai.draft_review import apply_review, recheck_draft, review_draft
+from ..ai.draft_review import (
+    DRAFT_RECHECK_PROMPT_VERSION,
+    DRAFT_REVIEW_PROMPT_VERSION,
+    apply_review,
+    recheck_draft,
+    review_draft,
+)
 from ..ai.evidence_review import review_evidence, select_evidence
 from ..ai.factory import get_provider
 from ..ai.renderer import _fallback_seo, render_article_html
@@ -374,7 +380,9 @@ class GenerationService:
             self.generations.record(
                 user_id=user.id, kind="draft_review",
                 provider=exc.provider or review_provider, model=exc.model or review_model,
-                prompt_name=stage, prompt_version="v1", status="failed",
+                prompt_name=stage,
+                prompt_version=(DRAFT_REVIEW_PROMPT_VERSION if stage == "draft_review"
+                                else DRAFT_RECHECK_PROMPT_VERSION), status="failed",
                 error_code=type(exc).__name__,
             )
             _raise_provider_limit(exc)

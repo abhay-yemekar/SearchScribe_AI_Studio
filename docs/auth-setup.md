@@ -108,10 +108,38 @@ Google web client and transactional email settings. Complete real Google identit
 confirmation and new-password entry manually when verifying the deployed flow.
 
 Security email links remain disabled until a fresh delivered message proves that
-link rewriting and open pixels are absent. Brevo's API reference currently
-describes `contactPixelTrackingConsent: false` as anonymizing events while its
-Help article describes preventing them; the consent setting alone does not prove
-complete opt-out.
+link rewriting and open pixels are absent. Brevo's tracking-consent Help article
+describes `contactPixelTrackingConsent: false` as disabling opens and clicks, but
+also mentions aggregate deliverability tracking. The consent setting alone does
+not prove that pixels and link rewriting are absent.
+
+### Open Brevo support decision — ticket #5612282
+
+Status recorded 15 October 2026: the maintainer supplied Brevo's 12 October
+reply. Support says new SMTP relay clients cannot disable open tracking, click
+tracking, or link rewriting. Its branded-domain alternative retains tracking;
+changing the hostname does not satisfy the untracked-security-link requirement.
+
+SearchScribe sends through HTTPS `POST /v3/smtp/email`, not an SMTP connection.
+Ask support whether its restriction also covers this API when per-contact consent
+is enabled, unknown-consent tracking is off, and each recipient has
+`contactPixelTrackingConsent: false`. Do not assume the API is exempt merely
+because the reply says SMTP. Request separate answers for open-pixel insertion,
+click redirects, and preservation of a URL fragment, including any exception
+available for verification and password-reset links.
+
+Keep `SECURITY_EMAIL_LINKS_ENABLED=false` and the existing manual-code flow while
+the answer and actual delivered-message inspection are pending. Do not purchase
+a branded-domain add-on as a tracking fix. If Brevo cannot meet this requirement,
+evaluate an HTTPS email provider with verified tracking controls and sender-domain
+requirements before migrating. Report this specific blocker in overall project
+status; it must not disappear behind a generic email-acceptance item.
+
+The maintainer authorized the prepared follow-up, which was submitted on
+15 October 2026. Brevo confirmed "Your reply was successfully added" and the
+existing ticket changed from Solved to Open. Await the API-specific response;
+the untracked-link acceptance check remains pending. No API key, live token,
+recipient address, attachment, or paid-plan request was sent.
 
 ## Operational boundaries
 
