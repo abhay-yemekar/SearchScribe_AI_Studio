@@ -116,9 +116,11 @@ class GeneratedArticle(BaseModel):
 
     def to_markdown(self) -> str:
         """Deterministic Markdown rendering (used for storage and display)."""
-        lines: list[str] = [f"# {self.title}", "", self.introduction, ""]
+        lines: list[str] = [f"# {self.title}", "", *self._image_markdown(None),
+                            self.introduction, ""]
         for section in self.sections:
             lines += [f"## {section.heading}", ""]
+            lines += self._image_markdown(section.id)
             lines += [paragraph + "\n" for paragraph in section.paragraphs]
             if section.bullets:
                 lines += [f"- {bullet}" for bullet in section.bullets]
@@ -148,6 +150,10 @@ class GeneratedArticle(BaseModel):
                 "Verify factual and time-sensitive claims before publishing.",
             ]
         return "\n".join(lines).strip()
+
+    def _image_markdown(self, section_id: str | None) -> list[str]:
+        # Stored documents can add server-owned media; model schemas stay text-only.
+        return []
 
     @property
     def word_count(self) -> int:

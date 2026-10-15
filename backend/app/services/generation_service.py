@@ -458,6 +458,10 @@ class GenerationService:
         if latest is None:
             raise BadRequestError("Article has no content to rewrite.")
 
+        from ..schemas.media import ArticleDocument
+
+        stored = ArticleDocument.model_validate_json(latest.content)
+        # Only text is sent to the model. Images and credits remain server-owned.
         current = GeneratedArticle.model_validate_json(latest.content)
         if len(current.to_markdown()) > settings.max_rewrite_input_length:
             raise BadRequestError("Article too long to rewrite.", code="REWRITE_INPUT_TOO_LONG")
@@ -515,6 +519,19 @@ class GenerationService:
             ) from exc
 
         rewritten: GeneratedArticle = response.data
+        if stored.photos:
+            for index, section in enumerate(rewritten.sections):
+                if index < len(current.sections):
+                    section.id = current.sections[index].id
+            remaining_ids = {section.id for section in rewritten.sections}
+            if any(p.section_id is not None and p.section_id not in remaining_ids
+                   for p in stored.photos):
+                raise BadRequestError(
+                    "The rewrite changed the photo layout. Move section photos to the cover "
+                    "or remove them before retrying.",
+                    code="REWRITE_PHOTO_LAYOUT_CHANGED",
+                )
+            rewritten = ArticleDocument(**rewritten.model_dump(), photos=stored.photos)
         self.generations.record(
             user_id=user.id,
             article_id=article.id,
@@ -550,7 +567,9 @@ class GenerationService:
         return {
             "version": next_version,
             "markdown": rewritten.to_markdown(),
-            "html": sanitize_document(render_article_html(rewritten, self._seo_for(article))),
+            "html": sanitize_document(render_article_html(
+                rewritten, self._seo_for(article), photos=stored.photos,
+            )),
         }
 
     def _seo_for(self, article: Article) -> SeoResult | None:

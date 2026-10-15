@@ -31,6 +31,54 @@ export const seoSchema = z.object({
 });
 export type Seo = z.infer<typeof seoSchema>;
 
+const photoImageUrl = z
+  .string()
+  .url()
+  .refine((value) => {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      ["upload.wikimedia.org", "thumb.wikimedia.org"].includes(url.host) &&
+      url.pathname.startsWith("/wikipedia/commons/") &&
+      !url.search &&
+      !url.hash
+    );
+  });
+export const photoAssetSchema = z.object({
+  provider: z.literal("commons"),
+  source_id: z.number().int().positive(),
+  title: z.string(),
+  creator: z.string(),
+  source_url: z.string().url(),
+  preview_url: photoImageUrl,
+  original_url: photoImageUrl,
+  license_name: z.string(),
+  license_url: z.string().url(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+});
+export const articlePhotoSchema = photoAssetSchema.extend({
+  id: z.string(),
+  alt: z.string(),
+  section_id: z.string().nullable(),
+});
+export const photoSuggestionSchema = photoAssetSchema.extend({
+  selection_token: z.string(),
+});
+export const photoSearchSchema = z.object({
+  query: z.string(),
+  photos: z.array(photoSuggestionSchema),
+});
+export type PhotoAsset = z.infer<typeof photoAssetSchema>;
+export type ArticlePhoto = z.infer<typeof articlePhotoSchema>;
+export type PhotoSuggestion = z.infer<typeof photoSuggestionSchema>;
+export type PhotoChoice = {
+  id?: string;
+  selection_token?: string;
+  alt: string;
+  section_id: string | null;
+};
+
 export const articleSectionSchema = z.object({
   id: z.string().min(8),
   heading: z.string(),
@@ -42,6 +90,7 @@ export const articleContentSchema = z.object({
   introduction: z.string(),
   sections: z.array(articleSectionSchema),
   conclusion: z.string(),
+  photos: z.array(articlePhotoSchema).optional(),
   research: z
     .object({
       status: z.enum(["unresearched", "sources_retrieved"]),

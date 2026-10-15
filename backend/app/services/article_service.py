@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 
 from ..ai.renderer import render_article_html
 from ..ai.sanitizer import sanitize_document
-from ..ai.schemas import GeneratedArticle, SeoResult, SeoReviewStatus
+from ..ai.schemas import SeoResult, SeoReviewStatus
 from ..core.exceptions import BadRequestError, ConflictError, NotFoundError
+from ..db.base import utc_now
 from ..db.models import Article, User
 from ..repositories.article_repo import ArticleRepository
 from ..schemas.article import (
@@ -23,6 +24,8 @@ from ..schemas.article import (
     VersionListItem,
     VersionListOut,
 )
+from ..schemas.media import ArticleDocument, ArticlePhoto, SavePhotosRequest
+from .photo_service import selected_photo
 
 logger = logging.getLogger(__name__)
 
@@ -50,18 +53,18 @@ class ArticleService:
             raise NotFoundError("Article not found.")
         return article
 
-    def _current_content(self, article: Article) -> GeneratedArticle:
+    def _current_content(self, article: Article) -> ArticleDocument:
         latest = self.articles.latest_version(article.id)
         if latest is None:
             # Creation always writes version 1; reaching here means data loss.
             raise NotFoundError("Article content is missing.")
-        return GeneratedArticle.model_validate_json(latest.content)
+        return ArticleDocument.model_validate_json(latest.content)
 
     def _detail(self, article: Article) -> ArticleDetailOut:
         latest = self.articles.latest_version(article.id)
         if latest is None:
             raise NotFoundError("Article content is missing.")
-        content = GeneratedArticle.model_validate_json(latest.content)
+        content = ArticleDocument.model_validate_json(latest.content)
         seo_row = self.articles.get_seo(article.id)
         seo_out: SeoOut | None = None
         seo_model = None
@@ -85,7 +88,7 @@ class ArticleService:
                 robots=seo_row.robots,
                 canonical_url=seo_row.canonical_url,
             )
-        html = sanitize_document(render_article_html(content, seo_model))
+        html = sanitize_document(render_article_html(content, seo_model, photos=content.photos))
         return ArticleDetailOut(
             id=article.id,
             title=article.title,
@@ -139,9 +142,7 @@ class ArticleService:
             VersionListItem(
                 version=v.version,
                 change_type=v.change_type,
-                word_count=len(
-                    GeneratedArticle.model_validate_json(v.content).to_markdown().split()
-                ),
+                word_count=ArticleDocument.model_validate_json(v.content).word_count,
                 complete_snapshot=v.seo_snapshot is not None,
                 created_at=v.created_at,
             )
@@ -154,7 +155,7 @@ class ArticleService:
         record = self.articles.get_version(article.id, version)
         if record is None:
             raise NotFoundError("Version not found.")
-        content = GeneratedArticle.model_validate_json(record.content)
+        content = ArticleDocument.model_validate_json(record.content)
         return VersionDetailOut(
             version=record.version,
             change_type=record.change_type,
@@ -232,7 +233,7 @@ class ArticleService:
             )
 
         seo = SeoResult.model_validate(payload.seo.model_dump())
-        current_content = GeneratedArticle.model_validate_json(latest.content)
+        current_content = ArticleDocument.model_validate_json(latest.content)
         current_seo = self.articles.get_seo(article.id)
         current_values = {
             field: getattr(current_seo, field) for field in _seo_values(seo)
@@ -241,7 +242,13 @@ class ArticleService:
         # Source provenance is server-owned. An edit keeps its original source
         # snapshot; it cannot manufacture a research badge or replace citations.
         payload.content.research = current_content.research
-        content_changed = payload.content.model_dump() != current_content.model_dump()
+        # Legacy clients omit photos, and ordinary text edits cannot forge credits.
+        section_ids = {section.id for section in payload.content.sections}
+        edited = ArticleDocument(**payload.content.model_dump(), photos=[
+            photo for photo in current_content.photos
+            if photo.section_id is None or photo.section_id in section_ids
+        ])
+        content_changed = edited.model_dump() != current_content.model_dump()
         # SeoInput ignores client quality fields. Only real editor changes alter
         # status; article edits make retained metadata stale until reviewed.
         seo.review_status = (
@@ -252,7 +259,7 @@ class ArticleService:
         self.articles.add_version(
             article,
             version=next_version,
-            content=payload.content.model_dump_json(),
+            content=edited.model_dump_json(),
             change_type="edit",
             seo_snapshot=seo.model_dump_json(),
         )
@@ -274,6 +281,57 @@ class ArticleService:
         )
         return self._detail(article)
 
+    def save_photos(
+        self, user: User, article_id: int, payload: SavePhotosRequest,
+    ) -> ArticleDetailOut:
+        article = self._require_article(user, article_id)
+        latest = self.articles.latest_version(article.id)
+        if latest is None:
+            raise NotFoundError("Article content is missing.")
+        if latest.version != payload.base_version:
+            raise ConflictError("This article changed. Reload before saving photos.",
+                                code="STALE_ARTICLE_VERSION")
+        document = ArticleDocument.model_validate_json(latest.content)
+        existing = {photo.id: photo for photo in document.photos}
+        photos: list[ArticlePhoto] = []
+        slots: set[str | None] = set()
+        ids: set[str] = set()
+        sections = {section.id for section in document.sections}
+        for choice in payload.photos:
+            if choice.section_id in slots or (
+                choice.section_id is not None and choice.section_id not in sections
+            ):
+                raise BadRequestError("Choose one photo per existing section or cover.",
+                                      code="INVALID_PHOTO_POSITION")
+            slots.add(choice.section_id)
+            if choice.id:
+                original = existing.get(choice.id)
+                if original is None or choice.id in ids:
+                    raise BadRequestError("That photo is no longer in this article.",
+                                          code="INVALID_PHOTO_SELECTION")
+                photo = ArticlePhoto.model_validate({**original.model_dump(),
+                    "alt": choice.alt, "section_id": choice.section_id})
+            else:
+                asset = selected_photo(choice.selection_token or "", user.id, article.id)
+                photo = ArticlePhoto(
+                    **asset.model_dump(), alt=choice.alt, section_id=choice.section_id,
+                )
+            ids.add(photo.id)
+            photos.append(photo)
+        document.photos = photos
+        document = ArticleDocument.model_validate(document.model_dump())
+        try:
+            article.updated_at = utc_now()
+            self.articles.add_version(article, version=latest.version + 1,
+                content=document.model_dump_json(), change_type="photos",
+                seo_snapshot=latest.seo_snapshot)
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise ConflictError("This article changed while saving. Reload before saving photos.",
+                                code="STALE_ARTICLE_VERSION") from exc
+        return self._detail(article)
+
     def restore_version(self, user: User, article_id: int, version: int) -> dict:
         article = self._require_article(user, article_id)
         record = self.articles.get_version(article.id, version)
@@ -288,7 +346,7 @@ class ArticleService:
             change_type="restore",
             seo_snapshot=record.seo_snapshot,
         )
-        content = GeneratedArticle.model_validate_json(record.content)
+        content = ArticleDocument.model_validate_json(record.content)
         article.title = content.title
         if record.seo_snapshot is not None:
             restored_seo = SeoResult.model_validate_json(record.seo_snapshot)

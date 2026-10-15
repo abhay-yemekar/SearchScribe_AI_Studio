@@ -6,6 +6,7 @@ param(
     [ValidateRange(5, 240)][int]$WaitSeconds = 120,
     [switch]$StatusOnly,
     [switch]$DryRun,
+    [switch]$EnablePhotos,
     [switch]$NoBrowser
 )
 
@@ -23,6 +24,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $taskBackend 'app/main.py'))) {
 if ($DryRun) {
     Write-Output "Website: $taskWebUrl | API: $taskApiUrl"
     Write-Output 'Fresh start: mock AI, local auth, Google and email disabled, backend/codex_runapp_preview.db.'
+    Write-Output $(if ($EnablePhotos) { 'Photos: Commons public API enabled (no key).' } else { 'Photos: offline by default; use -EnablePhotos for Commons.' })
     Write-Output 'Dry run: no processes, files, port inspection, or browser actions.'
     return
 }
@@ -100,6 +102,7 @@ $taskState = [ordered]@{
     ApiProcess = $taskApiOwner
     WebProcess = $taskWebOwner
     ApiMode = if ($taskApiOwner) { 'reused-settings-unconfirmed' } else { 'mock' }
+    PhotoProvider = if ($taskApiOwner) { 'reused-settings-unconfirmed' } elseif ($EnablePhotos) { 'commons' } else { 'disabled' }
     Database = if ($taskApiOwner) { 'existing-settings-unconfirmed' } else { 'backend/codex_runapp_preview.db' }
 }
 function Save-PreviewState {
@@ -110,6 +113,7 @@ if (-not $taskApiOwner) {
     $taskChildEnv = @{
         APP_ENV = 'local'
         AI_PROVIDER = 'mock'
+        PHOTO_PROVIDER = if ($EnablePhotos) { 'commons' } else { 'disabled' }
         GOOGLE_CLIENT_ID = ''
         GEMINI_API_KEY = ''
         GROQ_API_KEY = ''

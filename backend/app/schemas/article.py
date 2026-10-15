@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from ..ai.schemas import GeneratedArticle, SeoReviewStatus
 from ..core.config import settings
+from .media import ArticleDocument
 
 
 class GenerateArticleRequest(BaseModel):
@@ -96,7 +97,7 @@ class ArticleDetailOut(BaseModel):
     query: str
     status: str
     current_version: int
-    content: GeneratedArticle
+    content: ArticleDocument
     markdown: str
     html: str
     seo: SeoOut | None = None

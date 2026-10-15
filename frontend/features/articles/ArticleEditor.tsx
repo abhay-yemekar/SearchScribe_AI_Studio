@@ -6,6 +6,7 @@ import { Spinner } from "@/components/shared/States";
 import type { ArticleContent } from "@/lib/api/schemas";
 import DiscardChangesDialog from "./DiscardChangesDialog";
 import { useEditorDraft, type EditorDraft } from "./useEditorDraft";
+import PhotoFigure from "./PhotoFigure";
 
 const field =
   "w-full rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
@@ -75,12 +76,22 @@ export default function ArticleEditor({
             Edit article
           </button>
         </div>
+        {(content.photos ?? [])
+          .filter((photo) => photo.section_id === null)
+          .map((photo) => (
+            <PhotoFigure key={photo.id} photo={photo} alt={photo.alt} />
+          ))}
         <p>{content.introduction}</p>
         {content.sections.map((section) => (
           <section key={section.id} className="space-y-3">
             <h2 className="pt-2 font-serif text-2xl font-semibold leading-tight text-slate-900">
               {section.heading}
             </h2>
+            {(content.photos ?? [])
+              .filter((photo) => photo.section_id === section.id)
+              .map((photo) => (
+                <PhotoFigure key={photo.id} photo={photo} alt={photo.alt} />
+              ))}
             {section.paragraphs.map((paragraph, index) => (
               <p key={index}>{paragraph}</p>
             ))}
@@ -150,6 +161,14 @@ export default function ArticleEditor({
               <legend className="text-xs font-semibold uppercase tracking-wide text-slate-600">
                 Section {index + 1}
               </legend>
+              {(content.photos ?? []).some(
+                (photo) => photo.section_id === section.id,
+              ) && (
+                <p className="text-xs text-slate-500">
+                  Photo attached. Removing this section also removes its photo from the
+                  new version.
+                </p>
+              )}
               {draft.sections.length > 1 ? (
                 <button
                   type="button"
