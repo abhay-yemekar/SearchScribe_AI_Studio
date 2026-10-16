@@ -28,7 +28,15 @@ Three independent layers:
 
 ## Rate limiting
 
-Sliding-window per client per minute: 10 for `/auth/*`, 5 for generation endpoints (`RATE_LIMIT_*` env). In-memory implementation; the interface supports a Redis backend for multi-replica deployments (Redis is provisioned in compose).
+Sliding windows per minute (`RATE_LIMIT_*` env), each keyed so one caller can't use up another's budget:
+
+- Signup, login and Google sign-in: 10 per client IP.
+- `/auth/refresh`: 30 per refresh cookie value (its hash, or the client IP without one), within 120 per client IP. It has its own buckets, so page-load refreshes never spend the login budget. The cookie rotates on every successful refresh, so the per-cookie bucket mainly stops replayed or guessed values.
+- Generate and rewrite: 5 per account. Photo search: 10 per account. Photo save: 20 per account.
+
+The client IP is the connecting peer's, except that `X-Client-IP` from `frontend/proxy.ts` is used when it arrives with a matching `PROXY_SHARED_SECRET` (constant-time compare). `X-Forwarded-For` and uvicorn's `proxy_headers` are never trusted.
+
+These are in-memory; the interface supports a Redis backend for multi-replica deployments (Redis is provisioned in compose). Persistent database buckets back the abuse controls that must survive restarts: 10 sign-in attempts per email address per 15 minutes (unknown addresses too, so a 429 reveals nothing; a successful sign-in resets it), and the hourly security-email and password-management budgets.
 
 ## Headers & CORS
 
@@ -45,4 +53,5 @@ Sliding-window per client per minute: 10 for `/auth/*`, 5 for generation endpoin
 
 - The rate limiter is per-process (fine for single-worker deployments; swap to Redis when scaling horizontally).
 - No email verification / password reset flow yet (roadmap).
-- `X-Forwarded-For` trust must be configured at the reverse proxy when deploying behind one.
+- Without `PROXY_SHARED_SECRET` on both the frontend and API, every visitor behind Vercel shares the proxy's per-IP buckets.
+- The per-email sign-in budget lets someone who knows an address block password sign-in for it for up to 15 minutes; Google sign-in and password reset still work.

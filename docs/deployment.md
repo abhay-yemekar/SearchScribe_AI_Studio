@@ -92,6 +92,7 @@ would otherwise select local SQLite. Production settings now fail closed.
 | `APP_ENV` | `production` |
 | `DATABASE_URL` | Dedicated Neon direct URL with TLS |
 | `SECRET_KEY` | Cryptographically random, at least 32 characters |
+| `PROXY_SHARED_SECRET` | A second random value (32+ characters, not `SECRET_KEY`); the same value goes on Vercel |
 | `CORS_ORIGINS` | `https://searchscribe-ai.vercel.app` |
 | `AI_PROVIDER` | `gemini` |
 | `AI_MODEL` | An available model verified with the account's actual limits |
@@ -118,6 +119,14 @@ See [Render Python versions](https://render.com/docs/python-version) and
    environments; never point automated tests or mock generation at production.
 6. Verify API `/api/v1/health` and `/api/v1/ready`, then the same URLs through
    the Vercel `/api` proxy. A Vercel Ready badge alone proves only frontend deploy.
+7. Set the same `PROXY_SHARED_SECRET` on Render and on Vercel (Production,
+   server-only, never `NEXT_PUBLIC_*`), then redeploy both. Render and Vercel
+   both see only proxy addresses, so without it every visitor shares one
+   rate-limit bucket. `frontend/proxy.ts` sends Vercel's `x-real-ip` as
+   `X-Client-IP` with the secret, and the API trusts that header only when the
+   secret matches (constant-time compare). Either side missing is safe: the API
+   falls back to the peer address, the old shared-bucket behaviour. Rotate by
+   changing both values together.
 
 ## Deployed acceptance evidence
 
@@ -131,9 +140,12 @@ Record commit SHAs, migration head, timestamp, and outcome without secrets:
   persist. Test its cold start through Vercel and record any timeout.
 - Confirm a failed database connection makes readiness fail and a failed
   migration prevents a new process from serving.
-- Check rate limiting with the actual ingress. The entrypoint does not trust
-  arbitrary forwarded IP headers; proxy traffic may share a minute-limit bucket.
-  Configure and test a trusted ingress design before widening those limits.
+- Check rate limiting with the actual ingress. After step 7, 11 wrong logins
+  for a made-up address from one network must end in 429 there, while another
+  network (for example a phone on mobile data) can still sign in. A direct call
+  to the Render URL with a made-up `X-Client-IP` and no secret must not change
+  which bucket it uses. Uvicorn's `proxy_headers` stays off, and
+  `X-Forwarded-For` is never trusted.
 
 Google account linking, current-source generation, credited photos, and daily
 quotas remain release gates even after this foundation passes. Markdown download
@@ -242,7 +254,7 @@ GitHub Actions (`.github/workflows/ci.yml`): lint → typecheck → tests → E2
 - [ ] `APP_ENV=production`, strong `SECRET_KEY`, real `CORS_ORIGINS`
 - [ ] `GEMINI_API_KEY` set (or an alternative provider implemented)
 - [ ] PostgreSQL with backups; migrations applied (container does this automatically)
-- [ ] Reverse proxy terminating TLS; trust `X-Forwarded-For` there for correct rate-limit keys
+- [ ] Same `PROXY_SHARED_SECRET` on the frontend and API so rate limits see the real client IP
 - [ ] Log shipping for the JSON logs (`generation.*`, `auth.*`, `http.request` events)
 - [ ] Multiple replicas → swap the in-memory rate limiter for the Redis backend
 - [ ] Monitor `/api/v1/health` (liveness) and `/api/v1/ready` (readiness)

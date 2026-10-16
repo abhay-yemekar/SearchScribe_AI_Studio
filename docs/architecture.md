@@ -23,10 +23,10 @@ flowchart LR
 
 ## Request lifecycle
 
-1. Browser calls same-origin `/api/v1/...` (Next.js rewrites proxy to the backend).
+1. Browser calls same-origin `/api/v1/...`. `frontend/proxy.ts` adds the visitor's IP (`X-Client-IP`, with `PROXY_SHARED_SECRET`), then the Next.js rewrite proxies to the backend.
 2. `RequestContextMiddleware` assigns a request ID, exposes it to logs and the `X-Request-ID` header.
 3. `SecurityHeadersMiddleware` attaches `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, CSP; auth responses get `Cache-Control: no-store`.
-4. Rate-limit dependencies (auth: 10/min, generation: 5/min per client).
+4. Rate-limit dependencies (auth: 10/min per client IP, refresh: its own buckets, generation: 5/min per account).
 5. Dependencies resolve the DB session and current user (Bearer JWT).
 6. The router delegates to a service; repositories persist; exceptions surface through the central handlers as `{error: {code, message, request_id}}`.
 

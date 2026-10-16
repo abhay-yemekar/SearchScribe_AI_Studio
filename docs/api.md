@@ -20,9 +20,9 @@ Common codes: `VALIDATION_ERROR` (422), `AUTHENTICATION_REQUIRED` (401), `NOT_FO
 
 | Method | Path                           | Auth                                | Notes                                                                                                |
 | ------ | ------------------------------ | ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| POST   | `/auth/signup`                 | —                                   | 201, sets refresh cookie, returns access token + user. Rate-limited 10/min.                          |
-| POST   | `/auth/login`                  | —                                   | 200, same shape as signup.                                                                           |
-| POST   | `/auth/refresh`                | refresh cookie                      | Rotates the cookie, returns a fresh access token. 401 on expiry/reuse.                               |
+| POST   | `/auth/signup`                 | —                                   | 201, sets refresh cookie, returns access token + user. 10/min per client IP.                         |
+| POST   | `/auth/login`                  | —                                   | 200, same shape as signup. 10/min per client IP; 10 attempts per email per 15 min.                   |
+| POST   | `/auth/refresh`                | refresh cookie                      | Rotates the cookie, returns a fresh access token. 401 on expiry/reuse. Own limits.                   |
 | POST   | `/auth/logout`                 | refresh cookie                      | Revokes the session, clears the cookie.                                                              |
 | GET    | `/auth/me`                     | Bearer                              | Current user.                                                                                        |
 | GET    | `/auth/password/add/challenge` | Bearer                              | Google-only account: five-minute, one-use identity challenge; sets a dedicated HttpOnly cookie.      |
@@ -41,7 +41,7 @@ return a password or automatically issue a new session.
 
 | Method | Path                                        | Notes                                                                                                                                 |
 | ------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/articles`                                 | Generate. Body `{"query": "..."}` (3–500 chars). 201 → detail. Rate-limited 5/min.                                                    |
+| POST   | `/articles`                                 | Generate. Body `{"query": "..."}` (3–500 chars). 201 → detail. 5/min per account.                                                     |
 | GET    | `/articles?limit=&cursor=`                  | Newest first; `next_cursor` present while more pages exist.                                                                           |
 | GET    | `/articles/rewrite-styles`                  | Style registry for the rewrite picker.                                                                                                |
 | GET    | `/articles/{id}`                            | Full detail.                                                                                                                          |

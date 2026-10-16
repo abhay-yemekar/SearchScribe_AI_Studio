@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     # --- CORS ---
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
+    # --- Trusted client IP from the frontend proxy ---
+    # Shared with frontend/proxy.ts. Blank means X-Client-IP is never trusted.
+    proxy_shared_secret: str = Field(default="", repr=False)
+
     # --- User-selected article photos (public metadata API; no key) ---
     photo_provider: Literal["commons", "disabled"] = "commons"
 
@@ -110,6 +114,12 @@ class Settings(BaseSettings):
     # --- Rate limits (requests per minute) ---
     rate_limit_auth_per_minute: int = 10
     rate_limit_generation_per_minute: int = 5
+    # Per refresh cookie value, plus a ceiling per client so random cookies are no bypass.
+    rate_limit_refresh_per_minute: int = 30
+    rate_limit_refresh_client_per_minute: int = 120
+    # Persistent: password attempts per email address per window, success resets it.
+    login_attempts_per_email: int = Field(default=10, ge=1, le=1000)
+    login_attempt_window_minutes: int = Field(default=15, ge=1, le=1440)
     generation_daily_user_limit: int = Field(default=3, ge=1, le=10000)
     generation_daily_global_limit: int = Field(default=20, ge=1, le=100000)
 
@@ -196,6 +206,14 @@ class Settings(BaseSettings):
                 raise ValueError("The configured AI fallback requires its provider API key")
         return self
 
+    @field_validator("proxy_shared_secret")
+    @classmethod
+    def _validate_proxy_secret(cls, value: str) -> str:
+        value = value.strip()
+        if value and len(value) < 32:
+            raise ValueError("PROXY_SHARED_SECRET must contain at least 32 characters")
+        return value
+
     @field_validator("public_site_url")
     @classmethod
     def _validate_public_site_url(cls, value: str) -> str:
@@ -278,6 +296,8 @@ class Settings(BaseSettings):
                 "SECRET_KEY must contain at least 32 characters in production; "
                 "generate a strong random value"
             )
+        if self.proxy_shared_secret and self.proxy_shared_secret == self.secret_key:
+            raise ValueError("PROXY_SHARED_SECRET must differ from SECRET_KEY")
         if make_url(self.database_url).get_backend_name() != "postgresql":
             raise ValueError("Production requires persistent PostgreSQL; SQLite is local/test only")
         if self.ai_provider == "mock":
