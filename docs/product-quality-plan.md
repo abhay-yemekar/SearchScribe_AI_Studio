@@ -1,0 +1,232 @@
+# SearchScribe product quality and delivery plan
+
+Prepared 16 October 2026. This is the implementation plan, not a statement that
+the work below is shipped. The user requested planning before further coding.
+
+## Outcome
+
+A coherent writing product: someone can create an account, research a topic,
+read and edit the article immediately, review complete SEO, add credited photos,
+export their work, and manage their account without inconsistent controls or
+surprises. Keep the approved SearchScribe identity and editorial design.
+
+## Verified starting point
+
+- Personal GitHub identity `abhay-yemekar` verified on 16 October. Local main and
+  GitHub main both point to `35d642c` (merged PR #37); no open PR was returned.
+  None of the newly reported fixes is implemented or released yet.
+- Resend migration is deployed. Sender domain verification, delivered reset
+  email/direct links, authentication headers, completed test-account reset and
+  password-change notice were verified. Brevo is no longer the active provider;
+  its key was removed from production and local environment configuration.
+  Provider-account key revocation is a separate remaining cleanup item.
+- Local mail defaults to disabled deliberately. Production and local settings
+  differ; neither secrets nor production email sending belong in test fixtures.
+- Research, sources, SEO editing, versions, HTML/Markdown exports, credited
+  Commons photos, and interrupted-generation recovery already exist. Sources
+  are already a workspace tab. Do not rebuild these from older screenshots.
+- Groq credentials are configured and research roles have been exercised.
+  Full article writer/reviewer qualification has not passed; narrow review
+  checks do not establish a production-ready article fallback. Latest Gemini
+  availability and broader factual quality remain separate acceptance work.
+- The isolated Neon restore passed table/checksum checks. Restored-app
+  login/export and hosting rollback acceptance still need verification.
+- Preserve the unrelated existing change to `frontend/next-env.d.ts`.
+
+## Confirmed gaps and investigation items
+
+| Finding | Evidence and practical consequence |
+| --- | --- |
+| Reset/change accepts the current password again | Both backend services lack a new-versus-current password check. Add server enforcement; browser validation alone cannot solve this. This is a product policy gap, not evidence of an account compromise. |
+| Password reset treats many HTTP 400 responses as invalid links | A reuse error must not consume/discard a valid reset token or force another email. Handle an explicit error code and preserve retry. |
+| Dark mode stops at the public site | Theme state and dark styling belong to `SiteChrome`; login, recovery, account and workspace use separate light surfaces. Fix shared state and styling together. |
+| Account page exposes an entire password form immediately | Replace with a clear action and focused dialog. Existing global Show/Hide text becomes an eye control for each field, with accessible labels. |
+| Account identity is incomplete | Email exists under verification, but the user's name is absent from a proper profile summary. Display name, email, verification and sign-in methods together. |
+| Terms, self-service account deletion, account export and product feedback are missing | Implement actual flows, persistence and failure states; a button or footer label is not completion. |
+| Privacy and public feature copy are stale | Privacy still names Brevo; the footer still says photo suggestions are in development. Update disclosures to actual operation. |
+| Long login loading and workspace density | User-reported issues. Measure warm navigation, initial load, session restore and API cold starts separately before assigning a cause. |
+| Overall status tracking is stale | `launch-plan.md` still described the completed mail migration as pending. Every status must distinguish implemented, tested, deployed and verified. |
+
+## Phase 1 — Correctness and consistent account UI
+
+Deliver as small, reviewable changes so unrelated account features do not hold
+up the workspace improvements.
+
+1. **Password reuse and recovery behavior.** Reject only a password matching
+   the account's current hash in both reset and authenticated change flows.
+   No plaintext password storage, logging, recovery or historical-password
+   blacklist. On rejection, retain the valid reset link, session version,
+   existing sessions and notification state; allow a different password using
+   the same link. Successful changes retain existing session invalidation.
+2. **Shared appearance.** One persisted Light/Dark/System preference across
+   public pages, login/signup, recovery, account and workspace. Preserve the
+   existing saved theme. Apply it before first paint where possible; cover
+   dialogs, fields, errors, menus, preview chrome, focus rings and logo contrast.
+   Keep exported article styles intentional and independent of editor theme.
+3. **Usable account summary and password action.** Show name, email, verified
+   status and linked sign-in methods. Show Change password or Add password as
+   an action; reveal fields on demand. Use individual eye icons with screen
+   reader labels, correct autocomplete, focus handling, Cancel and clear errors.
+   Keep Google identity proof and existing session protections intact.
+4. **Terms and accurate disclosures.** Prepare actual project-specific Terms,
+   update Privacy to Resend/current data flows, and add accessible links at
+   account creation and login. New-account acceptance must cover password and
+   Google creation consistently, record the actual accepted version/time, and
+   never fabricate acceptance for existing users. Routine login should not
+   demand repeated acceptance of unchanged terms. Final policy wording must
+   describe actual features and retention; no invented compliance guarantees.
+
+**Completion evidence:** backend tests for reuse rejection, rollback, link retry
+and successful reset; UI tests for specific errors and field visibility;
+desktop/mobile navigation in both themes, reload/system preference, keyboard
+dialog handling; password and Google creation terms behavior. Each released
+slice gets current-commit CI and deployed verification, not one large final PR.
+
+## Phase 2 — Workspace, loading and feedback
+
+1. **Article-first workspace.** Keep Article, SEO Metadata and HTML Preview
+   primary. Present Sources, Photos and Versions as secondary inspector tools
+   (side panel on wide screens; accessible drawer/menu on narrow screens).
+   Compact the topic form and actions after a draft opens. Keep the draft title,
+   save state and first paragraph visible without an introductory banner.
+2. **Find and manage drafts.** Add real article search and Recent/Updated/Title
+   sorting across the user's collection, not just the loaded page. Offer clear
+   rename, duplicate and delete actions with appropriate undo/confirmation;
+   preserve unsaved edits, version ownership and export behavior.
+3. **Measured speed.** Record browser timings and API timings for warm and cold
+   login, refresh, opening a saved draft and tab changes. Remove avoidable
+   repeated requests and loading blockers. Show a useful form/skeleton, bounded
+   waiting and a working retry; do not bypass validated sessions or promise
+   zero cold starts on free hosting. Record before/after measurements.
+4. **Private feedback throughout the product.** Provide Bug, Content quality,
+   Feature request and General options from website, account and workspace.
+   Persist a receipt with a reference ID; optional contact and article context
+   require deliberate inclusion. Rate-limit submissions and bounded maintainer
+   notifications. No automatic screenshots, private draft attachments or public
+   GitHub issues. Anonymous feedback can be accepted with abuse controls.
+5. **Visual consistency.** Audit spacing, typography, exclamation alignment,
+   icon sizes, short-screen overflow, empty/loading/error states, contrast and
+   reduced motion. Build on existing credited photos and restrained animation.
+
+**Completion evidence:** article intro visible at verified desktop dimensions,
+usable narrow-screen inspector, no horizontal clipping, keyboard operation,
+feedback receipt and failure/retry proof, before/after timing results, and
+edit/reload/restore/export regression checks.
+
+## Phase 3 — Complete account lifecycle
+
+- Edit display name with validation and consistent updates in the workspace.
+  Show join date, sign-in methods and email verification without exposing secrets.
+- Add sign out of all sessions. Show a device/session list only when actual
+  session metadata exists; do not invent device names or locations.
+- Export the user's profile and owned content, including versions, SEO,
+  research and photo attribution, through an authenticated download.
+- Implement the user's selected deletion policy: permanent account deletion
+  after fresh password or Google proof. Offer export first, explain consequences,
+  require deliberate confirmation, delete owned active data transactionally,
+  and invalidate all sessions/tokens. Do not delete a real account for testing.
+- Document backup/provider retention separately; deletion from the active
+  database is not a claim that every external delivery log or backup disappears.
+- Do not allow unlinking the final usable sign-in method. Email-address changes
+  require verified ownership and explicit account-linking rules; keep them out
+  of a cosmetic profile-edit endpoint.
+
+**Completion evidence:** isolated password/Google fixtures; reauthentication,
+cross-user denial, full export contents, deletion integrity, interrupted-request
+behavior, all-session invalidation and retained backup disclosure. Production
+acceptance uses an explicitly approved disposable account only.
+
+## Phase 4 — Research, model and SEO qualification
+
+- Finish the representative 20-prompt evaluation: current news, technical model
+  releases, general travel, ambiguous topics, conflicting sources, English and
+  Hindi/Hinglish, incomplete evidence and provider failures. Preserve artifacts
+  with source snapshot, model/provider ID, latency and failure reason.
+- Retain dynamic research. A general prompt must not be constrained to an
+  AI-vendor source catalog. Assess relevance, authority, dates and claim support;
+  retrieved links alone do not prove the draft's claims or the latest social post.
+- Evaluate available free-tier models against the same permitted evidence and
+  output schema. Promote primary/fallback choices only after end-to-end results;
+  verify account quotas and licenses at implementation time. Keep routing
+  configuration-driven with bounded deadlines, cost/usage and retry behavior.
+- Check complete, relevant SEO sentences and titles, not just character counts.
+  Preserve manual edits and review status; show actionable revision suggestions
+  and ensure exports exactly match saved content. Product length targets must
+  not be presented as guaranteed search-engine display or ranking rules.
+- Treat article edits as invalidating affected factual/review conclusions.
+  Present evidence gaps honestly and make repair suggestions reviewable.
+
+**Completion evidence:** at least 19/20 schema-valid outputs plus separate manual
+factual/attribution assessment; no unsupported current-claim pass. Include full
+writer/reviewer/fallback cases, quota exhaustion and real provider outages.
+
+## Phase 5 — Competitive improvements
+
+Official product documentation was checked on 16 October; advertised capabilities
+are not independent quality benchmarks. Earlier Align hands-on observations are
+in the 9 October local research notes. Its test draft did not visibly complete,
+so it is not a verified standard for article quality.
+
+| Product/reference | Relevant capability | SearchScribe implementation direction |
+| --- | --- | --- |
+| [Align Content](https://contentlab.alignlabs.xyz/) | Ideas, outlines, reuse and audience workflow | Saved writing profile and ideas inbox; reviewed article becomes the source for social/email drafts. Keep real analytics separate from generated suggestions. |
+| [Frase research](https://www.frase.io/features/seo-research) | Research becomes a brief with questions, gaps and headings | Audience, purpose, locale, references and keywords feed an editable outline; retain provenance through the finished draft. |
+| [Surfer editor](https://docs.surferseo.com/en/articles/5700347-content-editor-overview) | Contextual guidance and reviewable optimization | A focused inspector with suggestions, before/after comparison and accept/undo. Do not invent ranking or SEO scores without a defined, validated basis. |
+| [KoalaWriter real-time data](https://support.koala.sh/en/article/real-time-data-in-koalawriter-1o7f7ym/) | Research sources can match the article's intent | Topic-sensitive evidence selection and visible evidence coverage. Add section research only when it improves measured quality within quota. |
+
+Delivery order within this phase:
+
+1. Optional content brief and review/reorder of the outline; retain a simple
+   quick-draft path rather than forcing a large setup wizard.
+2. Saved audience/voice/reference profile, section-level rewrite/expand/shorten,
+   and change review with undo. Preserve sources and facts through edits.
+3. Ideas inbox, topic organization and platform-specific social/email exports
+   generated from a reviewed article.
+4. WordPress draft publishing, then read-only Search Console and reviewed
+   refresh suggestions. External publishing needs preview and explicit approval.
+
+Use our own UI, wording and workflows. No competitor-copying, fabricated search
+volumes, impression counts or automatic promotional posting.
+
+## Continuous audit and release discipline
+
+Every affected journey is checked across success, empty, invalid, expired,
+offline, slow, quota and retry states, plus reload/back navigation and keyboard
+use. Cover logged-out, password-only, Google-only, linked and unverified users.
+Check desktop, short desktop, narrow mobile, zoom and both themes.
+
+The core regression journey is website -> signup/login -> workspace -> generate
+or recover -> edit -> SEO -> photo -> version -> export -> account -> logout.
+Test cross-user access and duplicate/in-flight actions at mutation boundaries.
+Use isolated fixtures for destructive and provider-failure cases.
+
+Before each release:
+
+- Verify the personal GitHub account and human author/committer. Use descriptive
+  `fix/...` or `feature/...` branches without `codex`; preserve unrelated work.
+- Run the existing relevant backend, frontend and E2E checks; review the final
+  diff and require green CI on the current commit. Mock CI is not live-provider
+  or actual-inbox proof.
+- Record commit, PR, migrations/config changes and deployment separately. Verify
+  the affected live behavior after an authorized release.
+- Update status and local setup together: which environment variable names
+  changed, local defaults, any manual step and restart needed; never secrets.
+- Keep README/screenshots/demo accurate with each material UI release. Final
+  presentation includes architecture, local setup, limitations and real product
+  evidence after the remaining backup/rollback gates pass.
+
+Every progress report must state: completed and verified; implemented but not
+released; current work; known defects; external/user dependencies; next phase.
+Do not hide unresolved mail, model, restore or mobile acceptance behind a general
+"all done" statement. No task should wait for an unrelated optional integration.
+
+## Immediate execution order after this plan
+
+1. Password reuse fix and regression tests.
+2. Shared theme, account summary/password dialog and Terms/Privacy consistency
+   in reviewable slices.
+3. Workspace/loading and feedback, then the account lifecycle, model
+   qualification and competitive writing features described above.
+
+Keep GitHub and release notes current throughout. This planning change does not
+alter application code, credentials, production configuration or user data.
