@@ -5,7 +5,10 @@ import { Save } from "lucide-react";
 import { Spinner } from "@/components/shared/States";
 import { SEO_LIMITS, type Seo } from "@/lib/api/schemas";
 import DiscardChangesDialog from "./DiscardChangesDialog";
+import { commaListCodec, RawInput } from "./RawTextField";
 import { useEditorDraft, type EditorDraft } from "./useEditorDraft";
+
+const MAX_KEYWORDS = 15;
 
 const field =
   "mt-1 w-full rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
@@ -108,6 +111,7 @@ export default function SeoPanel({
   }
 
   if (editing) {
+    const extraKeywords = draft.keywords.length - MAX_KEYWORDS;
     return (
       <form
         className="mx-auto max-w-3xl space-y-5 text-sm"
@@ -157,20 +161,25 @@ export default function SeoPanel({
 
           <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
             Keywords
-            <input
+            <RawInput
               className={field}
-              value={draft.keywords.join(", ")}
+              value={draft.keywords}
+              codec={commaListCodec}
               required
               placeholder="travel, kerala, backwaters"
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  keywords: event.target.value.split(",").slice(0, 15),
-                })
-              }
+              aria-invalid={extraKeywords > 0}
+              aria-describedby="seo-keywords-help"
+              onValueChange={(keywords) => setDraft({ ...draft, keywords })}
             />
-            <span className="mt-1 block font-normal normal-case text-slate-500">
-              Separate up to 15 keywords with commas.
+            <span
+              id="seo-keywords-help"
+              className={`mt-1 block font-normal normal-case ${
+                extraKeywords > 0 ? "text-rose-700" : "text-slate-500"
+              }`}
+            >
+              {extraKeywords > 0
+                ? `Remove ${extraKeywords} keyword${extraKeywords === 1 ? "" : "s"}: up to ${MAX_KEYWORDS} are allowed.`
+                : `Separate up to ${MAX_KEYWORDS} keywords with commas.`}
             </span>
           </label>
 
@@ -238,7 +247,10 @@ export default function SeoPanel({
             <button
               type="submit"
               disabled={
-                saving || !dirty || draft.keywords.every((keyword) => !keyword.trim())
+                saving ||
+                !dirty ||
+                draft.keywords.every((keyword) => !keyword.trim()) ||
+                extraKeywords > 0
               }
               className="flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2 font-medium text-white hover:bg-teal-800 disabled:opacity-60"
             >

@@ -99,6 +99,49 @@ describe("ArticleEditor", () => {
     expect(screen.getByLabelText("Introduction")).toHaveValue(content.introduction);
   });
 
+  it("lets paragraphs and bullets be typed key by key, including new lines", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<ArticleEditor content={content} saving={false} onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: /edit article/i }));
+
+    const paragraphs = screen.getByLabelText("Section 1 paragraphs");
+    await user.type(paragraphs, "{Enter}{Enter}Second paragraph");
+    expect(paragraphs).toHaveValue("Text\n\nSecond paragraph");
+
+    const bullets = screen.getByLabelText("Section 1 bullets");
+    await user.type(bullets, "First point {Enter}Second point");
+    expect(bullets).toHaveValue("First point \nSecond point");
+
+    await user.click(screen.getByRole("button", { name: /save version/i }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sections: [
+          expect.objectContaining({
+            paragraphs: ["Text", "Second paragraph"],
+            bullets: ["First point", "Second point"],
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("tidies list text on blur and restores it when edits are discarded", async () => {
+    const user = userEvent.setup();
+    render(<ArticleEditor content={content} saving={false} onSave={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: /edit article/i }));
+
+    const bullets = screen.getByLabelText("Section 1 bullets");
+    await user.type(bullets, "  One {Enter}{Enter}Two  ");
+    await user.tab();
+    expect(bullets).toHaveValue("One\nTwo");
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+    await user.click(screen.getByRole("button", { name: /edit article/i }));
+    expect(screen.getByLabelText("Section 1 bullets")).toHaveValue("");
+  });
+
   it("disables all editing controls while saving", async () => {
     const user = userEvent.setup();
     const view = render(
