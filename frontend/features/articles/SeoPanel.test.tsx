@@ -120,6 +120,41 @@ describe("SeoPanel", () => {
     expect(seo.title).toBe("Kerala travel guide");
   });
 
+  it("lets keywords be typed key by key without piling up spaces", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<SeoPanel seo={seo} saving={false} onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: /edit seo/i }));
+
+    const keywords = screen.getByLabelText(/keywords/i);
+    await user.type(keywords, ", houseboats, alleppey");
+    expect(keywords).toHaveValue("kerala, travel, houseboats, alleppey");
+
+    await user.click(screen.getByRole("button", { name: /save version/i }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        keywords: ["kerala", "travel", "houseboats", "alleppey"],
+      }),
+    );
+  });
+
+  it("says when there are more than 15 keywords instead of dropping them", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<SeoPanel seo={seo} saving={false} onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: /edit seo/i }));
+
+    const keywords = screen.getByLabelText(/keywords/i);
+    const sixteen = Array.from({ length: 16 }, (_, i) => `word${i + 1}`).join(", ");
+    await user.clear(keywords);
+    await user.type(keywords, sixteen);
+
+    expect(keywords).toHaveValue(sixteen);
+    expect(keywords).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText(/remove 1 keyword/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: /save version/i })).toBeDisabled();
+  });
+
   it("cancels edits and restores the loaded snapshot", async () => {
     const user = userEvent.setup();
     render(<SeoPanel seo={seo} saving={false} onSave={vi.fn()} />);

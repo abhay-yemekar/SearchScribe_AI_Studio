@@ -7,6 +7,7 @@ import type { ArticleContent } from "@/lib/api/schemas";
 import DiscardChangesDialog from "./DiscardChangesDialog";
 import { useEditorDraft, type EditorDraft } from "./useEditorDraft";
 import PhotoFigure from "./PhotoFigure";
+import { linesCodec, paragraphsCodec, RawTextarea } from "./RawTextField";
 
 const field =
   "w-full rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
@@ -192,29 +193,20 @@ export default function ArticleEditor({
               required
               onChange={(event) => changeSection(index, { heading: event.target.value })}
             />
-            <textarea
+            <RawTextarea
               aria-label={`Section ${index + 1} paragraphs`}
               className={`${field} min-h-32`}
-              value={section.paragraphs.join("\n\n")}
-              onChange={(event) =>
-                changeSection(index, {
-                  paragraphs: event.target.value.split(/\n\s*\n/).filter(Boolean),
-                })
-              }
+              value={section.paragraphs}
+              codec={paragraphsCodec}
+              onValueChange={(paragraphs) => changeSection(index, { paragraphs })}
             />
-            <textarea
+            <RawTextarea
               aria-label={`Section ${index + 1} bullets`}
               className={`${field} min-h-20`}
               placeholder="One bullet per line"
-              value={section.bullets.join("\n")}
-              onChange={(event) =>
-                changeSection(index, {
-                  bullets: event.target.value
-                    .split("\n")
-                    .map((item) => item.trim())
-                    .filter(Boolean),
-                })
-              }
+              value={section.bullets}
+              codec={linesCodec}
+              onValueChange={(bullets) => changeSection(index, { bullets })}
             />
           </fieldset>
         ))}
