@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 
 from ...ai.styles import REWRITE_STYLES
 from ...core.config import settings
-from ...core.rate_limit import rate_limit
 from ...db.models import Article, User
 from ...db.session import get_db
 from ...schemas.article import (
@@ -27,7 +26,7 @@ from ...services.article_service import ArticleService
 from ...services.generation_service import GenerationService
 from ...services.operation_service import OperationService
 from ...services.photo_service import search_photos
-from ..deps import get_current_user
+from ..deps import get_current_user, user_rate_limit
 
 router = APIRouter(prefix="/articles", tags=["articles"])
 
@@ -37,7 +36,7 @@ router = APIRouter(prefix="/articles", tags=["articles"])
     response_model=ArticleDetailOut,
     status_code=status.HTTP_201_CREATED,
     summary="Generate a new article (article + SEO + HTML) from a query",
-    dependencies=[rate_limit("generation", settings.rate_limit_generation_per_minute)],
+    dependencies=[user_rate_limit("generation", settings.rate_limit_generation_per_minute)],
 )
 def generate_article(
     payload: GenerateArticleRequest,
@@ -125,27 +124,24 @@ def save_article(
 @router.get(
     "/{article_id}/photos", response_model=PhotoSearchOut,
     summary="Search credited Commons photos for an owned article",
-    dependencies=[rate_limit("photo-search", 10)],
+    dependencies=[user_rate_limit("photo-search", 10)],
 )
 def find_photos(
     article_id: int, query: str = Query(min_length=3, max_length=120),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ) -> PhotoSearchOut:
     _owned_article(db, current_user, article_id)
-    from ...core.exceptions import BadRequestError, RateLimitError
-    from ...core.rate_limit import limiter
+    from ...core.exceptions import BadRequestError
 
     if len(query.strip()) < 3:
         raise BadRequestError("Enter at least three characters to search.")
-    if not limiter.allow(f"photo-user:{current_user.id}", 10):
-        raise RateLimitError()
     return search_photos(query, current_user.id, article_id)
 
 
 @router.put(
     "/{article_id}/photos", response_model=ArticleDetailOut,
     summary="Save selected photos and alt text as an immutable article version",
-    dependencies=[rate_limit("photo-save", 20)],
+    dependencies=[user_rate_limit("photo-save", 20)],
 )
 def save_photos(
     article_id: int, payload: SavePhotosRequest,
@@ -185,7 +181,7 @@ def duplicate_article(
     "/{article_id}/rewrite",
     response_model=ArticleDetailOut,
     summary="Rewrite the current article version in a given style",
-    dependencies=[rate_limit("generation", settings.rate_limit_generation_per_minute)],
+    dependencies=[user_rate_limit("generation", settings.rate_limit_generation_per_minute)],
 )
 def rewrite_article(
     article_id: int,

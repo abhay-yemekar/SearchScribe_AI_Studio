@@ -3,24 +3,22 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import logging
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Literal
 
-from sqlalchemy import delete, select, update
-from sqlalchemy.dialects.postgresql import insert as postgres_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
 from ..core.exceptions import BadRequestError, RateLimitError
 from ..core.security import hash_password
 from ..db.base import utc_now
-from ..db.models import RefreshToken, SecurityRateBucket, SecurityToken, User
+from ..db.models import RefreshToken, SecurityToken, User
 from ..repositories.user_repo import UserRepository
+from .security_buckets import delete_expired_buckets, take_bucket
 from .transactional_mail import MailDeliveryError, send_security_email
 
 logger = logging.getLogger(__name__)
@@ -66,28 +64,13 @@ class AccountRecoveryService:
     def _take_bucket(
         self, scope: str, value: str, start: datetime, end: datetime, limit: int
     ) -> bool:
-        key = hmac.new(
-            settings.secret_key.encode(),
-            f"{scope}:{value}:{start.isoformat()}".encode(),
-            hashlib.sha256,
-        ).hexdigest()
-        dialect = self.db.get_bind().dialect.name
-        insert = postgres_insert if dialect == "postgresql" else sqlite_insert
-        stmt = insert(SecurityRateBucket).values(key=key, count=1, expires_at=end)
-        reserved = self.db.scalar(
-            stmt.on_conflict_do_update(
-                index_elements=[SecurityRateBucket.key],
-                set_={"count": SecurityRateBucket.count + 1},
-                where=SecurityRateBucket.count < limit,
-            ).returning(SecurityRateBucket.count)
-        )
-        return reserved is not None
+        return take_bucket(self.db, scope, value, start, end, limit)
 
     def _allow_request(self, scope: str, client_ip: str, email: str | None = None) -> bool:
         now = utc_now()
         start = now.replace(minute=0, second=0, microsecond=0)
         end = start + timedelta(hours=1)
-        self.db.execute(delete(SecurityRateBucket).where(SecurityRateBucket.expires_at < now))
+        delete_expired_buckets(self.db, now)
         # The IP budget is shared by all security email requests, including unknown
         # addresses. Do not allocate attacker-controlled email rows after it fills.
         allowed = self._take_bucket(

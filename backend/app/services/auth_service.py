@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
-from ..core.exceptions import AuthenticationError, ConflictError
+from ..core.exceptions import AuthenticationError, ConflictError, RateLimitError
 from ..core.security import (
     create_access_token,
     generate_refresh_token,
@@ -21,8 +21,20 @@ from ..core.security import (
 from ..db.base import utc_now
 from ..db.models import RefreshToken, User
 from ..repositories.user_repo import UserRepository
+from .security_buckets import clear_bucket, delete_expired_buckets, take_bucket
 
 logger = logging.getLogger(__name__)
+
+LOGIN_ATTEMPT_SCOPE = "login_attempt:email"
+LOGIN_THROTTLED_MESSAGE = (
+    "Too many sign-in attempts for this email. Wait a few minutes or reset your password."
+)
+
+
+def _login_window(now: datetime) -> tuple[datetime, datetime]:
+    size = timedelta(minutes=settings.login_attempt_window_minutes)
+    start = datetime.min + (now - datetime.min) // size * size
+    return start, start + size
 
 
 @dataclass(frozen=True)
@@ -51,6 +63,23 @@ class AuthService:
 
     def login(self, *, email: str, password: str) -> User:
         normalized = email.strip().lower()
+        now = utc_now()
+        start, end = _login_window(now)
+        # A persistent per-address budget, spent before any password hashing and
+        # committed now so a failed attempt still counts. Unknown addresses spend
+        # it too, so a 429 never reveals whether an account exists.
+        delete_expired_buckets(self.db, now)
+        allowed = take_bucket(
+            self.db, LOGIN_ATTEMPT_SCOPE, normalized, start, end,
+            settings.login_attempts_per_email,
+        )
+        self.db.commit()
+        if not allowed:
+            logger.warning("auth.login.throttled")
+            raise RateLimitError(
+                LOGIN_THROTTLED_MESSAGE,
+                details={"retry_after_seconds": int((end - now).total_seconds()) + 1},
+            )
         user = self.users.get_by_email(normalized)
         # Hash even when the user is missing to keep timing roughly uniform.
         if user is None:
@@ -62,6 +91,12 @@ class AuthService:
             raise AuthenticationError("This account is disabled.")
         logger.info("auth.login.success", extra={"user_id": user.id})
         return user
+
+    def clear_login_attempts(self, email: str) -> None:
+        """Refund an address's attempts once its password sign-in has issued a session."""
+        start, _ = _login_window(utc_now())
+        clear_bucket(self.db, LOGIN_ATTEMPT_SCOPE, email.strip().lower(), start)
+        self.db.commit()
 
     def issue_session(self, user: User) -> SessionTokens:
         """Create an access JWT and a new rotating refresh-token session."""

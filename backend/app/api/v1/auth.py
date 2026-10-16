@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from ...core.config import settings
 from ...core.exceptions import AuthenticationError
-from ...core.rate_limit import rate_limit
+from ...core.rate_limit import client_ip, rate_limit
+from ...core.security import hash_refresh_token
 from ...db.models import User
 from ...db.session import get_db
 from ...schemas.auth import (
@@ -125,6 +126,17 @@ def _clear_password_cookies(response: Response) -> None:
     response.delete_cookie(PASSWORD_ADD_COOKIE_NAME, path=PASSWORD_ADD_COOKIE_PATH)
 
 
+def _refresh_key(request: Request) -> str:
+    # Keyed by the cookie, so page-load refreshes never spend login's budget or
+    # another user's. Success rotates the cookie, so this bucket catches a replayed
+    # or guessed value; the per-client ceiling bounds the rest. Cookieless calls
+    # share their client's bucket.
+    raw_token = request.cookies.get(REFRESH_COOKIE_NAME)
+    if raw_token:
+        return f"session:{hash_refresh_token(raw_token)}"
+    return f"client:{client_ip(request)}"
+
+
 def _token_payload(user: User, tokens: SessionTokens) -> TokenOut:
     return TokenOut(
         access_token=tokens.access_token,
@@ -148,7 +160,7 @@ def signup(
     user = service.signup(email=payload.email, name=payload.name, password=payload.password)
     tokens = service.issue_session(user)
     _set_refresh_cookie(response, tokens.refresh_token)
-    message = AccountRecoveryService(db).request_verification(user, _client_ip(request))
+    message = AccountRecoveryService(db).request_verification(user, client_ip(request))
     if message is not None:
         background_tasks.add_task(deliver_security_email, message)
     return _token_payload(user, tokens)
@@ -164,6 +176,7 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
     service = AuthService(db)
     user = service.login(email=payload.email, password=payload.password)
     tokens = service.issue_session(user)
+    service.clear_login_attempts(payload.email)
     _set_refresh_cookie(response, tokens.refresh_token)
     return _token_payload(user, tokens)
 
@@ -172,7 +185,10 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
     "/refresh",
     response_model=TokenOut,
     summary="Rotate the refresh cookie and issue a new access token",
-    dependencies=[rate_limit("auth", settings.rate_limit_auth_per_minute)],
+    dependencies=[
+        rate_limit("refresh-client", settings.rate_limit_refresh_client_per_minute),
+        rate_limit("refresh", settings.rate_limit_refresh_per_minute, key=_refresh_key),
+    ],
 )
 def refresh(request: Request, response: Response, db: Session = Depends(get_db)) -> TokenOut:
     raw_token = request.cookies.get(REFRESH_COOKIE_NAME)
@@ -204,11 +220,6 @@ def me(current_user: User = Depends(get_current_user)) -> UserOut:
     return UserOut.model_validate(current_user)
 
 
-def _client_ip(request: Request) -> str:
-    # Trust the ASGI client's address, never raw user-supplied forwarding headers.
-    return request.client.host if request.client else "unknown"
-
-
 @router.get("/password/add/challenge")
 def password_add_challenge(
     request: Request, response: Response, current: User = Depends(get_current_user),
@@ -217,7 +228,7 @@ def password_add_challenge(
     response.headers["Cache-Control"] = "no-store"
     if not settings.google_client_id:
         return {"enabled": False}
-    nonce, signed = AccountPasswordService(db).add_challenge(current, _client_ip(request))
+    nonce, signed = AccountPasswordService(db).add_challenge(current, client_ip(request))
     response.set_cookie(
         PASSWORD_ADD_COOKIE_NAME, signed, max_age=300, httponly=True,
         secure=settings.is_production, samesite="strict", path=PASSWORD_ADD_COOKIE_PATH,
@@ -234,7 +245,7 @@ def password_add(
     response.headers["Cache-Control"] = "no-store"
     message = AccountPasswordService(db).add_password(
         current, payload.credential, request.cookies.get(PASSWORD_ADD_COOKIE_NAME),
-        payload.password, _client_ip(request),
+        payload.password, client_ip(request),
     )
     if message is not None:
         background_tasks.add_task(deliver_security_email, message)
@@ -250,7 +261,7 @@ def password_change(
 ) -> MessageOut:
     response.headers["Cache-Control"] = "no-store"
     message = AccountPasswordService(db).change_password(
-        current, payload.current_password, payload.password, _client_ip(request),
+        current, payload.current_password, payload.password, client_ip(request),
     )
     if message is not None:
         background_tasks.add_task(deliver_security_email, message)
@@ -264,7 +275,7 @@ def forgot_password(
     background_tasks: BackgroundTasks, db: Session = Depends(get_db),
 ) -> MessageOut:
     response.headers["Cache-Control"] = "no-store"
-    message = AccountRecoveryService(db).request_password_reset(payload.email, _client_ip(request))
+    message = AccountRecoveryService(db).request_password_reset(payload.email, client_ip(request))
     if message is not None:
         background_tasks.add_task(deliver_security_email, message)
     return MessageOut(message=FORGOT_MESSAGE)
@@ -277,7 +288,7 @@ def reset_password(
 ) -> MessageOut:
     response.headers["Cache-Control"] = "no-store"
     message = AccountRecoveryService(db).reset_password(
-        payload.token, payload.password, _client_ip(request),
+        payload.token, payload.password, client_ip(request),
     )
     if message is not None:
         background_tasks.add_task(deliver_security_email, message)
@@ -294,7 +305,7 @@ def request_email_verification(
     current: User = Depends(get_current_user), db: Session = Depends(get_db),
 ) -> MessageOut:
     response.headers["Cache-Control"] = "no-store"
-    message = AccountRecoveryService(db).request_verification(current, _client_ip(request))
+    message = AccountRecoveryService(db).request_verification(current, client_ip(request))
     if message is not None:
         background_tasks.add_task(deliver_security_email, message)
     return MessageOut(message=VERIFICATION_MESSAGE)
@@ -306,5 +317,5 @@ def verify_email(
     db: Session = Depends(get_db),
 ) -> MessageOut:
     response.headers["Cache-Control"] = "no-store"
-    AccountRecoveryService(db).verify_email(payload.token, _client_ip(request))
+    AccountRecoveryService(db).verify_email(payload.token, client_ip(request))
     return MessageOut(message="Email verified. You can return to your account.")
