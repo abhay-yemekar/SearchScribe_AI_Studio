@@ -4,6 +4,11 @@ Target: quality-gated public beta, with no fixed date. The previous
 18 September 2026 target has passed. Release candidate: `v2.0.0-beta.1`.
 Authentication, data integrity, attribution, and recovery remain release gates.
 
+Current execution priorities and verified status (16 October 2026):
+[Product quality and delivery plan](product-quality-plan.md). That plan separates
+the newly identified account/theme/Terms gaps from already shipped work and
+defines completion evidence for each upcoming phase.
+
 ## Product
 
 SearchScribe is an open-source writing workspace for bloggers and creators.
@@ -35,15 +40,15 @@ must be designed alongside the successful flow.
       Setup instructions and sender constraints: [auth-setup.md](auth-setup.md).
       Recovery and password management shipped in PRs #16–20; real verification,
       Google-to-password addition and notice delivery are verified. Untracked
-      direct links, full reset acceptance and mobile email rendering remain open.
-      **Provider migration pending after Brevo ticket #5612282.** Its 15 October
-      HTTPS-specific answer confirms that consent=false does not guarantee no
-      pixels, unchanged security links, or intact fragments. The ticket is Solved;
-      no further reply is pending. Resend integration is prepared, but domain
-      verification, scoped credentials, activation and delivered-message/reset
-      acceptance remain open. Keep Brevo manual-code delivery available until
-      migration is verified. Include this item in overall project status;
-      see [auth-setup.md](auth-setup.md).
+      direct links and test-account reset/notification acceptance were verified
+      after PR #37 migrated production to Resend. The personal sender subdomain
+      is verified, its sending key is scoped, and Brevo credentials were removed
+      from production and local environment configuration. Brevo ticket #5612282
+      is resolved; it is not awaiting another reply. Fresh signup verification
+      through Resend and actual mobile rendering acceptance remain open. Newly
+      reported current-password reuse and account UI gaps are tracked in the
+      product quality plan. The provider account's old Brevo key is not yet
+      revoked. Do not confuse that cleanup with active application usage.
 - [x] Writing workflow: visible unsaved-edit status, keep/discard protection,
       in-memory draft retention across workspace navigation, and Markdown export
       from saved versions with source links and provenance.
