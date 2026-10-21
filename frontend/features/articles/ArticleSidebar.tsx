@@ -155,7 +155,8 @@ export default function ArticleSidebar({
                     aria-label={`Delete ${article.title}`}
                     disabled={disabled || deletingId === article.id}
                     onClick={() => onDelete(article.id)}
-                    className="absolute right-1.5 top-1.5 block rounded p-1 text-slate-500 transition-colors hover:bg-rose-100 hover:text-rose-700 md:hidden md:group-hover:block md:focus-visible:block"
+                    // Opacity, not display:none, so Tab can reach it on desktop too.
+                    className="absolute right-1.5 top-1.5 block rounded p-1 text-slate-500 transition hover:bg-rose-100 hover:text-rose-700 md:opacity-0 md:focus-visible:opacity-100 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
                   >
                     {deletingId === article.id ? (
                       <Spinner className="h-3.5 w-3.5" />

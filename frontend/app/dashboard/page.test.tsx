@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import type { ArticleDetail } from "@/lib/api/schemas";
 import { ApiError } from "@/lib/api/errors";
@@ -272,9 +272,11 @@ describe("workspace unsaved edits", () => {
     const user = await editArticle();
     await changeIntroduction(user, " keep me");
     await user.click(screen.getByRole("button", { name: "Delete Other article" }));
-    await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith(2));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mocks.remove).not.toHaveBeenCalled();
     view.unmount();
+    // Leaving the workspace sends a delete that is still waiting for Undo.
+    await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith(2));
     createView(view.client);
     expect(await screen.findByLabelText("Introduction")).toHaveValue(
       "Original introduction keep me",
@@ -345,6 +347,92 @@ describe("workspace unsaved edits", () => {
     expect(view.client.getQueryData(["workspace-draft", 1])).toEqual(
       expect.objectContaining({ draft: null }),
     );
+  });
+
+  describe("deleting articles", () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+    const setup = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const row = (title: string) =>
+      screen.queryByRole("button", { name: new RegExp(`^${title}`, "i") });
+
+    it("hides the article at once and deletes it only after the undo window", async () => {
+      const user = setup();
+      createView();
+      await user.click(
+        await screen.findByRole("button", { name: "Delete Other article" }),
+      );
+
+      expect(row("Other article")).not.toBeInTheDocument();
+      expect(screen.getByText("Deleted “Other article”.")).toBeVisible();
+      expect(screen.getByRole("button", { name: "Undo" })).toHaveFocus();
+      await act(() => vi.advanceTimersByTimeAsync(9_000));
+      expect(mocks.remove).not.toHaveBeenCalled();
+      await act(() => vi.advanceTimersByTimeAsync(1_000));
+      expect(mocks.remove).toHaveBeenCalledWith(2);
+      expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+    });
+
+    it("restores the article on Undo and never deletes it", async () => {
+      const user = setup();
+      createView();
+      await user.click(
+        await screen.findByRole("button", { name: "Delete Other article" }),
+      );
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+
+      expect(row("Other article")).toBeVisible();
+      await act(() => vi.advanceTimersByTimeAsync(15_000));
+      expect(mocks.remove).not.toHaveBeenCalled();
+    });
+
+    it("closes the open article on delete and reopens it on Undo", async () => {
+      const user = setup();
+      createView();
+      await user.click(await screen.findByRole("button", { name: /^original title/i }));
+      expect(await screen.findByRole("button", { name: "Edit article" })).toBeVisible();
+
+      await user.click(screen.getByRole("button", { name: "Delete Original title" }));
+      expect(
+        screen.queryByRole("button", { name: "Edit article" }),
+      ).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Undo" }));
+
+      expect(await screen.findByRole("button", { name: "Edit article" })).toBeVisible();
+      expect(mocks.remove).not.toHaveBeenCalled();
+    });
+
+    it("sends a waiting delete straight away when another article is deleted", async () => {
+      const user = setup();
+      createView();
+      await user.click(
+        await screen.findByRole("button", { name: "Delete Other article" }),
+      );
+      await user.click(screen.getByRole("button", { name: "Delete Original title" }));
+
+      await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith(2));
+      expect(mocks.remove).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Deleted “Original title”.")).toBeVisible();
+    });
+
+    it("sends a waiting delete when the page is closed", async () => {
+      const user = setup();
+      createView();
+      await user.click(
+        await screen.findByRole("button", { name: "Delete Other article" }),
+      );
+
+      act(() => {
+        window.dispatchEvent(new Event("pagehide"));
+      });
+
+      expect(mocks.remove).toHaveBeenCalledWith(2, { keepalive: true });
+    });
   });
 
   it("does not resurrect a private draft cache when a save returns after logout", async () => {
