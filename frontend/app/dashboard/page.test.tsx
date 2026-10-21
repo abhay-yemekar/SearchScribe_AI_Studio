@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   save: vi.fn(),
   remove: vi.fn(),
+  restore: vi.fn(),
+  getArticle: vi.fn(),
+  versions: vi.fn(),
   generate: vi.fn(),
   logout: vi.fn(),
 }));
@@ -87,14 +90,14 @@ vi.mock("@/lib/api/articles", () => ({
     items: [original, { ...original, id: 2, title: "Other article" }],
     next_cursor: null,
   }),
-  getArticle: async (id: number) => ({ ...original, id }),
-  listVersions: async () => ({ items: [] }),
+  getArticle: (...args: unknown[]) => mocks.getArticle(...args),
+  listVersions: (...args: unknown[]) => mocks.versions(...args),
   fetchRewriteStyles: async () => ({ styles: [{ key: "genz", label: "Gen Z" }] }),
   saveArticle: (...args: unknown[]) => mocks.save(...args),
   deleteArticle: (...args: unknown[]) => mocks.remove(...args),
   generateArticle: (...args: unknown[]) => mocks.generate(...args),
   duplicateArticle: vi.fn(),
-  restoreVersion: vi.fn(),
+  restoreVersion: (...args: unknown[]) => mocks.restore(...args),
   rewriteArticle: vi.fn(),
 }));
 
@@ -181,6 +184,8 @@ describe("workspace unsaved edits", () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getArticle.mockImplementation(async (id: number) => ({ ...original, id }));
+    mocks.versions.mockResolvedValue({ items: [] });
     mocks.remove.mockResolvedValue(undefined);
     mocks.save.mockResolvedValue({ ...original, current_version: 2 });
     Object.defineProperties(HTMLDialogElement.prototype, {
@@ -346,6 +351,52 @@ describe("workspace unsaved edits", () => {
     expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
     expect(view.client.getQueryData(["workspace-draft", 1])).toEqual(
       expect.objectContaining({ draft: null }),
+    );
+  });
+
+  it("restores against the version on screen and clears a stale-restore error on success", async () => {
+    const version = (n: number, change_type: string) => ({
+      version: n,
+      change_type,
+      word_count: 3,
+      complete_snapshot: true,
+      created_at: "2026-10-13T00:00:00Z",
+    });
+    mocks.getArticle.mockImplementation(async (id: number) => ({
+      ...original,
+      id,
+      current_version: 2,
+    }));
+    mocks.versions.mockResolvedValue({
+      items: [version(2, "edit"), version(1, "generation")],
+    });
+    mocks.restore
+      .mockRejectedValueOnce(
+        new ApiError(409, {
+          error: {
+            code: "STALE_ARTICLE_VERSION",
+            message: "This article changed after you opened it. Reload before restoring.",
+            request_id: "fixture",
+          },
+        }),
+      )
+      .mockResolvedValueOnce({ ...original, current_version: 3 });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+    });
+    client.setQueryData(["article", 1], { ...original, current_version: 2 });
+    createView(client);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /^original title/i }));
+    await user.click(screen.getByRole("tab", { name: "Versions" }));
+
+    await user.click(await screen.findByRole("button", { name: "Restore" }));
+    expect(mocks.restore).toHaveBeenCalledWith(1, 1, 2);
+    expect(await screen.findByText(/changed after you opened it/)).toBeVisible();
+
+    await user.click(await screen.findByRole("button", { name: "Restore" }));
+    await waitFor(() =>
+      expect(screen.queryByText(/changed after you opened it/)).not.toBeInTheDocument(),
     );
   });
 

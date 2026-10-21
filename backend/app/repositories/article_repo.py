@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..db.base import utc_now
 from ..db.models import Article, ArticleVersion, SeoMetadata
 
 DEFAULT_PAGE_SIZE = 20
@@ -110,6 +111,9 @@ class ArticleRepository:
             change_type=change_type,
             seo_snapshot=seo_snapshot,
         )
+        # Every save, restore, rewrite and photo change lands here. The column's
+        # onupdate fires only when an `articles` column changes, so set it here.
+        article.updated_at = utc_now()
         self.db.add(record)
         self.db.flush()
         return record

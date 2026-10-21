@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -75,6 +76,15 @@ def article_digest(article: dict[str, Any]) -> str:
     )})
 
 
+def version_digest(version: dict[str, Any]) -> str:
+    # Compare when a version was made, not how its time is spelled: responses now
+    # end in "Z", while an older release checked during rollback sends naive UTC.
+    created = datetime.fromisoformat(version["created_at"])
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=UTC)
+    return digest({**version, "created_at": created.astimezone(UTC).isoformat()})
+
+
 def seed(client: Any) -> dict[str, Any]:
     """Create only fictional accounts; exercise the real API, snapshots and journals."""
     from app.ai.factory import get_provider
@@ -129,7 +139,7 @@ def seed(client: Any) -> dict[str, Any]:
         provider.permanent_failure = False
     versions = expect(client.get(f"/api/v1/articles/{article_id}/versions", headers=headers), 200)
     version_digests = {
-        str(version["version"]): digest(expect(client.get(
+        str(version["version"]): version_digest(expect(client.get(
             f"/api/v1/articles/{article_id}/versions/{version['version']}", headers=headers,
         ), 200)) for version in versions["items"]
     }
@@ -150,7 +160,7 @@ def verify_api(client: Any, manifest: dict[str, Any], *, rollback: bool = False)
     for version, expected in manifest["versions"].items():
         actual = expect(client.get(f"/api/v1/articles/{article_id}/versions/{version}",
                                    headers=headers), 200)
-        assert digest(actual) == expected, f"Version {version} changed"
+        assert version_digest(actual) == expected, f"Version {version} changed"
     for path in (f"/api/v1/articles/{article_id}",
                  f"/api/v1/articles/{article_id}/versions",
                  f"/api/v1/articles/{article_id}/versions/3"):

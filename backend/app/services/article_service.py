@@ -11,7 +11,6 @@ from ..ai.renderer import render_article_html
 from ..ai.sanitizer import sanitize_document
 from ..ai.schemas import SeoResult, SeoReviewStatus
 from ..core.exceptions import BadRequestError, ConflictError, NotFoundError
-from ..db.base import utc_now
 from ..db.models import Article, User
 from ..repositories.article_repo import ArticleRepository
 from ..schemas.article import (
@@ -52,6 +51,23 @@ class ArticleService:
         if article is None:
             raise NotFoundError("Article not found.")
         return article
+
+    def _stale(self, current_version: int, action: str) -> ConflictError:
+        return ConflictError(
+            f"This article changed after you opened it. Reload before {action}.",
+            code="STALE_ARTICLE_VERSION",
+            details={"current_version": current_version},
+        )
+
+    def _lost_race(self, article: Article, action: str) -> ConflictError:
+        """Another request wrote the same version number first (unique constraint)."""
+        self.db.rollback()
+        current = self.articles.latest_version(article.id)
+        return ConflictError(
+            f"This article changed while it was being {action}. Reload and try again.",
+            code="STALE_ARTICLE_VERSION",
+            details={"current_version": current.version if current else None},
+        )
 
     def _current_content(self, article: Article) -> ArticleDocument:
         latest = self.articles.latest_version(article.id)
@@ -226,11 +242,7 @@ class ArticleService:
         if latest is None:
             raise NotFoundError("Article content is missing.")
         if latest.version != payload.base_version:
-            raise ConflictError(
-                "This article changed after you opened it. Reload before saving.",
-                code="STALE_ARTICLE_VERSION",
-                details={"current_version": latest.version},
-            )
+            raise self._stale(latest.version, "saving")
 
         seo = SeoResult.model_validate(payload.seo.model_dump())
         current_content = ArticleDocument.model_validate_json(latest.content)
@@ -256,25 +268,20 @@ class ArticleService:
             else _snapshot_status(latest.seo_snapshot)
         )
         next_version = latest.version + 1
-        self.articles.add_version(
-            article,
-            version=next_version,
-            content=edited.model_dump_json(),
-            change_type="edit",
-            seo_snapshot=seo.model_dump_json(),
-        )
-        article.title = payload.content.title
-        self.articles.set_seo(article, _seo_values(seo))
+        # add_version flushes, so a concurrent save fails here, not at commit.
         try:
+            article.title = payload.content.title
+            self.articles.add_version(
+                article,
+                version=next_version,
+                content=edited.model_dump_json(),
+                change_type="edit",
+                seo_snapshot=seo.model_dump_json(),
+            )
+            self.articles.set_seo(article, _seo_values(seo))
             self.db.commit()
         except IntegrityError as exc:
-            self.db.rollback()
-            current = self.articles.latest_version(article.id)
-            raise ConflictError(
-                "This article changed while it was being saved. Reload before saving.",
-                code="STALE_ARTICLE_VERSION",
-                details={"current_version": current.version if current else None},
-            ) from exc
+            raise self._lost_race(article, "saved") from exc
         logger.info(
             "article.edited",
             extra={"user_id": user.id, "article_id": article.id, "version": next_version},
@@ -321,7 +328,6 @@ class ArticleService:
         document.photos = photos
         document = ArticleDocument.model_validate(document.model_dump())
         try:
-            article.updated_at = utc_now()
             self.articles.add_version(article, version=latest.version + 1,
                 content=document.model_dump_json(), change_type="photos",
                 seo_snapshot=latest.seo_snapshot)
@@ -332,26 +338,35 @@ class ArticleService:
                                 code="STALE_ARTICLE_VERSION") from exc
         return self._detail(article)
 
-    def restore_version(self, user: User, article_id: int, version: int) -> dict:
+    def restore_version(
+        self, user: User, article_id: int, version: int, base_version: int | None = None
+    ) -> dict:
+        """Copy an old version forward. `base_version` is optional for older clients."""
         article = self._require_article(user, article_id)
         record = self.articles.get_version(article.id, version)
         if record is None:
             raise NotFoundError("Version not found.")
         latest = self.articles.latest_version(article.id)
-        next_version = (latest.version if latest else 0) + 1
-        self.articles.add_version(
-            article,
-            version=next_version,
-            content=record.content,
-            change_type="restore",
-            seo_snapshot=record.seo_snapshot,
-        )
+        current_version = latest.version if latest else 0
+        if base_version is not None and base_version != current_version:
+            raise self._stale(current_version, "restoring")
+        next_version = current_version + 1
         content = ArticleDocument.model_validate_json(record.content)
-        article.title = content.title
-        if record.seo_snapshot is not None:
-            restored_seo = SeoResult.model_validate_json(record.seo_snapshot)
-            self.articles.set_seo(article, _seo_values(restored_seo))
-        self.db.commit()
+        try:
+            article.title = content.title
+            self.articles.add_version(
+                article,
+                version=next_version,
+                content=record.content,
+                change_type="restore",
+                seo_snapshot=record.seo_snapshot,
+            )
+            if record.seo_snapshot is not None:
+                restored_seo = SeoResult.model_validate_json(record.seo_snapshot)
+                self.articles.set_seo(article, _seo_values(restored_seo))
+            self.db.commit()
+        except IntegrityError as exc:
+            raise self._lost_race(article, "restored") from exc
         logger.info(
             "article.version_restored",
             extra={"user_id": user.id, "article_id": article_id, "version": version},

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+
+from .timestamps import UtcDateTime
 
 _PASSWORD_RULE = re.compile(r"^(?=.*[A-Za-z])(?=.*\d).{8,128}$")
 
@@ -93,7 +94,7 @@ class UserOut(BaseModel):
     email: EmailStr
     name: str
     email_verified: bool
-    created_at: datetime
+    created_at: UtcDateTime
 
 
 class TokenOut(BaseModel):

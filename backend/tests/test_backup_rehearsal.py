@@ -3,7 +3,13 @@
 import pytest
 
 from app.core.rate_limit import limiter
-from scripts.backup_rehearsal import guarded_database_url, main, seed, verify_api
+from scripts.backup_rehearsal import (
+    guarded_database_url,
+    main,
+    seed,
+    verify_api,
+    version_digest,
+)
 
 
 @pytest.mark.parametrize("url", [
@@ -59,3 +65,15 @@ def test_changed_article_is_not_accepted(client):
     manifest["article_sha256"] = "0" * 64
     with pytest.raises(AssertionError, match="Article/export content changed"):
         verify_api(client, manifest)
+
+
+def test_version_check_ignores_time_spelling_but_not_content():
+    # A rollback release serialises naive UTC; the current one appends "Z".
+    current = {"version": 5, "change_type": "restore", "markdown": "# Notes",
+               "created_at": "2026-10-21T15:48:51.206948Z"}
+    previous = {**current, "created_at": "2026-10-21T15:48:51.206948"}
+    assert version_digest(previous) == version_digest(current)
+    assert version_digest({**previous, "markdown": "# Changed"}) != version_digest(current)
+    assert version_digest({**previous, "created_at": "2026-10-21T15:48:52"}) != (
+        version_digest(current)
+    )
