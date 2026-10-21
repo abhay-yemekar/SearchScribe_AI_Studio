@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowDown, ArrowRight, ArrowUpRight } from "lucide-react";
 import SiteChrome from "@/components/marketing/SiteChrome";
 import EditorialVisual from "@/components/marketing/EditorialVisual";
+import { NEXT } from "@/lib/feature-status";
 import {
   HeroDraft,
   StudioStory,
@@ -144,7 +145,7 @@ export default function HomePage() {
       </section>
       <section className="roadmap section-container" data-reveal>
         <div className="section-heading">
-          <p className="eyebrow">(05). / In development</p>
+          <p className="eyebrow">(05). / Today and next</p>
           <h2>Today, and what’s next.</h2>
           <p>
             Built in the open, with a clear line between what works today and what comes
@@ -154,26 +155,24 @@ export default function HomePage() {
         <div className="roadmap-list">
           {[
             [
-              "01",
               "Research you can trace",
               "Visible citations and source links, beside your draft.",
               "Available",
             ],
             [
-              "02",
               "Photos you can credit",
-              "Relevant images, credits, and editable alt text.",
-              "Planned",
+              "Wikimedia Commons images with credits and editable alt text.",
+              "Available",
             ],
             [
-              "03",
               "A writing workflow that stays yours",
               "Version history, unsaved-edit protection, and HTML or Markdown export.",
               "Available",
             ],
-          ].map(([n, title, detail, status]) => (
-            <div className="roadmap-row" key={n}>
-              <span className="eyebrow">[{n}]</span>
+            ...NEXT.map(({ name, detail }) => [name, detail, "Next"]),
+          ].map(([title, detail, status], index) => (
+            <div className="roadmap-row" key={title}>
+              <span className="eyebrow">[{String(index + 1).padStart(2, "0")}]</span>
               <div>
                 <h3>{title}</h3>
                 <p>{detail}</p>
@@ -214,7 +213,7 @@ export default function HomePage() {
             ],
             [
               "Is the draft ready to publish?",
-              "It is a starting point. Review facts, originality, tone, and SEO details before publishing. Verified research citations and photo suggestions are still in development.",
+              "It is a starting point. Drafts list the web sources they used, but check facts, originality, tone, and SEO details before publishing.",
             ],
             [
               "Can I use my article elsewhere?",
@@ -222,7 +221,7 @@ export default function HomePage() {
             ],
             [
               "Can I use Google to sign in?",
-              "Yes. Google sign-in is deployed alongside password login. To link an existing password account, sign in first and use Account. Password-reset emails are still in development.",
+              "Yes. Google sign-in works alongside password login. To link an existing password account, sign in first and use Account. If you forget your password, request a reset email from the sign-in page.",
             ],
           ].map(([question, answer]) => (
             <details key={question}>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SiteChrome from "@/components/marketing/SiteChrome";
 import PageHeading from "@/components/marketing/PageHeading";
+import { NEXT } from "@/lib/feature-status";
 
 export const metadata: Metadata = {
   title: "How it works | SearchScribe",
@@ -16,7 +17,7 @@ const steps = [
   [
     "02",
     "Generate a draft",
-    "The AI creates a structured article and SEO fields. Review the result carefully: a first draft can contain mistakes.",
+    "The studio looks for web sources first, then writes a structured article and SEO fields from them. Sources have their own tab, and a draft without usable sources is marked Unresearched. Review the result carefully: a first draft can contain mistakes.",
   ],
   [
     "03",
@@ -25,8 +26,8 @@ const steps = [
   ],
   [
     "04",
-    "Review and export",
-    "Restore an earlier version if you need to. Download saved HTML or Markdown with its source links for publication elsewhere.",
+    "Add photos and export",
+    "Choose credited Wikimedia Commons photos and write their alt text. Restore an earlier version if you need to, then download saved HTML or Markdown with its sources and photo credits.",
   ],
 ];
 
@@ -53,16 +54,17 @@ export default function HowItWorksPage() {
       <section className="bg-[#e7e9e2] px-5 py-16 sm:px-8 lg:px-12">
         <div className="mx-auto max-w-7xl">
           <p className="text-xs font-semibold uppercase tracking-[.2em] text-teal-800">
-            In development
+            Next
           </p>
-          <h2 className="mt-4 font-serif text-4xl">
-            Research and imagery belong in the workflow.
-          </h2>
-          <p className="mt-4 max-w-2xl leading-7 text-slate-600">
-            The planned research step will expose source links and mark drafts when
-            retrieval fails. Planned image selection will include photo credit, source
-            links, and editable alt text. Neither step is shipped yet.
-          </p>
+          <h2 className="mt-4 font-serif text-4xl">What comes next.</h2>
+          <ul className="mt-6 grid gap-6 md:grid-cols-3">
+            {NEXT.map(({ name, detail }) => (
+              <li key={name}>
+                <h3 className="font-serif text-2xl">{name}</h3>
+                <p className="mt-2 leading-7 text-slate-600">{detail}</p>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
     </SiteChrome>

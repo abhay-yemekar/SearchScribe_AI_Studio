@@ -30,8 +30,11 @@ changes the language, and decides what to publish.
    Marketing, or Minimal style.
 4. **Keep your history.** Inspect and restore saved versions. Restoration creates
    another version instead of erasing the intervening work.
-5. **Take the result with you.** Download standalone, sanitized HTML or editable
-   Markdown from the saved version, with its research status and source links.
+5. **Add photos.** Search Wikimedia Commons for a cover and section photos; each
+   keeps its creator credit and licence, and you write the alt text.
+6. **Take the result with you.** Download standalone, sanitized HTML or editable
+   Markdown from the saved version, with its research status, source links and
+   photo credits.
 
 The public website explains the product before login. `/dashboard` is the writing
 workspace; `/account` manages sign-in connections. Password signup and login remain
@@ -44,11 +47,14 @@ available alongside the configured Google sign-in integration.
 An editorial website that introduces the product before sign-in. Original artwork,
 responsive layouts, keyboard controls, and motion that respects reduced-motion settings.
 
-![The current article workspace](screenshots/studio-workspace-4k.png)
+![The article workspace with a credited cover photo](screenshots/studio-workspace-4k.png)
 
-The article stays first. SEO, HTML preview, sources, and versions have their own
-tabs. Screenshots use a synthetic **Demo Writer** account and an offline mock
-article, with no real account information.
+The article stays first. SEO, HTML preview, photos, sources, and versions have
+their own tabs. This screenshot uses a synthetic **Demo Writer** account and a
+local stack without web research, so the draft is marked Unresearched; the
+article text was written for the demo. Cover photo: "Closeup of old books in the
+library" by Shixart1985, [CC BY 2.0](https://creativecommons.org/licenses/by/2.0/),
+via [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Closeup_of_old_books_in_the_library.jpg).
 
 ![A real walkthrough of the article, SEO, preview, sources and version tabs](screenshots/studio-workflow.gif)
 
@@ -63,21 +69,23 @@ alternatives: [homepage](screenshots/studio-home-4k.png),
 This is a **free, noncommercial beta**. AI drafts need editorial review before
 publication; a retrieved source or valid JSON response does not certify accuracy.
 
-| Available            | Scope                                                                         |
-| -------------------- | ----------------------------------------------------------------------------- |
-| Topic-based research | Tavily search, bounded excerpts, visible links and estimated source dates     |
-| Article + SEO        | Structured drafts, complete metadata targets, editable review status          |
-| Editorial control    | Six rewrite styles, saved versions, conflict and unsaved-edit protection      |
-| Portable output      | Sanitized HTML and Markdown with source provenance                            |
-| Sign-in              | Password and configured Google sign-in, explicit linking, password management |
-| Resilience           | Bounded requests, useful quota errors, and configured research-role fallback  |
+| Available            | Scope                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| Topic-based research | Tavily search, bounded excerpts, visible links and estimated source dates                 |
+| Article + SEO        | Structured drafts, complete metadata targets, editable review status                      |
+| Editorial control    | Six rewrite styles, saved versions, conflict and unsaved-edit protection                  |
+| Credited photos      | Wikimedia Commons cover and section photos with creator, licence and editable alt text    |
+| Portable output      | Sanitized HTML and Markdown with source provenance and photo credits                      |
+| Sign-in              | Password and Google sign-in, explicit linking, email verification, reset and change       |
+| Resilience           | Per-client rate limits, persistent daily limits, recovery of interrupted requests         |
+| Data safety          | PostgreSQL backup restore and previous-release compatibility rehearsed in CI              |
 
 Automatic article-provider fallback and draft evidence correction remain disabled
-in the deployed beta until their quality gates pass. Recovery email is deployed;
-direct token-bearing links remain disabled pending the email tracking acceptance
-gate. Photo suggestions, persistent daily user quotas, backup-restore rehearsals,
-and deployment rollback rehearsals remain planned or incomplete. See the
-[launch plan](docs/launch-plan.md) for the detailed acceptance checklist.
+in the deployed beta until their quality gates pass, and a live hosting rollback
+has not yet been rehearsed. Account email goes through Resend with tracking turned
+off. The public [features page](https://searchscribe-ai.vercel.app/features) lists
+what is planned next, and the [launch plan](docs/launch-plan.md) has the detailed
+acceptance checklist.
 
 ## Run it locally
 
