@@ -68,7 +68,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "style-src 'unsafe-inline' https://cdn.jsdelivr.net; "
                 "img-src https://fastapi.tiangolo.com data:; connect-src 'self'"
             )
-        if request.url.path.startswith(AUTH_PATH_PREFIX):
-            # Auth responses may carry tokens/cookies; never cache them.
+        if request.url.path.startswith(AUTH_PATH_PREFIX) or "authorization" in request.headers:
+            # Auth and signed-in responses carry tokens or private drafts. Without an
+            # explicit header, the Vercel proxy marks them cacheable (public, max-age=0).
             response.headers.setdefault("Cache-Control", "no-store")
         return response
