@@ -14,6 +14,8 @@ All errors share one envelope:
 }
 ```
 
+Timestamps (`created_at`, `updated_at`) are UTC ISO 8601 with a `Z` suffix. `updated_at` changes with every new version.
+
 Common codes: `VALIDATION_ERROR` (422), `AUTHENTICATION_REQUIRED` (401), `NOT_FOUND` (404), `CONFLICT` (409), `RATE_LIMITED` (429), `GENERATION_FAILED` / `AI_PROVIDER_UNAVAILABLE` (502), `SERVICE_UNAVAILABLE` (503).
 
 ## Auth
@@ -54,7 +56,7 @@ return a password or automatically issue a new session.
 | POST   | `/articles/{id}/rewrite`                    | `{"style": "genz\|professional\|casual\|technical\|marketing\|minimal"}` → new version.                                               |
 | GET    | `/articles/{id}/versions`                   | Version list (version, change_type, word_count, complete_snapshot, created_at).                                                       |
 | GET    | `/articles/{id}/versions/{version}`         | One version's markdown.                                                                                                               |
-| POST   | `/articles/{id}/versions/{version}/restore` | Restores as a **new** version.                                                                                                        |
+| POST   | `/articles/{id}/versions/{version}/restore` | Restores as a **new** version. Optional body `{base_version}`; stale returns `STALE_ARTICLE_VERSION` (409).                           |
 
 `ArticleDetailOut`:
 
@@ -105,7 +107,7 @@ editorial edit. Sending a status in a save request cannot promote it.
     "robots": "index, follow",
     "review_status": "generated"
   },
-  "created_at": "2026-08-21T10:00:00",
+  "created_at": "2026-08-21T10:00:00Z",
   "updated_at": "2026-08-21T10:05:00"
 }
 ```

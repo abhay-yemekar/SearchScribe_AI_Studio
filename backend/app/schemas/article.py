@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -11,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from ..ai.schemas import GeneratedArticle, SeoReviewStatus
 from ..core.config import settings
 from .media import ArticleDocument
+from .timestamps import UtcDateTime
 
 
 class GenerateArticleRequest(BaseModel):
@@ -51,6 +51,11 @@ class SeoInput(BaseModel):
         return value
 
 
+class RestoreVersionRequest(BaseModel):
+    # The version the client is looking at; a newer one means its view is stale.
+    base_version: int = Field(ge=1)
+
+
 class SaveArticleRequest(BaseModel):
     base_version: int = Field(ge=1)
     content: GeneratedArticle
@@ -82,8 +87,8 @@ class ArticleListItem(BaseModel):
     query: str
     status: str
     current_version: int
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
 
 
 class ArticleListOut(BaseModel):
@@ -101,8 +106,8 @@ class ArticleDetailOut(BaseModel):
     markdown: str
     html: str
     seo: SeoOut | None = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
 
 
 class VersionListItem(BaseModel):
@@ -110,7 +115,7 @@ class VersionListItem(BaseModel):
     change_type: str
     word_count: int
     complete_snapshot: bool
-    created_at: datetime
+    created_at: UtcDateTime
 
 
 class VersionListOut(BaseModel):
@@ -121,7 +126,7 @@ class VersionDetailOut(BaseModel):
     version: int
     change_type: str
     markdown: str
-    created_at: datetime
+    created_at: UtcDateTime
 
 
 class RewriteStyleOut(BaseModel):

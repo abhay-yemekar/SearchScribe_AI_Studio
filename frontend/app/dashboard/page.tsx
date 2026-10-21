@@ -260,9 +260,17 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
 
   const restore = useMutation({
     mutationKey: ["workspace-action", user!.id, "restore"],
-    mutationFn: (version: number) => restoreVersion(selectedId as number, version),
-    onSuccess: invalidateSelected,
-    onError: (error) => setActionError((error as Error).message),
+    mutationFn: ({ version, base }: { version: number; base: number }) =>
+      restoreVersion(selectedId as number, version, base),
+    onSuccess: () => {
+      setActionError(null);
+      invalidateSelected();
+    },
+    onError: (error) => {
+      setActionError((error as Error).message);
+      // A 409 means a newer version exists; show it so the restore can be retried.
+      invalidateSelected();
+    },
   });
 
   const save = useMutation({
@@ -948,7 +956,9 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
                       currentVersion={detail.current_version}
                       restoring={busy}
                       onRestore={(version) =>
-                        requestAction(() => restore.mutate(version))
+                        requestAction(() =>
+                          restore.mutate({ version, base: detail.current_version }),
+                        )
                       }
                     />
                   ),

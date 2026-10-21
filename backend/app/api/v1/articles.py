@@ -13,6 +13,7 @@ from ...schemas.article import (
     ArticleDetailOut,
     ArticleListOut,
     GenerateArticleRequest,
+    RestoreVersionRequest,
     RewriteRequest,
     RewriteStyleOut,
     RewriteStylesOut,
@@ -248,10 +249,13 @@ def get_version(
 def restore_version(
     article_id: int,
     version: int,
+    payload: RestoreVersionRequest | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ArticleDetailOut:
-    ArticleService(db).restore_version(current_user, article_id, version)
+    # The body is optional so clients from before base_version keep working.
+    base_version = payload.base_version if payload else None
+    ArticleService(db).restore_version(current_user, article_id, version, base_version)
     return ArticleService(db).get_article(current_user, article_id)
 
 

@@ -100,13 +100,15 @@ export async function listVersions(id: number): Promise<VersionList> {
   return versionListSchema.parse(payload);
 }
 
+/** `baseVersion` is the version on screen; a newer one makes the API answer 409. */
 export async function restoreVersion(
   id: number,
   version: number,
+  baseVersion: number,
 ): Promise<ArticleDetail> {
   const payload = await apiFetch<unknown>(
     `/api/v1/articles/${id}/versions/${version}/restore`,
-    { method: "POST" },
+    { method: "POST", body: JSON.stringify({ base_version: baseVersion }) },
   );
   return articleDetailSchema.parse(payload);
 }

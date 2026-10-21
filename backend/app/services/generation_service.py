@@ -552,6 +552,8 @@ class GenerationService:
         current_seo = self._seo_for(article)
         if current_seo is not None:
             current_seo.review_status = "needs_review"
+        # Title first, so it and updated_at go out in add_version's one flush.
+        article.title = rewritten.title
         self.articles.add_version(
             article,
             version=next_version,
@@ -559,7 +561,6 @@ class GenerationService:
             change_type="rewrite",
             seo_snapshot=current_seo.model_dump_json() if current_seo else None,
         )
-        article.title = rewritten.title
         complete_operation(self.db, article.id, next_version)
         self.db.commit()
 
