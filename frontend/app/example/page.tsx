@@ -44,7 +44,8 @@ export default function ExamplePage() {
           </p>
           <div className="mt-8 border-t border-stone-200 pt-5 text-sm text-slate-600">
             <strong className="text-slate-900">Next in the workspace:</strong> edit the
-            copy, review SEO fields, save a version, and export HTML or Markdown.
+            copy, review SEO fields and sources, add photos, save a version, and export
+            HTML or Markdown.
           </div>
         </div>
       </article>
@@ -68,7 +69,9 @@ export default function ExamplePage() {
           <div>
             <h3 className="font-semibold">Does it include sources and photos?</h3>
             <p className="mt-2 leading-7 text-slate-600">
-              Not yet. Traceable research and credited photo selection are in development.
+              Yes. Drafts list their web sources in the Sources tab and in exports, and
+              you can add credited Wikimedia Commons photos with your own alt text. Check
+              each source before you publish.
             </p>
           </div>
           <div>

@@ -54,13 +54,24 @@ export default function PrivacyPage() {
         <section>
           <h2 className="font-serif text-3xl">Account emails</h2>
           <p className="mt-3 leading-8 text-slate-600">
-            Brevo sends verification, password reset, and password-change notices. It
+            Resend sends verification, password reset, and password-change emails. It
             receives your email address, name, and the security message, including any
             single-use verification or reset link or code. SearchScribe stores only hashes
-            of these secrets and requests that Brevo not track opens or clicks for
-            security emails. Brevo still processes email contents and delivery records. Do
-            not share your security links or codes. Account emails do not subscribe you to
-            a marketing list.
+            of these secrets, and open and click tracking is turned off for these emails.
+            Resend still processes email contents and delivery records. Do not share your
+            security links or codes. Account emails do not subscribe you to a marketing
+            list.
+          </p>
+        </section>
+        <section>
+          <h2 className="font-serif text-3xl">Photos</h2>
+          <p className="mt-3 leading-8 text-slate-600">
+            When you search for photos, SearchScribe sends your search words to Wikimedia
+            Commons. The photo you choose is saved with your article: its title, creator,
+            licence, and links, plus the alt text you write. Photos are shown directly
+            from Wikimedia&rsquo;s servers, in the workspace and in exported HTML, so
+            Wikimedia receives the viewer&rsquo;s IP address and browser details when an
+            image loads.
           </p>
         </section>
         <section>

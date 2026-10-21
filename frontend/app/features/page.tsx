@@ -1,59 +1,19 @@
 import type { Metadata } from "next";
 import SiteChrome from "@/components/marketing/SiteChrome";
 import PageHeading from "@/components/marketing/PageHeading";
+import { AVAILABLE, NEXT, type FeatureNote } from "@/lib/feature-status";
 
 export const metadata: Metadata = {
   title: "Features | SearchScribe",
-  description: "Explore the writing tools available now and the features in development.",
+  description: "Explore the writing tools available now and what is planned next.",
 };
 
-const available = [
-  [
-    "Article generation",
-    "Create a sectioned draft from a topic, then review it before publication.",
-  ],
-  [
-    "Web research",
-    "Search for relevant source excerpts with visible links and dates. Current-topic drafts require usable evidence; review claims before publishing.",
-  ],
-  [
-    "Structured editing",
-    "Edit article content and SEO fields, with visible unsaved changes and keep/discard protection.",
-  ],
-  [
-    "Rewrites and history",
-    "Apply a rewrite style, save versions, and restore an earlier draft.",
-  ],
-  [
-    "HTML and Markdown export",
-    "Download the saved article with its research status and source links.",
-  ],
-  [
-    "Password and Google sign-in",
-    "Enter your workspace using a password or Google. Existing password accounts link Google explicitly from Account.",
-  ],
-  [
-    "Account security",
-    "Verify your email, request password recovery, or add and change a password from Account.",
-  ],
-];
-const planned = [
-  [
-    "Relevant photos",
-    "Choose hero and section images with photographer credit, source links, and alt text.",
-  ],
-  [
-    "Reliability controls",
-    "Daily quotas, idempotent generation, and bounded provider fallback.",
-  ],
-];
-
-function FeatureList({ title, items }: { title: string; items: string[][] }) {
+function FeatureList({ title, items }: { title: string; items: FeatureNote[] }) {
   return (
     <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:px-12">
       <h2 className="font-serif text-4xl">{title}</h2>
       <div className="mt-8 grid gap-4 md:grid-cols-2">
-        {items.map(([name, detail]) => (
+        {items.map(({ name, detail }) => (
           <article key={name} className="border-t border-stone-300 py-6">
             <h3 className="font-serif text-2xl">{name}</h3>
             <p className="mt-3 max-w-md leading-7 text-slate-600">{detail}</p>
@@ -70,11 +30,11 @@ export default function FeaturesPage() {
       <PageHeading
         eyebrow="The toolkit"
         title="Your ideas, still yours."
-        description="A focused workspace for drafting and revision. We distinguish what is available from what is on the roadmap."
+        description="A focused workspace for drafting and revision. We distinguish what is available from what is planned next."
       />
-      <FeatureList title="Available in the workspace" items={available} />
+      <FeatureList title="Available in the workspace" items={AVAILABLE} />
       <div className="bg-[#e7e9e2]">
-        <FeatureList title="In development" items={planned} />
+        <FeatureList title="Planned next" items={NEXT} />
       </div>
     </SiteChrome>
   );
