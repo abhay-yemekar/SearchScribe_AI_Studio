@@ -1,3 +1,10 @@
+import {
+  BASE_HEADERS,
+  NON_API_SOURCE,
+  PUBLIC_PAGES_SOURCE,
+  contentSecurityPolicy,
+} from "./lib/security-headers.mjs";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   agentRules: false,
@@ -7,13 +14,26 @@ const nextConfig = {
   // Playwright opens 127.0.0.1 while Next's dev server starts on localhost.
   allowedDevOrigins: ["127.0.0.1"],
   async headers() {
-    return ["/forgot-password", "/reset-password", "/verify-email"].map((source) => ({
-      source,
-      headers: [
-        { key: "Referrer-Policy", value: "no-referrer" },
-        { key: "Cache-Control", value: "no-store" },
-      ],
-    }));
+    // Later entries win for the same header, so the recovery pages keep no-referrer.
+    return [
+      { source: NON_API_SOURCE, headers: BASE_HEADERS },
+      {
+        source: PUBLIC_PAGES_SOURCE,
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: contentSecurityPolicy({ dev: process.env.NODE_ENV === "development" }),
+          },
+        ],
+      },
+      ...["/forgot-password", "/reset-password", "/verify-email"].map((source) => ({
+        source,
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "no-store" },
+        ],
+      })),
+    ];
   },
   async rewrites() {
     // Same-origin proxy to the backend: the browser only ever talks to

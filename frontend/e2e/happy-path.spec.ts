@@ -69,8 +69,14 @@ test.describe("SearchScribe happy path (mock AI provider)", () => {
 
     // --- Rewrite ---
     await page.getByRole("button", { name: /^Rewrite$/ }).click();
+    // The workspace ignores tab clicks while an action runs, so wait for v3 first.
+    await expect(
+      page
+        .getByRole("complementary", { name: "Article navigation" })
+        .getByRole("button", { name: / v3 / }),
+    ).toBeVisible({ timeout: 30_000 });
     await page.getByRole("tab", { name: /versions/i }).click();
-    await expect(page.getByText("Version 3")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Version 3")).toBeVisible();
 
     // --- Restore version 1 ---
     await page

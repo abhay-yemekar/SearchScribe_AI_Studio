@@ -40,7 +40,11 @@ These are in-memory; the interface supports a Redis backend for multi-replica de
 
 ## Headers & CORS
 
-- `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`, `Cache-Control: no-store` on auth responses.
+- **API:** `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `X-Frame-Options: DENY`, `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`. `Cache-Control: no-store` on `/auth/*` responses and on every request with a bearer token, so a proxy or browser never caches tokens or private drafts.
+- **Pages** (`frontend/lib/security-headers.mjs`): every page sends `nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY` and `Permissions-Policy`. Every page has a CSP with `frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'self'` and `form-action 'self'`, and allows only Google sign-in (`accounts.google.com/gsi/`) and Wikimedia images as outside origins.
+  - App pages (`/dashboard`, `/account`, `/login` and the recovery pages) get a per-request nonce from `proxy.ts`: only scripts Next.js signs, and scripts those load (`'strict-dynamic'`), can run. These pages render dynamically for that reason.
+  - Public marketing pages stay static, with a fixed CSP that allows inline scripts; they show no user content.
+  - Styles allow inline for the sandboxed HTML preview and Google's button. Zod runs `jitless`, so its `eval` probe doesn't report a violation.
 - CORS origins come from `CORS_ORIGINS` env, never hardcoded.
 
 ## Secrets

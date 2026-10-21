@@ -30,6 +30,22 @@ def test_security_headers_present(client: TestClient) -> None:
     assert "default-src 'none'" in response.headers["Content-Security-Policy"]
 
 
+def test_authenticated_responses_are_never_cached(client: TestClient) -> None:
+    from conftest import auth_headers, generate_article, register_user
+
+    token = register_user(client, email="no-store@example.com")["access_token"]
+    article = generate_article(client, token)
+    headers = auth_headers(token)
+
+    for path in ("/api/v1/articles", f"/api/v1/articles/{article['id']}",
+                 f"/api/v1/articles/{article['id']}/versions", "/api/v1/auth/me"):
+        response = client.get(path, headers=headers)
+        assert response.status_code == 200, path
+        assert response.headers["Cache-Control"] == "no-store", path
+    # Without a proxy default, a shared cache could otherwise keep a private draft.
+    assert "Cache-Control" not in client.get("/api/v1/health").headers
+
+
 def test_unknown_route_returns_error_envelope(client: TestClient) -> None:
     response = client.get("/api/v1/does-not-exist")
     assert response.status_code == 404

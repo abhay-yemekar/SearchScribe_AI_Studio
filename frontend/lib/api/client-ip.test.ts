@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 
 import { apiRequestHeaders, CLIENT_IP_HEADER, PROXY_SECRET_HEADER } from "./client-ip";
 import { config, proxy } from "@/proxy";
+import { APP_PATHS } from "@/lib/security-headers.mjs";
 
 const SECRET = "s".repeat(48);
 
@@ -63,11 +64,39 @@ describe("proxy", () => {
     vi.unstubAllEnvs();
   });
 
-  it("runs only for API calls", () => {
-    expect(unstable_doesMiddlewareMatch({ config, url: "/api/v1/auth/refresh" })).toBe(
-      true,
-    );
-    expect(unstable_doesMiddlewareMatch({ config, url: "/dashboard" })).toBe(false);
+  it("runs for API calls and app pages, not for public pages", () => {
+    for (const url of ["/api/v1/auth/refresh", "/dashboard", "/account", "/login"]) {
+      expect(unstable_doesMiddlewareMatch({ config, url })).toBe(true);
+    }
+    for (const url of ["/", "/features", "/privacy"]) {
+      expect(unstable_doesMiddlewareMatch({ config, url })).toBe(false);
+    }
+  });
+
+  it("covers every app page listed in security-headers", () => {
+    for (const path of APP_PATHS) {
+      expect(unstable_doesMiddlewareMatch({ config, url: path })).toBe(true);
+    }
+  });
+
+  it("gives each app page a fresh nonce CSP, sent both upstream and to the browser", () => {
+    const first = proxy(new NextRequest("https://example.test/dashboard"));
+    const second = proxy(new NextRequest("https://example.test/dashboard"));
+
+    const csp = first.headers.get("content-security-policy") ?? "";
+    const nonce = first.headers.get("x-middleware-request-x-nonce");
+    expect(nonce).toMatch(/^[A-Za-z0-9+/=]{20,}$/);
+    expect(csp).toContain(`'nonce-${nonce}'`);
+    expect(csp).toContain("frame-ancestors 'none'");
+    // Next reads the request-side copy to sign its own scripts.
+    expect(first.headers.get("x-middleware-request-content-security-policy")).toBe(csp);
+    expect(second.headers.get("x-middleware-request-x-nonce")).not.toBe(nonce);
+  });
+
+  it("leaves CSP on API calls to the backend", () => {
+    const response = proxy(new NextRequest("https://example.test/api/v1/health"));
+
+    expect(response.headers.get("content-security-policy")).toBeNull();
   });
 
   it("passes the client IP upstream as a request header, not to the browser", () => {

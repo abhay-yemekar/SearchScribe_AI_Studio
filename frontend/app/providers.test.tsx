@@ -2,6 +2,7 @@ import { render } from "@testing-library/react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { act } from "react";
 import { afterEach, describe, expect, it } from "vitest";
+import { z } from "zod";
 
 import { clearAccessToken, setAccessToken } from "@/lib/auth/token-store";
 import Providers from "./providers";
@@ -27,6 +28,10 @@ function renderWithClient() {
 
 describe("Providers", () => {
   afterEach(() => clearAccessToken());
+
+  it("turns off Zod's eval probe, which the CSP would report on every page", () => {
+    expect(z.config().jitless).toBe(true);
+  });
 
   it("drops the previous user's cached articles when someone else signs in", () => {
     act(() => setAccessToken(tokenFor(1)));

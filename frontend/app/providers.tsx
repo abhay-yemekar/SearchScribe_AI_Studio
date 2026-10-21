@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { onIdentityChange } from "@/lib/auth/token-store";
+import "@/lib/zod-config";
 
 export default function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
