@@ -24,7 +24,9 @@ import ArticleExport from "@/features/articles/ArticleExport";
 import ResearchPanel from "@/features/articles/ResearchPanel";
 import PhotosPanel, { type PhotoDraft } from "@/features/articles/PhotosPanel";
 import DiscardChangesDialog from "@/features/articles/DiscardChangesDialog";
+import UndoToast from "@/features/articles/UndoToast";
 import { draftIsDirty, type EditorDraft } from "@/features/articles/useEditorDraft";
+import { useUndoableDelete } from "@/features/articles/useUndoableDelete";
 import { downloadArticleFile } from "@/lib/article-export";
 import { useSession } from "@/features/auth/useSession";
 import SessionLoading from "@/features/auth/SessionLoading";
@@ -234,6 +236,17 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
     },
     onError: (error) => setActionError((error as Error).message),
   });
+  const pendingDelete = useUndoableDelete({
+    commit: (id) => remove.mutate(id),
+    commitOnPageHide: (id) => {
+      void deleteArticle(id, { keepalive: true })
+        .then(() => queryClient.invalidateQueries({ queryKey: ["articles"] }))
+        .catch(() => undefined); // Best effort; the article reappears if this fails.
+    },
+  });
+  const visibleArticles = articles.filter(
+    (article) => article.id !== pendingDelete.pending?.id,
+  );
 
   const duplicate = useMutation({
     mutationKey: ["workspace-action", user!.id, "duplicate"],
@@ -438,8 +451,22 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
           className="fixed inset-0 z-30 bg-black/70 md:hidden"
         />
       ) : null}
+      {pendingDelete.pending ? (
+        <UndoToast
+          key={pendingDelete.pending.id}
+          message={`Deleted “${pendingDelete.pending.title}”.`}
+          onUndo={() => {
+            const restored = pendingDelete.undo();
+            // Reopen it only if nothing else was opened in the meantime.
+            if (restored?.wasOpen && selectedId === null) {
+              setSelectedId(restored.id);
+              setActiveTab("article");
+            }
+          }}
+        />
+      ) : null}
       <ArticleSidebar
-        articles={articles}
+        articles={visibleArticles}
         loading={articlesQuery.isLoading}
         loadingMore={articlesQuery.isFetchingNextPage}
         hasMore={articlesQuery.hasNextPage}
@@ -474,8 +501,18 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
           void articlesQuery.fetchNextPage();
         }}
         onDelete={(id) => {
-          if (id === selectedId) requestAction(() => remove.mutate(id));
-          else if (!busy) remove.mutate(id);
+          const article = articles.find((item) => item.id === id);
+          if (!article) return;
+          const hide = () => {
+            pendingDelete.schedule({
+              id,
+              title: article.title,
+              wasOpen: id === selectedId,
+            });
+            if (id === selectedId) setSelectedId(null);
+          };
+          if (id === selectedId) requestAction(hide);
+          else if (!busy) hide();
         }}
         mobileOpen={mobileNavOpen}
         onClose={() => {

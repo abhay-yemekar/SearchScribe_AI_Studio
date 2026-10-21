@@ -64,8 +64,15 @@ export async function saveArticle(
   return articleDetailSchema.parse(payload);
 }
 
-export async function deleteArticle(id: number): Promise<void> {
-  await apiFetch<void>(`/api/v1/articles/${id}`, { method: "DELETE" });
+/** `keepalive` lets the request finish while the page is closing. */
+export async function deleteArticle(
+  id: number,
+  options?: { keepalive?: boolean },
+): Promise<void> {
+  await apiFetch<void>(`/api/v1/articles/${id}`, {
+    method: "DELETE",
+    keepalive: options?.keepalive,
+  });
 }
 
 export async function duplicateArticle(id: number): Promise<ArticleDetail> {
