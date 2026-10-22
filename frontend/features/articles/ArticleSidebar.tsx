@@ -78,7 +78,7 @@ export default function ArticleSidebar({
           onNavigate={onHomeNavigate}
           aria-disabled={disabled}
           aria-label="SearchScribe home"
-          className="rounded-sm"
+          className="rounded-xs"
         >
           <BrandLogo className="text-[#17252b]" />
         </Link>
@@ -87,7 +87,7 @@ export default function ArticleSidebar({
           type="button"
           onClick={onClose}
           aria-label="Close article navigation"
-          className="rounded p-2 text-slate-600 hover:bg-stone-100 md:hidden"
+          className="rounded-sm p-2 text-slate-600 hover:bg-stone-100 md:hidden"
         >
           <X aria-hidden className="h-5 w-5" />
         </button>
@@ -129,7 +129,7 @@ export default function ArticleSidebar({
                     aria-current={isSelected ? "true" : undefined}
                     className={`w-full rounded-md px-2 py-2 text-left transition-colors ${
                       isSelected
-                        ? "bg-white shadow-sm ring-1 ring-stone-200"
+                        ? "bg-white shadow-xs ring-1 ring-stone-200"
                         : "hover:bg-white/70"
                     }`}
                   >
@@ -137,7 +137,7 @@ export default function ArticleSidebar({
                       <span className="truncate text-sm font-medium text-slate-800">
                         {article.title}
                       </span>
-                      <span className="shrink-0 rounded bg-stone-200 px-1.5 py-0.5 text-[10px] text-slate-600">
+                      <span className="shrink-0 rounded-sm bg-stone-200 px-1.5 py-0.5 text-[10px] text-slate-600">
                         v{article.current_version}
                       </span>
                     </div>
@@ -156,7 +156,7 @@ export default function ArticleSidebar({
                     disabled={disabled || deletingId === article.id}
                     onClick={() => onDelete(article.id)}
                     // Opacity, not display:none, so Tab can reach it on desktop too.
-                    className="absolute right-1.5 top-1.5 block rounded p-1 text-slate-500 transition hover:bg-rose-100 hover:text-rose-700 md:opacity-0 md:focus-visible:opacity-100 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
+                    className="absolute right-1.5 top-1.5 block rounded-sm p-1 text-slate-500 transition hover:bg-rose-100 hover:text-rose-700 md:opacity-0 md:focus-visible:opacity-100 md:group-focus-within:opacity-100 md:group-hover:opacity-100"
                   >
                     {deletingId === article.id ? (
                       <Spinner className="h-3.5 w-3.5" />

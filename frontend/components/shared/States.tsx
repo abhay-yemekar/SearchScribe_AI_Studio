@@ -13,7 +13,7 @@ export function Spinner({ className = "h-4 w-4" }: { className?: string }) {
 
 export function SkeletonBlock({ className = "h-4 w-full" }: { className?: string }) {
   return (
-    <div aria-hidden className={`animate-pulse rounded bg-stone-200 ${className}`} />
+    <div aria-hidden className={`animate-pulse rounded-sm bg-stone-200 ${className}`} />
   );
 }
 

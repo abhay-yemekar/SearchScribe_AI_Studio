@@ -4,11 +4,11 @@ import { ArrowLeft } from "lucide-react";
 import BrandLogo from "@/components/brand/BrandLogo";
 
 export const recoveryInputClass =
-  "w-full rounded border border-stone-300 bg-white px-3 py-3 text-sm text-[#17252b] outline-none focus:border-[#17252b] focus-visible:ring-2 focus-visible:ring-[#17252b]/20";
+  "w-full rounded-sm border border-stone-300 bg-white px-3 py-3 text-sm text-[#17252b] outline-hidden focus:border-[#17252b] focus-visible:ring-2 focus-visible:ring-[#17252b]/20";
 export const recoveryButtonClass =
-  "studio-primary-action inline-flex w-full items-center justify-center gap-2 bg-[#17252b] px-4 py-3 text-sm font-semibold text-white hover:bg-[#293f48] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#17252b] disabled:cursor-not-allowed disabled:opacity-60";
+  "studio-primary-action inline-flex w-full items-center justify-center gap-2 bg-[#17252b] px-4 py-3 text-sm font-semibold text-white hover:bg-[#293f48] focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#17252b] disabled:cursor-not-allowed disabled:opacity-60";
 export const recoveryLinkClass =
-  "font-medium underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#17252b]";
+  "font-medium underline underline-offset-4 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#17252b]";
 
 export default function RecoveryShell({
   title,

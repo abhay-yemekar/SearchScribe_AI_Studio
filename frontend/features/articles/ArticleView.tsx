@@ -28,7 +28,7 @@ export default function ArticleView({
           <button
             type="button"
             onClick={onCopy}
-            className="flex items-center gap-1 rounded border border-slate-600 px-2 py-1 transition-colors hover:bg-slate-800"
+            className="flex items-center gap-1 rounded-sm border border-slate-600 px-2 py-1 transition-colors hover:bg-slate-800"
           >
             <Copy aria-hidden className="h-3.5 w-3.5" /> Copy
           </button>

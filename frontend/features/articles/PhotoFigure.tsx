@@ -16,11 +16,11 @@ export default function PhotoFigure({ photo, alt }: { photo: PhotoAsset; alt: st
           width={photo.width}
           height={photo.height}
           unoptimized
-          className="h-auto max-h-[32rem] w-full object-contain"
+          className="h-auto max-h-128 w-full object-contain"
           referrerPolicy="no-referrer"
         />
       </a>
-      <figcaption className="break-words px-4 py-3 text-xs leading-relaxed text-slate-600">
+      <figcaption className="wrap-break-word px-4 py-3 text-xs leading-relaxed text-slate-600">
         <span>{photo.title} — </span>
         <a
           href={photo.source_url}

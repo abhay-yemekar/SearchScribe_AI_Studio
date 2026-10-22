@@ -619,7 +619,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
                 }
               }}
               placeholder="e.g. Things to do in Pune"
-              className="w-full rounded-lg border border-stone-300 bg-stone-50 px-4 py-3 text-sm text-[#17252b] outline-none transition-colors placeholder:text-slate-400 focus:border-[#17252b] focus:ring-2 focus:ring-[#17252b]/15"
+              className="w-full rounded-lg border border-stone-300 bg-stone-50 px-4 py-3 text-sm text-[#17252b] outline-hidden transition-colors placeholder:text-slate-400 focus:border-[#17252b] focus:ring-2 focus:ring-[#17252b]/15"
             />
             <button
               type="button"
@@ -638,8 +638,8 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
           <p
             className={`${selectedId !== null ? "sr-only" : "mt-2"} text-xs text-slate-500`}
           >
-            Tip: press <kbd className="rounded bg-stone-100 px-1">Ctrl</kbd>+
-            <kbd className="rounded bg-stone-100 px-1">Enter</kbd> to generate.
+            Tip: press <kbd className="rounded-sm bg-stone-100 px-1">Ctrl</kbd>+
+            <kbd className="rounded-sm bg-stone-100 px-1">Enter</kbd> to generate.
           </p>
         </div>
 
@@ -749,10 +749,10 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
         ) : selectedQuery.isError ? (
           <ErrorBanner message={(selectedQuery.error as Error).message} />
         ) : detail ? (
-          <div className="flex min-h-[32rem] flex-auto shrink-0 flex-col gap-3">
+          <div className="flex min-h-128 flex-auto shrink-0 flex-col gap-3">
             {/* Title + actions */}
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="w-full min-w-0 py-1 text-xl font-semibold leading-tight tracking-tight sm:text-2xl">
+              <h2 className="w-full min-w-0 py-1 text-xl font-semibold leading-tight tracking-tight sm:text-2xl sm:leading-8">
                 {detail.title}
               </h2>
               <button
@@ -786,7 +786,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
                   id="style"
                   value={style}
                   onChange={(event) => setStyle(event.target.value)}
-                  className="rounded bg-stone-100 px-2 py-1 text-xs text-slate-800 outline-none focus:ring-2 focus:ring-[#17252b]"
+                  className="rounded-sm bg-stone-100 px-2 py-1 text-xs text-slate-800 outline-hidden focus:ring-2 focus:ring-[#17252b]"
                 >
                   {(stylesQuery.data?.styles ?? [{ key: "genz", label: "Gen Z" }]).map(
                     (s) => (
@@ -800,7 +800,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
                   type="button"
                   onClick={() => requestAction(() => rewrite.mutate())}
                   disabled={busy || !!recovery.pendingKey}
-                  className="flex items-center gap-1.5 rounded bg-[#17252b] px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-[#293f48] disabled:opacity-60"
+                  className="flex items-center gap-1.5 rounded-sm bg-[#17252b] px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-[#293f48] disabled:opacity-60"
                 >
                   {rewrite.isPending ? <Spinner className="h-3.5 w-3.5" /> : null}
                   {rewrite.isPending ? "Rewriting…" : "Rewrite"}
@@ -809,7 +809,7 @@ function WritingWorkspace({ session }: { session: ReturnType<typeof useSession> 
               <button
                 type="button"
                 onClick={() => requestAction(() => setActiveTab("sources"))}
-                className="ml-auto rounded-full border border-stone-200 px-3 py-1 text-xs text-slate-600 hover:border-teal-600 hover:text-teal-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-700"
+                className="ml-auto rounded-full border border-stone-200 px-3 py-1 text-xs text-slate-600 hover:border-teal-600 hover:text-teal-800 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-teal-700"
               >
                 {detail.content.research?.status === "sources_retrieved"
                   ? `${detail.content.research.sources.length} sources`

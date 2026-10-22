@@ -18,7 +18,7 @@ export default function Tabs({
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
 
   return (
-    <div className="flex min-h-[24rem] flex-1 shrink-0 flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+    <div className="flex min-h-96 flex-1 shrink-0 flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xs">
       <div
         role="tablist"
         aria-label="Article views"
@@ -55,7 +55,7 @@ export default function Tabs({
               aria-controls={`${baseId}-panel-${tab.key}`}
               tabIndex={isActive ? 0 : -1}
               onClick={() => onChange(tab.key)}
-              className={`shrink-0 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-teal-600 ${
+              className={`shrink-0 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium outline-hidden transition-colors focus-visible:ring-2 focus-visible:ring-teal-600 ${
                 isActive
                   ? "border-teal-700 text-teal-800"
                   : "border-transparent text-slate-500 hover:text-slate-900"

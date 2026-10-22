@@ -34,7 +34,7 @@ export default function DiscardChangesDialog({
         event.preventDefault();
         onKeep();
       }}
-      className="w-[calc(100%_-_2rem)] max-w-md rounded-xl border border-stone-300 bg-white p-6 text-slate-900 shadow-xl backdrop:bg-black/50"
+      className="w-[calc(100%-2rem)] max-w-md rounded-xl border border-stone-300 bg-white p-6 text-slate-900 shadow-xl backdrop:bg-black/50"
     >
       <h2 id={titleId} className="text-lg font-semibold">
         Discard unsaved changes?
