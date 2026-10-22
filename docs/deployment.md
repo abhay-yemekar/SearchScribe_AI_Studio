@@ -137,6 +137,11 @@ See [Render Python versions](https://render.com/docs/python-version) and
    (Production), then redeploy both; the browser DSN is read at build time and
    also opens the CSP's `connect-src` to that origin. Blank values keep Sentry
    off. Each API event is tagged with the `request_id` the user saw.
+   To prove a live 500 arrives, set `SENTRY_TEST_TOKEN` on Render (32+ random
+   characters), deploy, then `POST /api/v1/debug/sentry-test` with that value in
+   `X-Sentry-Test-Token`. The response's `request_id` must match the Sentry
+   event's `request_id` tag. Delete the variable afterwards; without it the route
+   answers like any unknown path.
 
 ## Deployed acceptance evidence
 

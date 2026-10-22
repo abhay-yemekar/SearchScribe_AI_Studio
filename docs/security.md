@@ -61,6 +61,7 @@ Sentry is optional and off unless a DSN is set (`SENTRY_DSN` on the API, `NEXT_P
 - **API:** `send_default_pii` is off, request bodies are never attached, and stack frames carry no local variables. That last one matters: frame locals hold the raw ASGI scope, whose headers include the bearer token and refresh cookie, and Sentry's scrubber doesn't filter them there. A test sends a real crash through the SDK and checks neither appears. Each event is tagged with the request's `request_id`, which is also in the 500 response and the JSON logs.
 - **Browser:** user info, cookies, headers and HTTP bodies are off. The SDK records page URLs on events and navigation breadcrumbs without filtering, and reset and verification links carry their token in the fragment, so `lib/sentry.ts` strips the query and fragment from every reported URL. `app/global-error.tsx` reports a crashed root layout and shows a plain retry page.
 - The browser DSN is public by design: it only lets a browser submit events to that project.
+- `POST /api/v1/debug/sentry-test` crashes on purpose for checking error reporting. Without a `SENTRY_TEST_TOKEN` of 32+ characters, and a matching `X-Sentry-Test-Token` header (constant-time compare), it returns the same 404 as an unknown path. It is not in the OpenAPI schema. Leave the token unset except while testing.
 
 ## Remaining known trade-offs
 

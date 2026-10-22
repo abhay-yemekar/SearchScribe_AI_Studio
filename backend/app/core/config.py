@@ -40,6 +40,9 @@ class Settings(BaseSettings):
 
     # --- Error tracking (optional; blank DSN means Sentry stays off) ---
     sentry_dsn: str = Field(default="", repr=False)
+    # Enables POST /api/v1/debug/sentry-test for callers sending it as
+    # X-Sentry-Test-Token. Blank (or under 32 characters) leaves the route a 404.
+    sentry_test_token: str = Field(default="", repr=False)
 
     # --- Database ---
     database_url: str = "sqlite:///./searchscribe.db"

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 from functools import lru_cache
 from pathlib import Path
 
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -63,3 +64,17 @@ def version(db: Session = Depends(get_db)) -> dict[str, str | None]:
         "alembic_revision": revision,
         "environment": settings.app_env,
     }
+
+
+@router.post("/debug/sentry-test", include_in_schema=False)
+def sentry_test(x_sentry_test_token: str = Header(default="")) -> None:
+    """Crash on purpose, to check that a live 500 reaches Sentry with its request ID.
+
+    Without the configured token this answers exactly like an unknown path.
+    """
+    expected = settings.sentry_test_token
+    if len(expected) < 32 or not hmac.compare_digest(
+        x_sentry_test_token.encode(), expected.encode()
+    ):
+        raise HTTPException(status_code=404, detail="Not Found")
+    raise RuntimeError("Deliberate Sentry test error")

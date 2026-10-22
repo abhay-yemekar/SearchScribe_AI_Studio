@@ -24,6 +24,8 @@ services:
         sync: false
       - key: SENTRY_DSN
         sync: false
+      - key: SENTRY_TEST_TOKEN
+        sync: false
       - key: CORS_ORIGINS
         sync: false
       - key: AI_PROVIDER

@@ -220,3 +220,57 @@ def test_the_real_sdk_sends_one_event_without_credentials(
     token_sent, cookie_sent = token in sent, "secret-cookie-value" in sent
     assert not token_sent
     assert not cookie_sent
+
+
+TEST_TOKEN = "t" * 40
+SENTRY_TEST = "/api/v1/debug/sentry-test"
+
+
+@pytest.mark.parametrize(
+    ("configured", "sent"),
+    [
+        ("", ""),  # Off by default.
+        ("", "anything"),
+        (TEST_TOKEN, ""),
+        (TEST_TOKEN, "t" * 39),
+        ("short-token", "short-token"),  # Too short to count as configured.
+    ],
+)
+def test_sentry_test_route_looks_like_an_unknown_path_without_its_token(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, configured: str, sent: str
+) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "sentry_test_token", configured)
+    unknown = client.post("/api/v1/no-such-path")
+
+    response = client.post(SENTRY_TEST, headers={"X-Sentry-Test-Token": sent})
+
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == unknown.json()["error"]["code"]
+    assert response.json()["error"]["message"] == unknown.json()["error"]["message"]
+
+
+def test_sentry_test_route_crashes_and_reports_with_the_right_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core import middleware
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "sentry_test_token", TEST_TOKEN)
+    reported: list[BaseException] = []
+    monkeypatch.setattr(middleware, "report_exception", reported.append)
+
+    response = TestClient(app, raise_server_exceptions=False).post(
+        SENTRY_TEST, headers={"X-Sentry-Test-Token": TEST_TOKEN}
+    )
+
+    assert response.status_code == 500
+    error = response.json()["error"]
+    assert error["code"] == "INTERNAL_ERROR"
+    assert error["request_id"] == response.headers["X-Request-ID"]
+    assert len(reported) == 1 and "Deliberate Sentry test" in str(reported[0])
+
+
+def test_sentry_test_route_is_not_in_the_public_schema(client: TestClient) -> None:
+    assert SENTRY_TEST.removeprefix("/api/v1") not in str(app.openapi()["paths"])
