@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -187,25 +188,38 @@ def test_outer_deadline_closes_slow_stream(monkeypatch: pytest.MonkeyPatch) -> N
 def test_research_uses_remaining_shared_operation_budget(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.ai.budget import within_operation_budget
 
-    class SlowStream(httpx.AsyncByteStream):
+    class EndlessStream(httpx.AsyncByteStream):
+        """Never finishes on its own: only a deadline ends the read."""
+
+        started = False
         closed = False
 
         async def __aiter__(self) -> AsyncIterator[bytes]:
-            await asyncio.sleep(0.1)
-            yield b'{"results": []}'
+            self.started = True
+            await asyncio.Event().wait()
+            yield b""
 
         async def aclose(self) -> None:
             self.closed = True
 
-    stream = SlowStream()
+    stream = EndlessStream()
     _client(monkeypatch, lambda _: httpx.Response(
         200, headers={"content-type": "application/json"}, stream=stream,
     ))
-    monkeypatch.setattr(research.settings, "ai_operation_timeout_seconds", 0.01)
-    # The research-specific timeout remains 12 seconds, but the shared budget wins.
+    monkeypatch.setattr(research.settings, "research_timeout_seconds", 30)
+    # Far above event-loop start-up and Windows' ~16 ms monotonic tick. A 10 ms
+    # budget sometimes ran out before the request was sent, so nothing was opened.
+    monkeypatch.setattr(research.settings, "ai_operation_timeout_seconds", 1)
+
+    start = time.monotonic()
     result = within_operation_budget(research.retrieve_sources)("latest news")
+    elapsed = time.monotonic() - start
+
     assert result.failure == "unavailable"
+    assert stream.started  # The deadline arrived mid-read, not before the request.
     assert stream.closed
+    # The 1-second shared budget ended it, not the 30-second research timeout.
+    assert elapsed < 10
 
 
 def test_untrusted_source_title_cannot_inject_markdown_links() -> None:
