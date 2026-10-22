@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from ..core.exceptions import AuthenticationError
+from ..core.config import settings
+from ..core.exceptions import AuthenticationError, ForbiddenError
 from ..core.rate_limit import enforce
 from ..core.security import decode_access_token
 from ..db.models import User
@@ -40,17 +42,28 @@ def get_current_user(
     return user
 
 
-def user_rate_limit(scope: str, limit: int) -> Any:
+def user_rate_limit(scope: str, limit: int | Callable[[], int]) -> Any:
     """Per-account minute limit for authenticated routes, so users never share a bucket.
 
+    ``limit`` may be a function, read on each request, so a setting can change it.
     FastAPI caches ``get_current_user`` per request, so the route's own
     ``current_user`` parameter reuses this lookup.
     """
 
     def dependency(current_user: User = Depends(get_current_user)) -> None:
-        enforce(f"{scope}:user:{current_user.id}", limit)
+        enforce(f"{scope}:user:{current_user.id}", limit() if callable(limit) else limit)
 
     return Depends(dependency)
 
 
-__all__ = ["get_current_user", "get_db", "user_rate_limit"]
+def require_verified_email(current_user: User = Depends(get_current_user)) -> None:
+    """Generation spends shared AI budget: throwaway addresses may not use it."""
+    if settings.ai_requires_verified_email and not current_user.email_verified:
+        raise ForbiddenError(
+            "Verify your email address to generate or rewrite articles. "
+            "You can send a new verification link from your account page.",
+            code="EMAIL_VERIFICATION_REQUIRED",
+        )
+
+
+__all__ = ["get_current_user", "get_db", "require_verified_email", "user_rate_limit"]

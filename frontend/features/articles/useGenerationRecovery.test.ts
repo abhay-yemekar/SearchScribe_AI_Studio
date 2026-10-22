@@ -59,6 +59,20 @@ describe("generation recovery", () => {
     expect(sessionStorage.length).toBe(0);
   });
 
+  it("does not hold back the next attempt after an unverified-email rejection", async () => {
+    const hook = renderHook(() => useGenerationRecovery(17));
+    const error = new ApiError(403, { error: {
+      code: "EMAIL_VERIFICATION_REQUIRED", message: "Verify your email", request_id: "test",
+    } });
+    await act(async () => {
+      await expect(hook.result.current.run(() => Promise.reject(error))).rejects.toThrow();
+    });
+    expect(hook.result.current.pendingKey).toBeNull();
+    const next = vi.fn().mockResolvedValue(7);
+    await act(async () => { expect(await hook.result.current.run(next)).toBe(7); });
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps failed status lookups retryable and isolates users", async () => {
     const first = renderHook(() => useGenerationRecovery(17));
     await act(async () => {

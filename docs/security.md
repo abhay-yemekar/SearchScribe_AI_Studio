@@ -2,7 +2,7 @@
 
 ## Authentication
 
-**Passwords** — Argon2id (`argon2-cffi`, library-default parameters: 64 MiB, t=3, p=4) with per-hash random salts. Password policy: 8–128 chars, at least one letter and one digit. The original unsalted SHA-256 hashing is gone.
+**Passwords** — Argon2id (`argon2-cffi`) at OWASP's minimum parameters (19 MiB, t=2, p=1) with per-hash random salts, so a 512 MB instance can't be run out of memory by parallel hashing. At most two hashes or verifications run at once; others wait up to 10 s, then get `503 SERVER_BUSY`. Changing or resetting a password checks the current password or reset link before hashing the new one. Hashes made with the old 64 MiB defaults still verify and are upgraded at the next sign-in. Password policy: 8–128 chars, at least one letter and one digit. The original unsalted SHA-256 hashing is gone.
 
 **Session model**
 
@@ -33,10 +33,18 @@ Sliding windows per minute (`RATE_LIMIT_*` env), each keyed so one caller can't 
 - Signup, login and Google sign-in: 10 per client IP.
 - `/auth/refresh`: 30 per refresh cookie value (its hash, or the client IP without one), within 120 per client IP. It has its own buckets, so page-load refreshes never spend the login budget. The cookie rotates on every successful refresh, so the per-cookie bucket mainly stops replayed or guessed values.
 - Generate and rewrite: 5 per account. Photo search: 10 per account. Photo save: 20 per account.
+- Content saves, renames, duplicates and restores: 30 per account.
 
 The client IP is the connecting peer's, except that `X-Client-IP` from `frontend/proxy.ts` is used when it arrives with a matching `PROXY_SHARED_SECRET` (constant-time compare). `X-Forwarded-For` and uvicorn's `proxy_headers` are never trusted.
 
-These are in-memory; the interface supports a Redis backend for multi-replica deployments (Redis is provisioned in compose). Persistent database buckets back the abuse controls that must survive restarts: 10 sign-in attempts per email address per 15 minutes (unknown addresses too, so a 429 reveals nothing; a successful sign-in resets it), and the hourly security-email and password-management budgets.
+These are in-memory; the interface supports a Redis backend for multi-replica deployments (Redis is provisioned in compose). Persistent database buckets back the abuse controls that must survive restarts: 10 sign-in attempts per email address per 15 minutes (unknown addresses too, so a 429 reveals nothing; a successful sign-in resets it), 10 new password accounts per client IP per UTC day, and the hourly security-email and password-management budgets.
+
+## Abuse limits
+
+- **AI needs a verified email.** In production, generate and rewrite return `403 EMAIL_VERIFICATION_REQUIRED` until the account's email is verified (Google sign-in counts). Throwaway signups can't use the shared daily AI budget. `AI_REQUIRES_VERIFIED_EMAIL` overrides the default (on in production, off elsewhere).
+- **Request size.** Bodies over `MAX_REQUEST_BODY_BYTES` (256 KiB) get `413 PAYLOAD_TOO_LARGE` before they're parsed: a declared `Content-Length` is refused at once, and a chunked body is counted as it arrives.
+- **Field limits.** Introduction and conclusion: 5,000 characters each. Up to 30 paragraphs (5,000 characters each) and 50 bullets (1,000 each) per section, 12 sections, 15 SEO keywords of 80 characters. A saved article's Markdown is also capped at `MAX_REWRITE_INPUT_LENGTH`.
+- Not yet: Cloudflare Turnstile on signup and forgot-password (needs Cloudflare keys), and a paginated version list with a stored word count.
 
 ## Headers & CORS
 

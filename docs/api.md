@@ -16,7 +16,7 @@ All errors share one envelope:
 
 Timestamps (`created_at`, `updated_at`) are UTC ISO 8601 with a `Z` suffix. `updated_at` changes with every new version.
 
-Common codes: `VALIDATION_ERROR` (422), `AUTHENTICATION_REQUIRED` (401), `NOT_FOUND` (404), `CONFLICT` (409), `RATE_LIMITED` (429), `GENERATION_FAILED` / `AI_PROVIDER_UNAVAILABLE` (502), `SERVICE_UNAVAILABLE` (503).
+Common codes: `VALIDATION_ERROR` (422), `AUTHENTICATION_REQUIRED` (401), `EMAIL_VERIFICATION_REQUIRED` (403), `NOT_FOUND` (404), `CONFLICT` (409), `PAYLOAD_TOO_LARGE` (413, bodies over 256 KiB), `RATE_LIMITED` (429), `GENERATION_FAILED` / `AI_PROVIDER_UNAVAILABLE` (502), `SERVICE_UNAVAILABLE` / `SERVER_BUSY` (503).
 
 ## Auth
 
@@ -43,7 +43,7 @@ return a password or automatically issue a new session.
 
 | Method | Path                                        | Notes                                                                                                                                 |
 | ------ | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/articles`                                 | Generate. Body `{"query": "..."}` (3–500 chars). 201 → detail. 5/min per account.                                                     |
+| POST   | `/articles`                                 | Generate. Body `{"query": "..."}` (3–500 chars). 201 → detail. 5/min per account. Production needs a verified email: else `403 EMAIL_VERIFICATION_REQUIRED`.                                                     |
 | GET    | `/articles?limit=&cursor=`                  | Newest first; `next_cursor` present while more pages exist.                                                                           |
 | GET    | `/articles/rewrite-styles`                  | Style registry for the rewrite picker.                                                                                                |
 | GET    | `/articles/{id}`                            | Full detail.                                                                                                                          |
@@ -53,7 +53,7 @@ return a password or automatically issue a new session.
 | PATCH  | `/articles/{id}`                            | `{"title": "..."}` rename.                                                                                                            |
 | DELETE | `/articles/{id}`                            | 204; cascades versions + SEO.                                                                                                         |
 | POST   | `/articles/{id}/duplicate`                  | 201 copy with fresh versions.                                                                                                         |
-| POST   | `/articles/{id}/rewrite`                    | `{"style": "genz\|professional\|casual\|technical\|marketing\|minimal"}` → new version.                                               |
+| POST   | `/articles/{id}/rewrite`                    | `{"style": "genz\|professional\|casual\|technical\|marketing\|minimal"}` → new version. Same verified-email rule as generate.                                               |
 | GET    | `/articles/{id}/versions`                   | Version list (version, change_type, word_count, complete_snapshot, created_at).                                                       |
 | GET    | `/articles/{id}/versions/{version}`         | One version's markdown.                                                                                                               |
 | POST   | `/articles/{id}/versions/{version}/restore` | Restores as a **new** version. Optional body `{base_version}`; stale returns `STALE_ARTICLE_VERSION` (409).                           |

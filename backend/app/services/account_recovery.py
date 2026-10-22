@@ -202,9 +202,10 @@ class AccountRecoveryService:
     def reset_password(self, token: str, password: str, client_ip: str) -> SecurityEmail | None:
         if not self._allow_request("token_submit", client_ip):
             raise RateLimitError()
-        # Hash before locking the account to keep the critical transaction short.
-        password_hash = hash_password(password)
+        # Validate (and claim) the link first, so a bad token never costs a hash.
+        # A failure after this rolls the claim back with the rest of the change.
         candidate, user = self._token_user(token, "password_reset")
+        password_hash = hash_password(password)
         changed = self.db.scalar(
             update(User)
             .where(
