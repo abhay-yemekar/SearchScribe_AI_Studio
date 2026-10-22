@@ -89,7 +89,7 @@ acceptance checklist.
 
 ## Run it locally
 
-Prerequisites: **Python 3.12+**, **Node.js 20.9+**, and npm. SQLite and the mock AI
+Prerequisites: **Python 3.12+**, **Node.js 24**, and npm. SQLite and the mock AI
 provider let you develop without Docker, a cloud account, or a paid API key.
 
 The commands below use Windows PowerShell. On macOS/Linux, use `.venv/bin/python`
