@@ -20,27 +20,47 @@ export function isAppPath(pathname) {
   return APP_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
+/** The ingest origin a Sentry DSN reports to, or null. @param {string | undefined} dsn */
+function sentryOrigin(dsn) {
+  try {
+    const url = new URL(dsn ?? "");
+    return url.protocol === "https:" ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * With a nonce, only scripts Next.js signs for this request (and scripts they load,
  * via 'strict-dynamic') run. Without one, inline scripts are allowed so public pages
  * can stay static; framing, plugins and unknown origins are blocked either way.
  * Styles allow inline: the sandboxed HTML preview and Google's button use them.
  *
- * @param {{ nonce?: string, dev?: boolean }} options
+ * @param {{ nonce?: string, dev?: boolean, sentryDsn?: string }} options
  */
-export function contentSecurityPolicy({ nonce, dev = false } = {}) {
+export function contentSecurityPolicy({
+  nonce,
+  dev = false,
+  sentryDsn = process.env.NEXT_PUBLIC_SENTRY_DSN,
+} = {}) {
   const scripts = nonce
     ? ["'self'", `'nonce-${nonce}'`, "'strict-dynamic'"]
     : ["'self'", "'unsafe-inline'", `${GOOGLE_SIGN_IN}client`];
   // React's dev build uses eval for error stacks; the dev server reloads over a websocket.
   if (dev) scripts.push("'unsafe-eval'");
+  const connect = [
+    "'self'",
+    GOOGLE_SIGN_IN,
+    sentryOrigin(sentryDsn),
+    ...(dev ? ["ws:", "wss:"] : []),
+  ];
   return [
     "default-src 'self'",
     `script-src ${scripts.join(" ")}`,
     `style-src 'self' 'unsafe-inline' ${GOOGLE_SIGN_IN}style`,
     `img-src 'self' data: blob: ${COMMONS_IMAGES.join(" ")}`,
     "font-src 'self'",
-    `connect-src 'self' ${GOOGLE_SIGN_IN}${dev ? " ws: wss:" : ""}`,
+    `connect-src ${connect.filter(Boolean).join(" ")}`,
     `frame-src ${GOOGLE_SIGN_IN}`,
     "object-src 'none'",
     "base-uri 'self'",

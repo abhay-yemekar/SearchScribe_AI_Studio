@@ -4,7 +4,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { onIdentityChange } from "@/lib/auth/token-store";
+import { initSentry } from "@/lib/sentry";
 import "@/lib/zod-config";
+
+// Before any component renders, so early browser errors are caught too.
+initSentry();
 
 export default function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(

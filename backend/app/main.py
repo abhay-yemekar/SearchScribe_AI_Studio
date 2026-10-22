@@ -12,12 +12,14 @@ from .core.config import settings
 from .core.exceptions import register_exception_handlers
 from .core.logging import setup_logging
 from .core.middleware import RequestContextMiddleware, SecurityHeadersMiddleware
+from .core.observability import init_sentry
 
 logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
     setup_logging(settings.log_level)
+    init_sentry()
 
     app = FastAPI(
         title="SearchScribe AI Studio API",

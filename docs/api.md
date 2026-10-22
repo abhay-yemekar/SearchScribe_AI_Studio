@@ -150,3 +150,6 @@ older API builds do not enforce these reservations or deduplicate requests.
 
 - `GET /health` — liveness, `{"status": "ok"}`
 - `GET /ready` — readiness; verifies DB connectivity, 503 when degraded.
+- `GET /version` — what is deployed: `{"git_sha", "alembic_head", "alembic_revision", "environment"}`. `alembic_head` is the newest migration in the code; `alembic_revision` is the one the database is on (`null` if it can't be read). They match after a good deploy. `git_sha` comes from `GIT_SHA` or Render's `RENDER_GIT_COMMIT`, else `"unknown"`.
+
+Every response carries `X-Request-ID`, including an unexpected 500, whose body is the `INTERNAL_ERROR` envelope with the same `request_id`. Search the logs or Sentry for that ID.

@@ -12,6 +12,7 @@ Jinja2==3.1.6
 nh3==0.3.6
 pydantic==2.13.4
 pydantic-settings==2.15.0
+sentry-sdk[fastapi]==2.71.0
 PyJWT==2.13.0
 python-dotenv==1.2.3
 SQLAlchemy==2.0.52

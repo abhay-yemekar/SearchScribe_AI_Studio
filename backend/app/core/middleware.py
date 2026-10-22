@@ -6,46 +6,77 @@ import logging
 import time
 import uuid
 
+from starlette.datastructures import MutableHeaders
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from .exceptions import error_response
 from .logging import request_id_var
+from .observability import report_exception, tag_request
 
 logger = logging.getLogger("http")
 
 AUTH_PATH_PREFIX = "/api/v1/auth"
 
 
-class RequestContextMiddleware(BaseHTTPMiddleware):
-    """Assign a correlation ID to every request and log start/finish."""
+class RequestContextMiddleware:
+    """Give every request a correlation ID, including requests that crash.
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    Pure ASGI on purpose. Starlette runs the catch-all Exception handler in
+    ServerErrorMiddleware, outside every user middleware, after this request's ID
+    is gone: unhandled 500s said "request_id": "-" and had no X-Request-ID. Here the
+    exception is handled while the ID is still set, and the 500 then passes back
+    through the security-headers and CORS middleware like any other response.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
         request_id = uuid.uuid4().hex[:12]
         token = request_id_var.set(request_id)
-        request.state.request_id = request_id
+        scope.setdefault("state", {})["request_id"] = request_id
+        tag_request(request_id)
         start = time.perf_counter()
         status_code = 500
+        started = False
+
+        async def send_with_id(message: Message) -> None:
+            nonlocal status_code, started
+            if message["type"] == "http.response.start":
+                started = True
+                status_code = message["status"]
+                MutableHeaders(scope=message)["X-Request-ID"] = request_id
+            await send(message)
+
         try:
-            response = await call_next(request)
-            status_code = response.status_code
+            await self.app(scope, receive, send_with_id)
+        except Exception as exc:
+            # Full details go to logs (and Sentry) only; the client gets an opaque message.
+            logger.error("unhandled.exception", exc_info=exc)
+            report_exception(exc)
+            if started:
+                raise  # Too late for an error response; let the server close it.
+            response = error_response(
+                500, "INTERNAL_ERROR", "Something went wrong. Please try again."
+            )
+            await response(scope, receive, send_with_id)
         finally:
-            duration_ms = round((time.perf_counter() - start) * 1000, 1)
             logger.info(
                 "http.request",
                 extra={
-                    "method": request.method,
-                    "path": request.url.path,
+                    "method": scope["method"],
+                    "path": scope["path"],
                     "status": status_code,
-                    "duration_ms": duration_ms,
+                    "duration_ms": round((time.perf_counter() - start) * 1000, 1),
                 },
             )
             request_id_var.reset(token)
-
-        response.headers["X-Request-ID"] = request_id
-        return response
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

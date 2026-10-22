@@ -45,6 +45,7 @@ These are in-memory; the interface supports a Redis backend for multi-replica de
   - App pages (`/dashboard`, `/account`, `/login` and the recovery pages) get a per-request nonce from `proxy.ts`: only scripts Next.js signs, and scripts those load (`'strict-dynamic'`), can run. These pages render dynamically for that reason.
   - Public marketing pages stay static, with a fixed CSP that allows inline scripts; they show no user content.
   - Styles allow inline for the sandboxed HTML preview and Google's button. Zod runs `jitless`, so its `eval` probe doesn't report a violation.
+  - With `NEXT_PUBLIC_SENTRY_DSN` set, `connect-src` also allows that DSN's ingest origin (https only), so the browser can send error reports.
 - CORS origins come from `CORS_ORIGINS` env, never hardcoded.
 
 ## Secrets
@@ -52,6 +53,15 @@ These are in-memory; the interface supports a Redis backend for multi-replica de
 - `.env` is gitignored; `.env.example` documents every variable with placeholders.
 - Production refuses to boot with the default `SECRET_KEY`.
 - Logs never contain passwords, tokens, or API keys; errors returned to clients carry codes and request IDs, never stack traces or provider details.
+
+## Error tracking
+
+Sentry is optional and off unless a DSN is set (`SENTRY_DSN` on the API, `NEXT_PUBLIC_SENTRY_DSN` on the frontend). Both send errors only: no performance tracing and no session replay.
+
+- **API:** `send_default_pii` is off, request bodies are never attached, and stack frames carry no local variables. That last one matters: frame locals hold the raw ASGI scope, whose headers include the bearer token and refresh cookie, and Sentry's scrubber doesn't filter them there. A test sends a real crash through the SDK and checks neither appears. Each event is tagged with the request's `request_id`, which is also in the 500 response and the JSON logs.
+- **Browser:** user info, cookies, headers and HTTP bodies are off. The SDK records page URLs on events and navigation breadcrumbs without filtering, and reset and verification links carry their token in the fragment, so `lib/sentry.ts` strips the query and fragment from every reported URL. `app/global-error.tsx` reports a crashed root layout and shows a plain retry page.
+- The browser DSN is public by design: it only lets a browser submit events to that project.
+- `POST /api/v1/debug/sentry-test` crashes on purpose for checking error reporting. Without a `SENTRY_TEST_TOKEN` of 32+ characters, and a matching `X-Sentry-Test-Token` header (constant-time compare), it returns the same 404 as an unknown path. It is not in the OpenAPI schema. Leave the token unset except while testing.
 
 ## Remaining known trade-offs
 
