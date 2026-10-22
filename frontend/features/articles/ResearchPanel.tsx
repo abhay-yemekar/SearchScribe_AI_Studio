@@ -59,7 +59,7 @@ export default function ResearchPanel({
       ) : null}
       {hasSources ? (
         <details open={expanded} className="mt-3 border-t border-stone-200 pt-3">
-          <summary className="w-fit cursor-pointer rounded-sm font-medium text-teal-700 underline underline-offset-4 hover:text-teal-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700">
+          <summary className="w-fit cursor-pointer rounded-xs font-medium text-teal-700 underline underline-offset-4 hover:text-teal-900 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700">
             View {research.sources.length}{" "}
             {research.sources.length === 1 ? "source" : "sources"}
           </summary>
@@ -68,7 +68,7 @@ export default function ResearchPanel({
               const href = sourceLink(source.url);
               const published = displayDate(source.published_at);
               return (
-                <li key={source.id} className="min-w-0 break-words">
+                <li key={source.id} className="min-w-0 wrap-break-word">
                   <span className="mr-2 font-mono text-xs text-slate-500">
                     [{source.id}]
                   </span>
@@ -77,7 +77,7 @@ export default function ResearchPanel({
                       href={href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-medium text-teal-700 underline decoration-teal-700/40 underline-offset-4 hover:decoration-teal-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700"
+                      className="font-medium text-teal-700 underline decoration-teal-700/40 underline-offset-4 hover:decoration-teal-700 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-700"
                     >
                       {source.title || "Source"}
                     </a>

@@ -26,7 +26,7 @@ export default function UndoToast({
         ref={undoRef}
         type="button"
         onClick={onUndo}
-        className="shrink-0 rounded-md border border-white/40 px-3 py-1 font-semibold hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        className="shrink-0 rounded-md border border-white/40 px-3 py-1 font-semibold hover:bg-white/10 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
       >
         Undo
       </button>

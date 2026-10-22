@@ -11,7 +11,7 @@ import { useEditorDraft, type EditorDraft } from "./useEditorDraft";
 const MAX_KEYWORDS = 15;
 
 const field =
-  "mt-1 w-full rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
+  "mt-1 w-full rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm text-slate-900 outline-hidden focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
 
 function LengthMeter({ value, limit }: { value: number; limit: number }) {
   const over = value > limit;

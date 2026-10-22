@@ -10,7 +10,7 @@ import PhotoFigure from "./PhotoFigure";
 import { linesCodec, paragraphsCodec, RawTextarea } from "./RawTextField";
 
 const field =
-  "w-full rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm text-slate-900 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
+  "w-full rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm text-slate-900 outline-hidden focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
 
 function wordCount(content: ArticleContent): number {
   const text = [
@@ -180,7 +180,7 @@ export default function ArticleEditor({
                       sections: draft.sections.filter((_, i) => i !== index),
                     })
                   }
-                  className="rounded p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-700"
+                  className="rounded-sm p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-700"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

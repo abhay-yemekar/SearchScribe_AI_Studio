@@ -73,7 +73,7 @@ export default function AuthForm({
   };
 
   const fieldClass =
-    "w-full rounded-lg border border-stone-300 bg-white px-3 py-3 text-sm text-[#17252b] outline-none transition-colors focus:border-[#17252b] focus-visible:ring-2 focus-visible:ring-[#17252b]/20";
+    "w-full rounded-lg border border-stone-300 bg-white px-3 py-3 text-sm text-[#17252b] outline-hidden transition-colors focus:border-[#17252b] focus-visible:ring-2 focus-visible:ring-[#17252b]/20";
 
   return (
     <div className="login-shell min-h-screen bg-[#f4f5f1] px-5 py-8 text-[#17252b] sm:px-8 sm:py-10">
@@ -93,7 +93,7 @@ export default function AuthForm({
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
               Your words. Your workspace.
             </p>
-            <h1 className="text-4xl font-semibold leading-[1.08] tracking-tight md:text-5xl">
+            <h1 className="text-4xl font-semibold leading-[1.08] tracking-tight md:text-5xl md:leading-none">
               Welcome to <span>SearchScribe</span>
             </h1>
             <p className="mt-3 text-xl font-light leading-relaxed text-slate-600">
@@ -218,7 +218,7 @@ export default function AuthForm({
                     {!isSignup && (
                       <Link
                         href="/forgot-password"
-                        className="text-xs font-medium underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#17252b]"
+                        className="text-xs font-medium underline underline-offset-4 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#17252b]"
                       >
                         Forgot password?
                       </Link>

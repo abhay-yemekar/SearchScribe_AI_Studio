@@ -28,10 +28,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body
-        className={`${sans.variable} ${display.variable} ${mono.variable} antialiased`}
-      >
+    // Font variables on <html>: Tailwind 4 resolves its theme (preflight's
+    // code/kbd font, --default-font-family) at the root element.
+    <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable}`}>
+      <body className="antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

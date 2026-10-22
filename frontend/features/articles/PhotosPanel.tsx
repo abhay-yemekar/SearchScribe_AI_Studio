@@ -17,7 +17,7 @@ import DiscardChangesDialog from "./DiscardChangesDialog";
 
 export type PhotoDraft = PhotoChoice & { asset: PhotoAsset };
 const field =
-  "mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-100";
+  "mt-1 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-teal-700 focus:outline-hidden focus:ring-2 focus:ring-teal-100";
 
 export default function PhotosPanel({
   article,
@@ -194,7 +194,7 @@ export default function PhotosPanel({
                     width={photo.width}
                     height={photo.height}
                     unoptimized
-                    className="aspect-[4/3] w-full object-cover"
+                    className="aspect-4/3 w-full object-cover"
                     referrerPolicy="no-referrer"
                   />
                   <div className="space-y-2 p-3">

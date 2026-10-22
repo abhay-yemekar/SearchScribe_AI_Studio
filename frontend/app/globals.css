@@ -1,6 +1,70 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/*
+  Inline, so utilities use these values where they apply (bg-paper is
+  background-color: var(--paper)), not a copy resolved once at :root. That keeps
+  the dark marketing theme's --paper/--ink, and the next/font variables set on
+  <html>, working as they did with Tailwind 3.
+*/
+@theme inline {
+  --font-sans: var(--font-sans), Arial, sans-serif;
+  --font-serif: var(--font-display), Georgia, serif;
+  --font-mono: var(--font-mono), monospace;
+
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-acid: var(--acid);
+}
+
+/*
+  Tailwind 3's fixed line heights. Tailwind 4 uses ratios, which children with
+  their own text-[11px]-style size multiply by their size instead of inheriting
+  the parent's line box, shifting small labels by a few pixels.
+*/
+@theme {
+  --text-xs--line-height: 1rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg--line-height: 1.75rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl--line-height: 2rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-4xl--line-height: 2.5rem;
+}
+
+/*
+  Tailwind 3 defaults that Tailwind 4 dropped, kept so nothing changes:
+  - the gray-200 border color (Tailwind 4 uses currentcolor); bare `border`
+    classes rely on it;
+  - the gray-400 placeholder color (Tailwind 4 derives it from the text color);
+  - the pointer cursor on buttons (Tailwind 4 leaves the browser's default);
+  - centred modal dialogs (Tailwind 4 sets margin: 0 on every element, which
+    removes the browser's margin: auto on <dialog>).
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  dialog {
+    margin: auto;
+  }
+}
 
 :root {
   --paper: #f6f4ed;

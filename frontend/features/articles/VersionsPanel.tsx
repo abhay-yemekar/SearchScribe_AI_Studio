@@ -71,7 +71,7 @@ export default function VersionsPanel({
                   type="button"
                   disabled={restoring}
                   onClick={() => onRestore(version.version)}
-                  className="flex items-center gap-1.5 rounded border border-stone-300 bg-white px-2.5 py-1 text-xs text-slate-700 transition-colors hover:border-teal-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex items-center gap-1.5 rounded-sm border border-stone-300 bg-white px-2.5 py-1 text-xs text-slate-700 transition-colors hover:border-teal-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {restoring ? (
                     <Spinner className="h-3 w-3" />
