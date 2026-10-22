@@ -5,10 +5,29 @@ from __future__ import annotations
 import logging
 
 import sentry_sdk
+from sentry_sdk.types import Event, Hint
 
 from .config import settings
 
 logger = logging.getLogger(__name__)
+
+# Request headers an event may keep. Everything else is dropped: Sentry's scrubber
+# doesn't know Cloudflare's or our proxy's client-IP headers (Cf-Connecting-Ip,
+# True-Client-Ip, X-Client-IP), and new private headers shouldn't need a code change.
+_KEPT_HEADERS = frozenset({"content-type", "content-length", "user-agent"})
+
+
+def _scrub_request(event: Event, _hint: Hint) -> Event | None:
+    request = event.get("request")
+    if request:
+        headers = request.get("headers")
+        if isinstance(headers, dict):
+            request["headers"] = {
+                name: value for name, value in headers.items() if name.lower() in _KEPT_HEADERS
+            }
+        # Query strings carry pagination cursors and search words.
+        request.pop("query_string", None)
+    return event
 
 
 def init_sentry() -> bool:
@@ -27,6 +46,7 @@ def init_sentry() -> bool:
         # Frame locals hold the raw ASGI scope (bearer token, refresh cookie),
         # passwords and article text, and the scrubber doesn't reach them.
         include_local_variables=False,
+        before_send=_scrub_request,
     )
     logger.info("sentry.enabled", extra={"environment": settings.app_env})
     return True

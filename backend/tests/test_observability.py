@@ -5,11 +5,13 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from typing import Any
 
 import pytest
 from conftest import auth_headers, register_user
 from fastapi.testclient import TestClient
+from httpx import Response
 
 from app.core.logging import JsonFormatter
 from app.main import app
@@ -171,9 +173,11 @@ def test_a_crash_reaches_sentry_tagged_with_its_request_id(
     assert tags["request_id"] == response.headers["X-Request-ID"]
 
 
-def test_the_real_sdk_sends_one_event_without_credentials(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
+@pytest.fixture
+def crash_with_real_sentry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[Callable[[str, dict[str, str]], tuple[Response, list[dict[str, Any]]]]]:
+    """Send one crashing request through the real Sentry SDK; capture what it would send."""
     import sentry_sdk
     from sentry_sdk.envelope import Envelope
     from sentry_sdk.transport import Transport
@@ -186,33 +190,43 @@ def test_the_real_sdk_sends_one_event_without_credentials(
 
         def __init__(self) -> None:
             super().__init__()
-            self.events: list[dict[str, object]] = []
+            self.events: list[dict[str, Any]] = []
 
         def capture_envelope(self, envelope: Envelope) -> None:
             if (event := envelope.get_event()) is not None:
-                self.events.append(event)
+                self.events.append(dict(event))
 
-    token = register_user(client, email="real-sentry@example.com")["access_token"]
     monkeypatch.setattr(ArticleService, "list_articles", _boom)
     monkeypatch.setattr(settings, "sentry_dsn", "https://key@o0.ingest.sentry.io/0")
     transport = Capture()
     real_init = sentry_sdk.init
     monkeypatch.setattr(sentry_sdk, "init", lambda **kw: real_init(transport=transport, **kw))
-    try:
+
+    def crash(url: str, headers: dict[str, str]) -> tuple[Response, list[dict[str, Any]]]:
         assert observability.init_sentry() is True
-        response = TestClient(app, raise_server_exceptions=False).get(
-            "/api/v1/articles",
-            headers={**auth_headers(token), "Cookie": "refresh_token=secret-cookie-value"},
-        )
+        response = TestClient(app, raise_server_exceptions=False).get(url, headers=headers)
         sentry_sdk.flush()
-    finally:
-        real_init()  # An inactive client again for the rest of the suite.
+        return response, transport.events
+
+    yield crash
+    real_init()  # An inactive client again for the rest of the suite.
+
+
+def test_the_real_sdk_sends_one_event_without_credentials(
+    client: TestClient, crash_with_real_sentry: Callable[..., Any]
+) -> None:
+    token = register_user(client, email="real-sentry@example.com")["access_token"]
+
+    response, events = crash_with_real_sentry(
+        "/api/v1/articles",
+        {**auth_headers(token), "Cookie": "refresh_token=secret-cookie-value"},
+    )
 
     assert response.status_code == 500
     # The FastAPI integration must not report the same crash a second time.
-    assert len(transport.events) == 1
-    event = transport.events[0]
-    assert event["tags"]["request_id"] == response.headers["X-Request-ID"]  # type: ignore[index]
+    assert len(events) == 1
+    event = events[0]
+    assert event["tags"]["request_id"] == response.headers["X-Request-ID"]
     sent = json.dumps(event)
     assert "RuntimeError" in sent
     # Booleans, not `in` asserts: on failure pytest would diff a huge event.
@@ -220,6 +234,35 @@ def test_the_real_sdk_sends_one_event_without_credentials(
     token_sent, cookie_sent = token in sent, "secret-cookie-value" in sent
     assert not token_sent
     assert not cookie_sent
+
+
+def test_events_carry_no_client_ip_proxy_secret_or_query(
+    client: TestClient, crash_with_real_sentry: Callable[..., Any]
+) -> None:
+    token = register_user(client, email="ip-sentry@example.com")["access_token"]
+    # What a production request carries: Cloudflare's and our proxy's client-IP
+    # headers, and the proxy secret. Sentry's scrubber knows none of these names.
+    private = {
+        "Cf-Connecting-Ip": "203.0.113.7",
+        "True-Client-Ip": "203.0.113.8",
+        "X-Client-IP": "203.0.113.9",
+        "X-Real-IP": "203.0.113.10",
+        "X-Forwarded-For": "203.0.113.11",
+        "X-Proxy-Secret": "proxy-shared-secret-value-0123456789",
+    }
+
+    response, events = crash_with_real_sentry(
+        "/api/v1/articles?cursor=private-cursor-value",
+        {**auth_headers(token), **private, "User-Agent": "probe-agent/1.0"},
+    )
+
+    assert response.status_code == 500 and len(events) == 1
+    headers = {name.lower(): value for name, value in events[0]["request"]["headers"].items()}
+    assert set(headers) <= {"content-type", "content-length", "user-agent"}
+    assert headers["user-agent"] == "probe-agent/1.0"
+    sent = json.dumps(events[0])
+    leaked = [value for value in [*private.values(), "private-cursor-value"] if value in sent]
+    assert leaked == []
 
 
 TEST_TOKEN = "t" * 40
