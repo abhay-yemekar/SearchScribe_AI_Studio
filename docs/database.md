@@ -5,7 +5,7 @@
 One SQLAlchemy 2.x code path serves both engines:
 
 - **SQLite** — local development and tests (zero setup).
-- **PostgreSQL 16** — docker-compose / production (`postgresql+psycopg://`).
+- **PostgreSQL 18** — production (Neon) and CI; docker-compose still runs 16 so existing local volumes keep working (`postgresql+psycopg://`).
 
 Dialect differences are handled in two places: `connect_args` for SQLite in `app/db/session.py`, and `sa.JSON().with_variant(JSONB, "postgresql")` for the keywords column.
 

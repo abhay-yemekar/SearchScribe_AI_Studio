@@ -262,7 +262,16 @@ Frontend: `npm ci && npm run build && npm start` with `BACKEND_URL` pointing at 
 
 ## CI/CD
 
-GitHub Actions (`.github/workflows/ci.yml`): lint → typecheck → tests → E2E → Docker image builds on every push/PR. Extend with a deploy step (push images to a registry, update the compose/host) as needed.
+GitHub Actions (`.github/workflows/ci.yml`) on every push and PR:
+
+- **Backend:** ruff, mypy and pytest, on SQLite and on Postgres 18 (production's major version).
+- **Migrations (Postgres 18):** `alembic upgrade head` on an empty database, then `alembic check`, which fails when a model changed without a migration.
+- **Dependency audit:** `pip-audit` on `backend/requirements.txt`. `npm audit` blocks on high or critical findings in runtime packages, and on critical ones in dev tooling.
+- **Frontend:** lint, types, vitest and `next build`, on the Node version in `package.json` `engines` (24.x, the same as Vercel and the Docker image).
+- **E2E:** Playwright against `next build` + `next start`, as deployed. Traces of failed tests are kept as an artifact for 7 days. Locally, `E2E_DEV=1` uses `next dev` instead.
+- **Docker:** both images build.
+
+`.github/dependabot.yml` opens weekly update PRs for pip, npm, GitHub Actions and the Docker base images. It only proposes releases that are at least 14 days old.
 
 ## Production checklist
 
