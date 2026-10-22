@@ -1,21 +1,21 @@
 # Pinned runtime dependencies (exported for Render deployment).
 # Source of truth: backend/pyproject.toml
-alembic==1.19.1
+alembic==1.20.0
 argon2-cffi==25.1.0
 email-validator==2.3.0
-fastapi==0.141.1
-google-genai==2.19.0
-google-auth==2.56.3
+fastapi==0.142.4
+google-genai==2.29.0
+google-auth==2.61.0
 requests==2.34.2
 httpx==0.28.1
 Jinja2==3.1.6
-nh3==0.3.6
-pydantic==2.13.4
+nh3==0.3.7
+pydantic==2.13.5
 pydantic-settings==2.15.0
 sentry-sdk[fastapi]==2.71.0
 PyJWT==2.15.1
-python-dotenv==1.2.3
-SQLAlchemy==2.0.52
-uvicorn[standard]==0.52.4
-psycopg==3.3.4
-psycopg-binary==3.3.4
+python-dotenv==1.2.4
+SQLAlchemy==2.1.4
+uvicorn[standard]==0.54.0
+psycopg==3.3.6
+psycopg-binary==3.3.6
