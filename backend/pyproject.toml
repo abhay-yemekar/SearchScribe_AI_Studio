@@ -19,6 +19,7 @@ dependencies = [
     "google-genai>=1.0",
     "google-auth[requests]>=2.56.3",
     "python-dotenv>=1.0",
+    "sentry-sdk[fastapi]>=2.71",
 ]
 
 [dependency-groups]

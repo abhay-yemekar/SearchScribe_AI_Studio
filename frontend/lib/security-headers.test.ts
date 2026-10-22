@@ -56,6 +56,22 @@ describe("contentSecurityPolicy", () => {
     );
   });
 
+  it("lets the browser report to Sentry only when a DSN is configured", () => {
+    const withSentry = contentSecurityPolicy({
+      nonce: "n",
+      dev: false,
+      sentryDsn: "https://publickey@o123.ingest.de.sentry.io/456",
+    });
+    const without = contentSecurityPolicy({ nonce: "n", dev: false, sentryDsn: "" });
+    const bogus = contentSecurityPolicy({ dev: false, sentryDsn: "not a url" });
+
+    expect(directive(withSentry, "connect-src")).toBe(
+      "connect-src 'self' https://accounts.google.com/gsi/ https://o123.ingest.de.sentry.io",
+    );
+    expect(directive(without, "connect-src")).not.toContain("sentry");
+    expect(directive(bogus, "connect-src")).not.toContain("not");
+  });
+
   it("adds what Next's dev server needs only in development", () => {
     const csp = contentSecurityPolicy({ nonce: "n", dev: true });
 

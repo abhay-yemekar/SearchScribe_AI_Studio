@@ -58,6 +58,11 @@ def test_generation_rolls_back_after_version_write(
         raise RuntimeError("Injected persistence failure")
 
     monkeypatch.setattr(ArticleRepository, "set_seo", fail_seo)
-    with pytest.raises(RuntimeError, match="Injected persistence failure"):
-        generate_article(client, token)
+    response = client.post(
+        "/api/v1/articles", json={"query": "Urban gardening in small spaces"},
+        headers=auth_headers(token),
+    )
+    # The request middleware answers unhandled errors itself, with their request ID.
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "INTERNAL_ERROR"
     assert db_session.scalar(select(func.count()).select_from(Article)) == 0

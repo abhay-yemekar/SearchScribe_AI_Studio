@@ -98,6 +98,7 @@ would otherwise select local SQLite. Production settings now fail closed.
 | `AI_MODEL` | An available model verified with the account's actual limits |
 | `GEMINI_API_KEY` | Personal project key in Render's secret environment |
 | `TAVILY_API_KEY` | Personal Tavily Free search key; backend only, paid/PAYG disabled |
+| `SENTRY_DSN` | Optional: the Sentry Python/FastAPI project's DSN; blank keeps error tracking off |
 
 Generate a key privately with `secrets.token_urlsafe(48)`; do not copy an example
 key. Changing the signing key invalidates existing sessions. Keep the old model
@@ -127,6 +128,15 @@ See [Render Python versions](https://render.com/docs/python-version) and
    secret matches (constant-time compare). Either side missing is safe: the API
    falls back to the peer address, the old shared-bucket behaviour. Rotate by
    changing both values together.
+8. After every API deploy, open `/api/v1/version` through the Vercel proxy:
+   `git_sha` must be the commit you deployed and `alembic_revision` must equal
+   `alembic_head`. Render supplies the commit as `RENDER_GIT_COMMIT`.
+9. Optional error tracking: create two Sentry projects, Python (FastAPI) for the
+   API and Browser JavaScript for the web app. Put the first DSN in Render's
+   `SENTRY_DSN` and the second in Vercel's `NEXT_PUBLIC_SENTRY_DSN`
+   (Production), then redeploy both; the browser DSN is read at build time and
+   also opens the CSP's `connect-src` to that origin. Blank values keep Sentry
+   off. Each API event is tagged with the `request_id` the user saw.
 
 ## Deployed acceptance evidence
 
@@ -258,3 +268,5 @@ GitHub Actions (`.github/workflows/ci.yml`): lint → typecheck → tests → E2
 - [ ] Log shipping for the JSON logs (`generation.*`, `auth.*`, `http.request` events)
 - [ ] Multiple replicas → swap the in-memory rate limiter for the Redis backend
 - [ ] Monitor `/api/v1/health` (liveness) and `/api/v1/ready` (readiness)
+- [ ] `/api/v1/version` shows the deployed commit, and the database is on `alembic_head`
+- [ ] Sentry DSNs set on the API and frontend, with an email alert for new issues

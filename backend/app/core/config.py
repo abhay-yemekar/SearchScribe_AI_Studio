@@ -6,7 +6,14 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import EmailStr, Field, TypeAdapter, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    EmailStr,
+    Field,
+    TypeAdapter,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
@@ -28,6 +35,11 @@ class Settings(BaseSettings):
     # --- Application ---
     app_env: Literal["local", "test", "production"] = "local"
     log_level: str = "INFO"
+    # The deployed commit. Render sets RENDER_GIT_COMMIT; GIT_SHA overrides it.
+    git_sha: str = Field(default="", validation_alias=AliasChoices("GIT_SHA", "RENDER_GIT_COMMIT"))
+
+    # --- Error tracking (optional; blank DSN means Sentry stays off) ---
+    sentry_dsn: str = Field(default="", repr=False)
 
     # --- Database ---
     database_url: str = "sqlite:///./searchscribe.db"
