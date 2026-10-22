@@ -38,7 +38,7 @@ jobs:
       BACKUP_REHEARSAL_DATABASE_URL: postgresql+psycopg://searchscribe:test-only-password@localhost:5432/searchscribe_restore_test
       REHEARSAL_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v5
