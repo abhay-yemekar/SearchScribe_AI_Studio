@@ -115,12 +115,13 @@ async def _search(
     if timeout_seconds <= 0:
         raise TimeoutError("Research operation deadline exhausted")
     async with asyncio.timeout(timeout_seconds):
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(timeout_seconds, connect=min(3.0, timeout_seconds)),
-            follow_redirects=False,
-            trust_env=False,
-        ) as client:
-            async with client.stream(
+        async with (
+            httpx.AsyncClient(
+                timeout=httpx.Timeout(timeout_seconds, connect=min(3.0, timeout_seconds)),
+                follow_redirects=False,
+                trust_env=False,
+            ) as client,
+            client.stream(
                 "POST", TAVILY_SEARCH_URL,
                 headers={
                     "Authorization": f"Bearer {api_key}",
@@ -141,23 +142,24 @@ async def _search(
                     "auto_parameters": False,
                     **date_parameters,
                 },
-            ) as response:
-                response.raise_for_status()
-                if (
-                    response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-                    != "application/json"
-                    or response.headers.get("content-encoding", "identity").lower() != "identity"
-                ):
-                    raise ValueError("Unexpected research response format")
-                body = bytearray()
-                async for chunk in response.aiter_raw(chunk_size=16_384):
-                    if len(body) + len(chunk) > settings.research_max_response_bytes:
-                        raise ValueError("Research response exceeds its byte budget")
-                    body.extend(chunk)
-                payload = json.loads(body)
-                if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
-                    raise ValueError("Invalid research response")
-                return payload
+            ) as response,
+        ):
+            response.raise_for_status()
+            if (
+                response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+                != "application/json"
+                or response.headers.get("content-encoding", "identity").lower() != "identity"
+            ):
+                raise ValueError("Unexpected research response format")
+            body = bytearray()
+            async for chunk in response.aiter_raw(chunk_size=16_384):
+                if len(body) + len(chunk) > settings.research_max_response_bytes:
+                    raise ValueError("Research response exceeds its byte budget")
+                body.extend(chunk)
+            payload = json.loads(body)
+            if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):
+                raise ValueError("Invalid research response")
+            return payload
 
 
 def _text(value: object, limit: int) -> str:
