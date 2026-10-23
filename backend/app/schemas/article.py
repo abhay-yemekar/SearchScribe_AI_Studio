@@ -56,6 +56,13 @@ class RestoreVersionRequest(BaseModel):
     base_version: int = Field(ge=1)
 
 
+# Generous for any real draft; they bound what one saved version can hold.
+MAX_BLOCK_CHARS = 5_000
+MAX_PARAGRAPHS = 30
+MAX_BULLETS = 50
+MAX_BULLET_CHARS = 1_000
+
+
 class SaveArticleRequest(BaseModel):
     base_version: int = Field(ge=1)
     content: GeneratedArticle
@@ -63,7 +70,21 @@ class SaveArticleRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_content_size(self) -> SaveArticleRequest:
-        if len(self.content.to_markdown()) > settings.max_rewrite_input_length:
+        # Checked here rather than on GeneratedArticle: that schema is also sent to
+        # the AI providers, and Gemini rejects it (400) with bounds this large.
+        content = self.content
+        if max(len(content.introduction), len(content.conclusion)) > MAX_BLOCK_CHARS:
+            raise ValueError("introduction and conclusion are limited to 5,000 characters")
+        for section in content.sections:
+            if len(section.paragraphs) > MAX_PARAGRAPHS or any(
+                len(paragraph) > MAX_BLOCK_CHARS for paragraph in section.paragraphs
+            ):
+                raise ValueError("a section allows 30 paragraphs of up to 5,000 characters")
+            if len(section.bullets) > MAX_BULLETS or any(
+                len(bullet) > MAX_BULLET_CHARS for bullet in section.bullets
+            ):
+                raise ValueError("a section allows 50 bullets of up to 1,000 characters")
+        if len(content.to_markdown()) > settings.max_rewrite_input_length:
             raise ValueError("article content is too long")
         return self
 

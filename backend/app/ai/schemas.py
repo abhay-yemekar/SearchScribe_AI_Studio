@@ -6,7 +6,7 @@ import ipaddress
 import re
 from datetime import date, datetime
 from email.utils import parsedate_to_datetime
-from typing import Annotated, Literal
+from typing import Literal
 from urllib.parse import quote, urlsplit
 from uuid import uuid4
 
@@ -78,16 +78,11 @@ class ResearchSummary(BaseModel):
     sources: list[ResearchSource] = Field(default_factory=list, max_length=6)
 
 
-# Generous for any real draft; they bound what one saved body can hold.
-Paragraph = Annotated[str, Field(max_length=5_000)]
-Bullet = Annotated[str, Field(max_length=1_000)]
-
-
 class ArticleSection(BaseModel):
     id: str = Field(default_factory=lambda: uuid4().hex, min_length=8, max_length=64)
     heading: str = Field(min_length=1, max_length=300)
-    paragraphs: list[Paragraph] = Field(default_factory=list, max_length=30)
-    bullets: list[Bullet] = Field(default_factory=list, max_length=50)
+    paragraphs: list[str] = Field(default_factory=list)
+    bullets: list[str] = Field(default_factory=list)
 
     @field_validator("heading")
     @classmethod
@@ -103,12 +98,17 @@ class GeneratedArticle(BaseModel):
 
     Markdown and HTML are derived deterministically from this structure —
     the LLM never produces raw HTML.
+
+    This schema is sent to Gemini and Groq as the response format. Don't add
+    length or count bounds for request limits here: Gemini compiles the schema
+    into a decoder with a state budget and answered 400 to every generation when
+    paragraphs carried max_length=5000. Put save limits on SaveArticleRequest.
     """
 
     title: str = Field(min_length=1, max_length=200)
-    introduction: str = Field(min_length=1, max_length=5_000)
+    introduction: str = Field(min_length=1)
     sections: list[ArticleSection] = Field(min_length=1, max_length=12)
-    conclusion: str = Field(min_length=1, max_length=5_000)
+    conclusion: str = Field(min_length=1)
     research: ResearchSummary = Field(default_factory=ResearchSummary)
 
     @field_validator("title")
