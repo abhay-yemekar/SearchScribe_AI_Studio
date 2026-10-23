@@ -16,6 +16,7 @@ from ..core.security import (
     generate_refresh_token,
     hash_password,
     hash_refresh_token,
+    password_needs_rehash,
     verify_password,
 )
 from ..db.base import utc_now
@@ -26,6 +27,7 @@ from .security_buckets import clear_bucket, delete_expired_buckets, take_bucket
 logger = logging.getLogger(__name__)
 
 LOGIN_ATTEMPT_SCOPE = "login_attempt:email"
+SIGNUP_SCOPE = "signup:ip"
 LOGIN_THROTTLED_MESSAGE = (
     "Too many sign-in attempts for this email. Wait a few minutes or reset your password."
 )
@@ -48,6 +50,27 @@ class AuthService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.users = UserRepository(db)
+
+    def limit_signups(self, client_ip: str) -> None:
+        """Spend this network's daily new-account budget, before any hashing.
+
+        Attempts count, not only successes, and the use is committed at once.
+        """
+        now = utc_now()
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(days=1)
+        delete_expired_buckets(self.db, now)
+        allowed = take_bucket(
+            self.db, SIGNUP_SCOPE, client_ip, start, end, settings.signups_per_ip_per_day
+        )
+        self.db.commit()
+        if not allowed:
+            logger.warning("auth.signup.throttled")
+            raise RateLimitError(
+                "Too many new accounts from this network today. "
+                "Try again tomorrow, or continue with Google.",
+                details={"retry_after_seconds": int((end - now).total_seconds()) + 1},
+            )
 
     def signup(self, *, email: str, name: str, password: str) -> User:
         normalized = email.strip().lower()
@@ -89,6 +112,11 @@ class AuthService:
             raise AuthenticationError("Invalid email or password.")
         if not user.is_active:
             raise AuthenticationError("This account is disabled.")
+        if password_needs_rehash(user.password_hash):
+            # Flushed now: issue_session re-reads the row under a lock, and
+            # commits it with the new session.
+            user.password_hash = hash_password(password)
+            self.db.flush()
         logger.info("auth.login.success", extra={"user_id": user.id})
         return user
 

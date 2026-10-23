@@ -157,6 +157,7 @@ def signup(
     background_tasks: BackgroundTasks, db: Session = Depends(get_db),
 ) -> TokenOut:
     service = AuthService(db)
+    service.limit_signups(client_ip(request))
     user = service.signup(email=payload.email, name=payload.name, password=payload.password)
     tokens = service.issue_session(user)
     _set_refresh_cookie(response, tokens.refresh_token)

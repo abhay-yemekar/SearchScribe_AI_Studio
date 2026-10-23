@@ -11,7 +11,11 @@ from .api.v1.router import api_v1_router
 from .core.config import settings
 from .core.exceptions import register_exception_handlers
 from .core.logging import setup_logging
-from .core.middleware import RequestContextMiddleware, SecurityHeadersMiddleware
+from .core.middleware import (
+    BodySizeLimitMiddleware,
+    RequestContextMiddleware,
+    SecurityHeadersMiddleware,
+)
 from .core.observability import init_sentry
 
 logger = logging.getLogger(__name__)
@@ -29,6 +33,8 @@ def create_app() -> FastAPI:
     )
 
     # Order matters: outermost middleware runs first on the way in.
+    # Innermost: a 413 still gets its request ID and security headers.
+    app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(

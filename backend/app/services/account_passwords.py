@@ -154,9 +154,16 @@ class AccountPasswordService:
     ) -> SecurityEmail | None:
         user_id, version = current.id, current.session_version
         self.recovery.limit_password_request(current, client_ip)
+        # Check the current password before hashing the new one, so wrong guesses
+        # never cost a hash. The lock below re-checks that it hasn't changed since.
+        verified_hash = current.password_hash
+        if not verified_hash or not verify_password(current_password, verified_hash):
+            raise AuthenticationError(
+                "Your current password could not be verified.", code="PASSWORD_CURRENT_INVALID"
+            )
         password_hash = hash_password(password)
         user = self._lock_current(user_id, version)
-        if not user.password_hash or not verify_password(current_password, user.password_hash):
+        if user.password_hash != verified_hash:
             self.db.rollback()
             raise AuthenticationError(
                 "Your current password could not be verified.", code="PASSWORD_CURRENT_INVALID"

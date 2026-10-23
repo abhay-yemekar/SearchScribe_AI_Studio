@@ -7,12 +7,14 @@ import time
 import uuid
 
 from starlette.datastructures import MutableHeaders
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from .exceptions import error_response
+from .config import settings
+from .exceptions import PayloadTooLargeError, error_response
 from .logging import request_id_var
 from .observability import report_exception, tag_request
 
@@ -77,6 +79,43 @@ class RequestContextMiddleware:
                 },
             )
             request_id_var.reset(token)
+
+
+class BodySizeLimitMiddleware:
+    """Refuse request bodies over MAX_REQUEST_BODY_BYTES before anything parses them.
+
+    A declared Content-Length over the limit is answered at once. A body without
+    one (chunked) is counted as it arrives; the 413 raised there passes through
+    FastAPI's body reader unchanged and becomes the usual error envelope.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        limit = settings.max_request_body_bytes
+        declared = dict(scope["headers"]).get(b"content-length", b"")
+        if declared.isdigit() and int(declared) > limit:
+            response = error_response(
+                413, PayloadTooLargeError.code, PayloadTooLargeError.message
+            )
+            await response(scope, receive, send)
+            return
+        received = 0
+
+        async def counted_receive() -> Message:
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    raise StarletteHTTPException(413, PayloadTooLargeError.message)
+            return message
+
+        await self.app(scope, counted_receive, send)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

@@ -68,7 +68,8 @@ class Settings(BaseSettings):
     email_verification_expire_hours: int = Field(default=24, ge=1, le=48)
     security_email_requests_per_hour: int = Field(default=3, ge=1, le=10)
     security_ip_requests_per_hour: int = Field(default=20, ge=1, le=100)
-    mail_daily_limit: int = Field(default=250, ge=1, le=299)
+    # Resend's free tier allows 100 messages a day; stay under it by default.
+    mail_daily_limit: int = Field(default=90, ge=1, le=299)
     mail_recovery_reserve: int = Field(default=50, ge=0, le=298)
 
     # --- CORS ---
@@ -125,6 +126,8 @@ class Settings(BaseSettings):
     max_query_length: int = 500
     max_rewrite_input_length: int = 20000
     max_article_title_length: int = 200
+    # Requests with a larger body get 413 before anything parses them.
+    max_request_body_bytes: int = Field(default=262_144, ge=16_384, le=5_000_000)
 
     # --- Rate limits (requests per minute) ---
     rate_limit_auth_per_minute: int = 10
@@ -135,6 +138,13 @@ class Settings(BaseSettings):
     # Persistent: password attempts per email address per window, success resets it.
     login_attempts_per_email: int = Field(default=10, ge=1, le=1000)
     login_attempt_window_minutes: int = Field(default=15, ge=1, le=1440)
+    # Persistent: new password accounts per client IP per UTC day.
+    signups_per_ip_per_day: int = Field(default=10, ge=1, le=10000)
+    # Article saves, renames, duplicates and restores, per account.
+    rate_limit_saves_per_minute: int = Field(default=30, ge=1, le=1000)
+    # Generate and rewrite need a verified email (or a Google sign-in). Unset means
+    # required in production only, so local and test stacks work without mail.
+    ai_requires_verified_email: bool | None = None
     generation_daily_user_limit: int = Field(default=3, ge=1, le=10000)
     generation_daily_global_limit: int = Field(default=20, ge=1, le=100000)
 
@@ -256,6 +266,12 @@ class Settings(BaseSettings):
                 "PUBLIC_SITE_URL must be an HTTPS site origin (HTTP localhost is local only)"
             )
         return value.strip().rstrip("/")
+
+    @model_validator(mode="after")
+    def _default_verified_email_gate(self) -> Settings:
+        if self.ai_requires_verified_email is None:
+            self.ai_requires_verified_email = self.app_env == "production"
+        return self
 
     @model_validator(mode="after")
     def _validate_mail(self) -> Settings:

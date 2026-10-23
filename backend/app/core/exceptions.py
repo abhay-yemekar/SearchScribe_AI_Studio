@@ -147,7 +147,8 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def handle_http_error(
         request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
-        return error_response(exc.status_code, "HTTP_ERROR", str(exc.detail))
+        code = PayloadTooLargeError.code if exc.status_code == 413 else "HTTP_ERROR"
+        return error_response(exc.status_code, code, str(exc.detail))
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -33,7 +33,7 @@ class UpdateArticleRequest(BaseModel):
 class SeoInput(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(min_length=1, max_length=400)
-    keywords: list[str] = Field(min_length=1, max_length=15)
+    keywords: list[Annotated[str, Field(max_length=80)]] = Field(min_length=1, max_length=15)
     og_title: str | None = Field(default=None, max_length=200)
     og_description: str | None = Field(default=None, max_length=400)
     canonical_url: str | None = Field(default=None, max_length=500)

@@ -27,7 +27,7 @@ from ...services.article_service import ArticleService
 from ...services.generation_service import GenerationService
 from ...services.operation_service import OperationService
 from ...services.photo_service import search_photos
-from ..deps import get_current_user, user_rate_limit
+from ..deps import get_current_user, require_verified_email, user_rate_limit
 
 router = APIRouter(prefix="/articles", tags=["articles"])
 
@@ -37,7 +37,10 @@ router = APIRouter(prefix="/articles", tags=["articles"])
     response_model=ArticleDetailOut,
     status_code=status.HTTP_201_CREATED,
     summary="Generate a new article (article + SEO + HTML) from a query",
-    dependencies=[user_rate_limit("generation", settings.rate_limit_generation_per_minute)],
+    dependencies=[
+        Depends(require_verified_email),
+        user_rate_limit("generation", settings.rate_limit_generation_per_minute),
+    ],
 )
 def generate_article(
     payload: GenerateArticleRequest,
@@ -98,6 +101,7 @@ def get_article(
     "/{article_id}",
     response_model=ArticleDetailOut,
     summary="Rename an article",
+    dependencies=[user_rate_limit("save", lambda: settings.rate_limit_saves_per_minute)],
 )
 def rename_article(
     article_id: int,
@@ -112,6 +116,7 @@ def rename_article(
     "/{article_id}/content",
     response_model=ArticleDetailOut,
     summary="Save article content and SEO as a new immutable version",
+    dependencies=[user_rate_limit("save", lambda: settings.rate_limit_saves_per_minute)],
 )
 def save_article(
     article_id: int,
@@ -169,6 +174,7 @@ def delete_article(
     response_model=ArticleDetailOut,
     status_code=status.HTTP_201_CREATED,
     summary="Duplicate an article",
+    dependencies=[user_rate_limit("save", lambda: settings.rate_limit_saves_per_minute)],
 )
 def duplicate_article(
     article_id: int,
@@ -182,7 +188,10 @@ def duplicate_article(
     "/{article_id}/rewrite",
     response_model=ArticleDetailOut,
     summary="Rewrite the current article version in a given style",
-    dependencies=[user_rate_limit("generation", settings.rate_limit_generation_per_minute)],
+    dependencies=[
+        Depends(require_verified_email),
+        user_rate_limit("generation", settings.rate_limit_generation_per_minute),
+    ],
 )
 def rewrite_article(
     article_id: int,
@@ -245,6 +254,7 @@ def get_version(
     "/{article_id}/versions/{version}/restore",
     response_model=ArticleDetailOut,
     summary="Restore an older version as the newest version",
+    dependencies=[user_rate_limit("save", lambda: settings.rate_limit_saves_per_minute)],
 )
 def restore_version(
     article_id: int,
