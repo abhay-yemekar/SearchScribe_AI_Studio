@@ -65,12 +65,13 @@ async def _complete(payload: dict[str, object], api_key: str) -> dict[str, objec
     timeout_seconds = effective_timeout_seconds()
     try:
         async with asyncio.timeout(timeout_seconds):
-            async with httpx.AsyncClient(
-                timeout=timeout_seconds,
-                follow_redirects=False,
-                trust_env=False,
-            ) as client:
-                async with client.stream(
+            async with (
+                httpx.AsyncClient(
+                    timeout=timeout_seconds,
+                    follow_redirects=False,
+                    trust_env=False,
+                ) as client,
+                client.stream(
                     "POST",
                     GROQ_COMPLETIONS_URL,
                     headers={
@@ -79,45 +80,46 @@ async def _complete(payload: dict[str, object], api_key: str) -> dict[str, objec
                         "Accept-Encoding": "identity",
                     },
                     json=payload,
-                ) as response:
-                    status = response.status_code
-                    if status == 429:
-                        # Quota errors can contain account IDs and request text.
-                        # Read only a small uncompressed body, then discard it.
-                        details = None
-                        if response.headers.get("content-encoding", "").lower() in {"", "identity"}:
-                            limited = bytearray()
-                            async for chunk in response.aiter_bytes(chunk_size=1024):
-                                if len(limited) + len(chunk) > 8192:
-                                    limited.clear()
-                                    break
-                                limited.extend(chunk)
-                            with suppress(ValueError, UnicodeDecodeError):
-                                details = json.loads(limited)
-                        raise groq_rate_limit(details, response.headers.get("retry-after"))
-                    if status == 408 or status >= 500:
-                        raise TransientLLMError(f"groq request failed ({status})")
-                    if status != 200:
-                        raise PermanentLLMError(f"groq request rejected ({status})")
-                    if response.headers.get("content-encoding", "").lower() not in {
-                        "", "identity",
-                    }:
-                        raise SchemaValidationError("groq response encoding is unsupported")
-                    raw_length = response.headers.get("content-length")
-                    if raw_length is not None:
-                        try:
-                            oversized = int(raw_length) > settings.groq_max_response_bytes
-                        except ValueError:
-                            raise SchemaValidationError(
-                                "groq response envelope is invalid"
-                            ) from None
-                        if oversized:
-                            raise SchemaValidationError("groq response exceeded the size limit")
-                    chunks = bytearray()
-                    async for chunk in response.aiter_bytes(chunk_size=4096):
-                        if len(chunks) + len(chunk) > settings.groq_max_response_bytes:
-                            raise SchemaValidationError("groq response exceeded the size limit")
-                        chunks.extend(chunk)
+                ) as response,
+            ):
+                status = response.status_code
+                if status == 429:
+                    # Quota errors can contain account IDs and request text.
+                    # Read only a small uncompressed body, then discard it.
+                    details = None
+                    if response.headers.get("content-encoding", "").lower() in {"", "identity"}:
+                        limited = bytearray()
+                        async for chunk in response.aiter_bytes(chunk_size=1024):
+                            if len(limited) + len(chunk) > 8192:
+                                limited.clear()
+                                break
+                            limited.extend(chunk)
+                        with suppress(ValueError, UnicodeDecodeError):
+                            details = json.loads(limited)
+                    raise groq_rate_limit(details, response.headers.get("retry-after"))
+                if status == 408 or status >= 500:
+                    raise TransientLLMError(f"groq request failed ({status})")
+                if status != 200:
+                    raise PermanentLLMError(f"groq request rejected ({status})")
+                if response.headers.get("content-encoding", "").lower() not in {
+                    "", "identity",
+                }:
+                    raise SchemaValidationError("groq response encoding is unsupported")
+                raw_length = response.headers.get("content-length")
+                if raw_length is not None:
+                    try:
+                        oversized = int(raw_length) > settings.groq_max_response_bytes
+                    except ValueError:
+                        raise SchemaValidationError(
+                            "groq response envelope is invalid"
+                        ) from None
+                    if oversized:
+                        raise SchemaValidationError("groq response exceeded the size limit")
+                chunks = bytearray()
+                async for chunk in response.aiter_bytes(chunk_size=4096):
+                    if len(chunks) + len(chunk) > settings.groq_max_response_bytes:
+                        raise SchemaValidationError("groq response exceeded the size limit")
+                    chunks.extend(chunk)
     except (httpx.TimeoutException, TimeoutError):
         raise TransientLLMError("groq request timed out") from None
     except httpx.HTTPError:
