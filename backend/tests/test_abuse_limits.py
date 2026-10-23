@@ -356,3 +356,20 @@ def test_signing_in_upgrades_an_old_expensive_hash(client: TestClient, db_sessio
 
 def test_the_daily_mail_budget_defaults_below_the_free_tier() -> None:
     assert Settings.model_fields["mail_daily_limit"].default == 90
+
+
+def test_the_ai_article_schema_carries_no_new_length_bounds() -> None:
+    """Gemini compiles the response schema into a decoder with a state budget;
+    5,000-character string bounds pushed the article schema over it and every
+    generation got a 400. Save limits live on SaveArticleRequest instead."""
+    from app.ai.groq import _request_schema
+    from app.ai.schemas import GeneratedArticle
+
+    for wire in (GeneratedArticle.model_json_schema(), _request_schema(GeneratedArticle)):
+        article = wire["properties"]
+        section = wire["$defs"]["ArticleSection"]["properties"]
+        assert "maxLength" not in article["introduction"]
+        assert "maxLength" not in article["conclusion"]
+        for field in ("paragraphs", "bullets"):
+            assert "maxItems" not in section[field]
+            assert "maxLength" not in section[field]["items"]
