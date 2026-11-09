@@ -89,6 +89,13 @@ export default function ResetPasswordForm() {
             { shouldFocus: true },
           );
         }
+      } else if (isApiError(failure) && failure.code === "PASSWORD_REUSED") {
+        // The link is still valid: keep it and let the user pick another password.
+        form.setError(
+          "password",
+          { message: "Your new password must be different from your current password." },
+          { shouldFocus: true },
+        );
       } else if (isApiError(failure) && failure.status === 422) {
         setError(
           "The new password was not accepted. Check the password requirements and try again.",

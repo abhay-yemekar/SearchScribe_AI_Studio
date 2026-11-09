@@ -33,6 +33,8 @@ function passwordError(error: unknown, adding: boolean) {
   if (isApiError(error)) {
     if (error.code === "PASSWORD_CURRENT_INVALID")
       return "Your current password was not accepted. Check it and try again.";
+    if (error.code === "PASSWORD_REUSED")
+      return "Your new password must be different from your current password.";
     if (error.code === "PASSWORD_GOOGLE_VERIFICATION_FAILED")
       return "Google verification failed. Select the Google account already linked to SearchScribe and try again.";
     if (error.status === 429)

@@ -13,8 +13,8 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
-from ..core.exceptions import BadRequestError, RateLimitError
-from ..core.security import hash_password
+from ..core.exceptions import BadRequestError, PasswordReusedError, RateLimitError
+from ..core.security import hash_password, verify_password
 from ..db.base import utc_now
 from ..db.models import RefreshToken, SecurityToken, User
 from ..repositories.user_repo import UserRepository
@@ -205,6 +205,10 @@ class AccountRecoveryService:
         # Validate (and claim) the link first, so a bad token never costs a hash.
         # A failure after this rolls the claim back with the rest of the change.
         candidate, user = self._token_user(token, "password_reset")
+        if user.password_hash and verify_password(password, user.password_hash):
+            # Undo the claim too, so the same link works with a different password.
+            self.db.rollback()
+            raise PasswordReusedError()
         password_hash = hash_password(password)
         changed = self.db.scalar(
             update(User)

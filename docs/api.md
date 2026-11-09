@@ -34,7 +34,10 @@ Common codes: `VALIDATION_ERROR` (422), `AUTHENTICATION_REQUIRED` (401), `EMAIL_
 Password mutations return `{message}`, clear session cookies, and invalidate all
 access/refresh sessions and outstanding security tokens. Sign in again afterward.
 The account, saved articles, and Google connection remain intact. New passwords
-must contain a letter and digit and be 8–128 characters. These operations do not
+must contain a letter and digit and be 8–128 characters, and must differ from
+the current password: `/auth/password/change` and `/auth/password/reset` return
+`422 PASSWORD_REUSED` otherwise. A reset rejected this way leaves its link unused,
+so the same link works with a different password. These operations do not
 return a password or automatically issue a new session.
 
 `TokenOut`: `{access_token, token_type: "bearer", expires_in, user: {id, email, name, created_at}}`

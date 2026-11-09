@@ -152,6 +152,23 @@ it("keeps the current session and allows correction after a wrong current passwo
   expect(onComplete).toHaveBeenCalledOnce();
 });
 
+it("explains a reused password and keeps the session", async () => {
+  vi.mocked(changePassword).mockRejectedValueOnce(
+    new ApiError(422, {
+      error: { code: "PASSWORD_REUSED", message: "Reused", request_id: "test" },
+    }),
+  );
+  const { interaction, onComplete } = mount();
+  await interaction.type(screen.getByLabelText("Current password"), "CorrectPassword123");
+  await fillNew(interaction);
+  await interaction.click(screen.getByRole("button", { name: "Change password" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "different from your current password",
+  );
+  expect(getSnapshot()).toBe("existing-session");
+  expect(onComplete).not.toHaveBeenCalled();
+});
+
 it("blocks duplicate mutations and clears secrets even if a successful request finishes after unmount", async () => {
   let resolve!: () => void;
   vi.mocked(changePassword).mockImplementationOnce(
