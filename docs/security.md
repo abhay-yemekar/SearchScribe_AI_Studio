@@ -2,7 +2,7 @@
 
 ## Authentication
 
-**Passwords** — Argon2id (`argon2-cffi`) at OWASP's minimum parameters (19 MiB, t=2, p=1) with per-hash random salts, so a 512 MB instance can't be run out of memory by parallel hashing. At most two hashes or verifications run at once; others wait up to 10 s, then get `503 SERVER_BUSY`. Changing or resetting a password checks the current password or reset link before hashing the new one. Hashes made with the old 64 MiB defaults still verify and are upgraded at the next sign-in. Password policy: 8–128 chars, at least one letter and one digit. The original unsalted SHA-256 hashing is gone.
+**Passwords** — Argon2id (`argon2-cffi`) at OWASP's minimum parameters (19 MiB, t=2, p=1) with per-hash random salts, so a 512 MB instance can't be run out of memory by parallel hashing. At most two hashes or verifications run at once; others wait up to 10 s, then get `503 SERVER_BUSY`. Changing or resetting a password checks the current password or reset link before hashing the new one, and rejects a new password equal to the current one (`422 PASSWORD_REUSED`); a reset rejected that way leaves its link unused. Hashes made with the old 64 MiB defaults still verify and are upgraded at the next sign-in. Password policy: 8–128 chars, at least one letter and one digit. The original unsalted SHA-256 hashing is gone.
 
 **Session model**
 

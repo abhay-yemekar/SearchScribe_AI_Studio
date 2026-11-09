@@ -87,6 +87,13 @@ class PayloadTooLargeError(AppError):
     message = "Request payload is too large."
 
 
+class PasswordReusedError(AppError):
+    # 422, not 400: the reset form treats a 400 as a dead link and drops it.
+    status_code = 422
+    code = "PASSWORD_REUSED"
+    message = "Choose a new password that is different from your current one."
+
+
 class ServiceUnavailableError(AppError):
     status_code = 503
     code = "SERVICE_UNAVAILABLE"

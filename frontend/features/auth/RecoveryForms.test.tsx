@@ -188,6 +188,29 @@ describe("reset password", () => {
     expect(resetPassword).toHaveBeenNthCalledWith(2, resetToken, "NewPassword123");
   });
 
+  it("keeps the link after a reused password so a different one can be tried", async () => {
+    vi.mocked(resetPassword).mockRejectedValueOnce(
+      new ApiError(422, {
+        error: { code: "PASSWORD_REUSED", message: "Reused", request_id: "test" },
+      }),
+    );
+    window.history.replaceState({}, "", `/reset-password#token=${resetToken}`);
+    render(<ResetPasswordForm />);
+    const user = await passwords();
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+    expect(await screen.findByText(/different from your current password/)).toBeVisible();
+    const newPassword = screen.getByLabelText("New password", { exact: true });
+    expect(newPassword).toHaveFocus();
+    await user.clear(newPassword);
+    await user.clear(screen.getByLabelText("Repeat new password"));
+    await passwords("AnotherPassword456");
+    await user.click(screen.getByRole("button", { name: "Reset password" }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "password has been reset",
+    );
+    expect(resetPassword).toHaveBeenNthCalledWith(2, resetToken, "AnotherPassword456");
+  });
+
   it("shows a terminal expired-link state instead of reopening code entry", async () => {
     vi.mocked(resetPassword).mockRejectedValueOnce(apiError(400));
     window.history.replaceState({}, "", `/reset-password#token=${resetToken}`);

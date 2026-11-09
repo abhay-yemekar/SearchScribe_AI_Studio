@@ -10,7 +10,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
-from ..core.exceptions import AuthenticationError, ConflictError
+from ..core.exceptions import AuthenticationError, ConflictError, PasswordReusedError
 from ..core.security import hash_password, verify_password
 from ..db.base import utc_now
 from ..db.models import ProviderIdentity, RefreshToken, SecurityToken, User
@@ -161,6 +161,9 @@ class AccountPasswordService:
             raise AuthenticationError(
                 "Your current password could not be verified.", code="PASSWORD_CURRENT_INVALID"
             )
+        # current_password was just verified, so a plain comparison is enough.
+        if password == current_password:
+            raise PasswordReusedError()
         password_hash = hash_password(password)
         user = self._lock_current(user_id, version)
         if user.password_hash != verified_hash:
