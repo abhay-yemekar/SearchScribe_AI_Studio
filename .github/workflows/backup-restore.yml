@@ -73,7 +73,7 @@ jobs:
           git worktree add --detach "$RUNNER_TEMP/searchscribe-rollback" "$REHEARSAL_BASE_REF"
           REHEARSAL_ROLLBACK_SHA="$REHEARSAL_BASE_REF" python backend/scripts/backup_rehearsal.py rollback --app-root "$RUNNER_TEMP/searchscribe-rollback/backend" --evidence "$RUNNER_TEMP/rehearsal.json"
       - name: Publish synthetic acceptance evidence only
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: synthetic-backup-restore-acceptance
           path: ${{ runner.temp }}/rehearsal.json
